@@ -3,7 +3,14 @@
 use 5.024;
 use strict;
 use warnings;
+use utf8;
 
-use Getopt::Long;
+use Markdown::Perl;
 
-GetOptions
+my $input;
+{
+  local $/ = undef;
+  $input = <>;
+}
+
+print Markdown::Perl::convert($input);
