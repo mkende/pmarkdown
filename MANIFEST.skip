@@ -13,8 +13,10 @@
 ^cpanfile.snapshot$
 ^dist_setup.conf$
 ^local/
+^third_party/
 ^pm_to_blib$
 ^Markdown-Perl\.tar\.gz
 ^Markdown-Perl/
 # End of the template. You can add custom content below this line.
 
+^TODO$
