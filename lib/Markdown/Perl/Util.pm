@@ -9,7 +9,7 @@ use Exporter 'import';
 use List::MoreUtils 'first_index';
 
 our @EXPORT = ();
-our @EXPORT_OK = qw(split_while remove_prefix_space);
+our @EXPORT_OK = qw(split_while remove_prefix_tab);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 # Partition a list into a continuous chunk for which the given code evaluates to
@@ -22,12 +22,13 @@ sub split_while :prototype(&@) {
   return (\@pass,  \@_);
 }
 
-# Remove the equivalent of n spaces at the beginning of the line. Tabs are
-# matched to a tab-stop of size 4. `n` is expected to be a multiple of 4.
-sub remove_prefix_space {
+# Remove the equivalent of n*4 spaces at the beginning of the line. Tabs are
+# matched to a tab-stop of size 4.
+# Dies if the line does not start with that much tabs (and it’s not a blank
+# line).
+sub remove_prefix_tab {
   my ($n, $text) = @_;
-  my $t = int($n / 4);
-  return substr $text, length($1) if $text =~ m/^((?: {0,3}\t| {4}){$t})/;
+  return substr $text, length($1) if $text =~ m/^((?: {0,3}\t| {4}){$n})/;
   return $1 if $text =~ m/^[ \t]*([\r\n]*)$/;  # TODO: check exactly for the allowed end of line.
-  die "Can't remove ${n} spaces at the beginning of line: '${text}'\n";
+  die ("Can't remove ${n} tab".($n > 1 ? 's' : '')." from the beginning of line: '${text}'\n");
 }

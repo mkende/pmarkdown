@@ -7,7 +7,7 @@ on 'configure' => sub {
 };
 # End of the template. You can add custom content below this line.
 
-requires List::MoreUtils;
+requires 'List::MoreUtils';
 
 on 'test' => sub {
   requires 'Test2::V0';
