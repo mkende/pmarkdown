@@ -13,7 +13,7 @@ my $spec_dir = "${FindBin::Bin}/../third_party/commonmark-spec";
 skip_all('Commonmark-spec must be checked out.') unless -d $spec_dir;
 chdir $spec_dir;
 
-my $test_suite_output = system "python3 test/spec_tests.py --track ../../commonmark.tests --program '$^X -I../../blib/lib ../../blib/script/pmarkdown'";
+my $test_suite_output = system "python3 test/spec_tests.py --track ../../commonmark.tests --program '$^X -I../../lib ../../script/pmarkdown'";
 is($test_suite_output, 0, 'Commonmark-spec test suite');
 
 done_testing;
