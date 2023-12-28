@@ -5,8 +5,8 @@ use warnings;
 use utf8;
 use feature ':5.24';
 
-use List::MoreUtils 'first_index';
 use List::Util 'pairs';
+use Markdown::Perl::Util 'remove_prefix_space';
 use Scalar::Util 'blessed';
 
 our $VERSION = '0.01';
@@ -14,26 +14,6 @@ our $VERSION = '0.01';
 sub new {
   my ($class, %options) = @_;
   return bless { %options }, $class;
-}
-
-# Partition a list into a continuous chunk for which the given code evaluates to
-# true, and the rest of the list. Returns a list of two array-ref.
-sub _split_while :prototype(&@) {
-  my $test = shift;
-  my $i = first_index { ! $test->($_) } @_;
-  my @pass = splice @_, 0, $i;
-  # TODO: test if it’s safe to return (\@pass, \@_) or if some aliasing would occur.
-  return ([@pass],  [@_]);
-}
-
-# Remove the equivalent of n spaces at the beginning of the line. Tabs are
-# matched to a tab-stop of size 4. `n` is expected to be a multiple of 4.
-sub _remove_prefix_space {
-  my ($n, $text) = @_;
-  my $t = int($n / 4);
-  return substr $text, length($1) if $text =~ m/^((?: {0,3}\t| {4}){$t})/;
-  return '' if $text =~ m/^[ \t]*[\r\n]*$/;  # TODO: check exactly for the allowed end of line.
-  die "Can't remove ${n} spaces at the beginning of line: '${text}'\n";
 }
 
 # Takes a string and converts it to HTML. Can be called as a free function or as
@@ -75,7 +55,7 @@ sub convert {
   # TODO: probably nothing is needed here.
 
 
-  # TODO: implement this with a has_tabs_stop(n) method shared with _remove_prefix_space.
+  # TODO: implement this with a has_tabs_stop(n) method shared with remove_prefix_space.
   sub is_indented_code_block {
     return $_[0] =~ /^(?:(?: {0,3}\t)| {4})/;
   }
@@ -95,9 +75,20 @@ sub convert {
       return parse_blocks([@{$blocks}, { type => "heading", level => length($1), content => $2 // '' }], @tl);
     } elsif (is_indented_code_block($l)) {
       # https://spec.commonmark.org/0.30/#indented-code-blocks
-      my ($code_lines, $rest) = _split_while { is_indented_code_block($_[0]) || $_[0] eq '' } @tl;
-      my $code = join('', map { _remove_prefix_space(4, $_->[0].$_->[1]) } ($hd, @{$code_lines}));
-      return parse_blocks([@{$blocks}, { type => "code", content => $code }], @{$rest});
+      my $last = -1;
+      for my $i (0..$#tl) {
+        if (is_indented_code_block($tl[$i]->[0])) {
+          $last = $i;
+        } elsif ($tl[$i]->[0] ne '') {
+          last;
+        }
+      }
+      my @code_lines = splice @tl, 0, ($last + 1);
+      my $code = join('', map { remove_prefix_space(4, $_->[0].$_->[1]) } ($hd, @code_lines));
+      return parse_blocks([@{$blocks}, { type => "code", content => $code }], @tl);
+    } elsif ($l eq  '') {
+      # TODO: is it correct?
+      return parse_blocks($blocks, @tl);
     } else {
       ...
     }
