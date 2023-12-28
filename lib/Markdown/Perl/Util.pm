@@ -24,6 +24,7 @@ sub split_while :prototype(&@) {
 
 # Remove the equivalent of n*4 spaces at the beginning of the line. Tabs are
 # matched to a tab-stop of size 4.
+# For blank lines with less than n*4 spaces, returns just the eol characters.
 # Dies if the line does not start with that much tabs (and it’s not a blank
 # line).
 sub remove_prefix_tab {
@@ -32,3 +33,5 @@ sub remove_prefix_tab {
   return $1 if $text =~ m/^[ \t]*([\r\n]*)$/;  # TODO: check exactly for the allowed end of line.
   die ("Can't remove ${n} tab".($n > 1 ? 's' : '')." from the beginning of line: '${text}'\n");
 }
+
+1;

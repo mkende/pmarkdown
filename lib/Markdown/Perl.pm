@@ -16,20 +16,26 @@ sub new {
   return bless { %options }, $class;
 }
 
+# Returns @_, unless the first argument is not blessed as a Markdown::Perl
+# object, in which case it returns a default object for now, an empty hash-ref.
+sub _get_this_and_args {
+  my $this = shift @_;
+  # We could use `$this isa Markdown::Perl` that does not require to test
+  # blessedness first. However this requires 5.31.6 which is not in Debian
+  # stable as of writing this.
+  unless (blessed($this) && $this->isa(__PACKAGE__)) {
+    unshift @_, $this;
+    $this = {};
+  }
+  return ($this, @_);
+}
+
 # Takes a string and converts it to HTML. Can be called as a free function or as
 # class method. In the latter case, provided options override those set in the
 # class constructor.
 # Both the input and output are unicode strings.
 sub convert {
-  my $this = shift @_;
-  # We could use `$this isa Markdown::Perl` that does not require to test
-  # blessedness first. However this requires 5.31.6 which is not in Debian
-  # stable as of writing this.
-  unless (blessed($this) && $this->isa("Markdown::Perl")) {
-    unshift @_, $this;
-    $this = {};
-  }
-  my ($md, %options) = @_;
+  my ($this, $md, %options) = &_get_this_and_args;
   %options = (%{$this}, %options);
   
   # https://spec.commonmark.org/0.30/#characters-and-lines
@@ -118,3 +124,5 @@ sub convert {
   }
   return emit_html(@{$blocks});
 }
+
+1;
