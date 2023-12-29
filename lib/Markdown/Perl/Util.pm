@@ -9,7 +9,7 @@ use Exporter 'import';
 use List::MoreUtils 'first_index';
 
 our @EXPORT = ();
-our @EXPORT_OK = qw(split_while remove_prefix_tab);
+our @EXPORT_OK = qw(split_while remove_prefix_spaces);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 # Partition a list into a continuous chunk for which the given code evaluates to
@@ -22,16 +22,36 @@ sub split_while :prototype(&@) {
   return (\@pass,  \@_);
 }
 
-# Remove the equivalent of n*4 spaces at the beginning of the line. Tabs are
+# Removes the equivalent of n spaces at the beginning of the line. Tabs are
 # matched to a tab-stop of size 4.
-# For blank lines with less than n*4 spaces, returns just the eol characters.
-# Dies if the line does not start with that much tabs (and it’s not a blank
-# line).
-sub remove_prefix_tab {
+# Removes all the spaces if there is less than that.
+# If needed, tabs are converted into 4 spaces.
+sub remove_prefix_spaces {
   my ($n, $text) = @_;
-  return substr $text, length($1) if $text =~ m/^((?: {0,3}\t| {4}){$n})/;
-  return $1 if $text =~ m/^[ \t]*([\r\n]*)$/;  # TODO: check exactly for the allowed end of line.
-  die ("Can't remove ${n} tab".($n > 1 ? 's' : '')." from the beginning of line: '${text}'\n");
+  my $t = int($n / 4);
+  my $s = $n % 4;
+  # return substr $text, length($1) if $n % 4 == 0 && $text =~ m/^((?: {0,3}\t| {4}){$t})/;
+  for my $i (1..$t) {
+    if ($text =~ m/^( {0,3}\t| {4})/) {
+      # We remove one full tab-stop from the string.
+      substr $text, 0, length($1), '';    
+    } else {
+      # We didn’t have a full tab-stop, so we remove as many spaces as we had.
+      $text =~ m/^( {0,3})/;
+      return substr $text, length($1);
+    }
+  }
+  return $text if $s == 0;
+  $text =~ m/^( {0,$s})/;
+  substr $text, 0, length($1), '';
+  $s -= length($1);
+  return $text if $s == 0;
+  if ($text =~ m/^\t/) {
+    # The spec is unclear on that topic, but it seems that the right thing to do
+    # is to convert the tabs into spaces here, to keep the right alignment.
+    substr $text, 0, 1, ' ' x (4 - $s);
+  }
+  return $text;
 }
 
 1;

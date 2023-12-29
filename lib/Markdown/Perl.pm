@@ -6,7 +6,7 @@ use utf8;
 use feature ':5.24';
 
 use List::Util 'pairs';
-use Markdown::Perl::Util 'remove_prefix_tab';
+use Markdown::Perl::Util 'remove_prefix_spaces';
 use Scalar::Util 'blessed';
 
 our $VERSION = '0.01';
@@ -61,7 +61,7 @@ sub convert {
   # TODO: probably nothing is needed here.
 
 
-  # TODO: implement this with a has_tabs_stop(n) method shared with remove_prefix_tab.
+  # TODO: implement this with a has_tabs_stop(n) method shared with remove_prefix_spaces.
   sub is_indented_code_block {
     return $_[0] =~ /^(?:(?: {0,3}\t)| {4})/;
   }
@@ -90,7 +90,7 @@ sub convert {
         }
       }
       my @code_lines = splice @tl, 0, ($last + 1);
-      my $code = join('', map { remove_prefix_tab(1, $_->[0].$_->[1]) } ($hd, @code_lines));
+      my $code = join('', map { remove_prefix_spaces(4, $_->[0].$_->[1]) } ($hd, @code_lines));
       return parse_blocks([@{$blocks}, { type => "code", content => $code }], @tl);
     } elsif ($l eq  '') {
       # TODO: is it correct?
