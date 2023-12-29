@@ -9,7 +9,7 @@ use Exporter 'import';
 use List::MoreUtils 'first_index';
 
 our @EXPORT = ();
-our @EXPORT_OK = qw(split_while remove_prefix_spaces indent_size);
+our @EXPORT_OK = qw(split_while remove_prefix_spaces indent_size indented_one_tab);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 # Partition a list into a continuous chunk for which the given code evaluates to
@@ -61,6 +61,12 @@ sub indent_size {
   $text =~ m/\G( *)/;
   my $s = length($1);
   return $t * 4 + $s;
+}
+
+# Returns true if the text is indented by at least one tab-stop.
+sub indented_one_tab {
+  my ($text) = @_;
+  return $text =~ m/^(?: {0,3}\t| {4})/;
 }
 
 1;

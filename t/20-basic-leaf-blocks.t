@@ -19,7 +19,16 @@ is(run('## '), "<h2></h2>\n", 'h3');
 is(run('#### ###'), "<h4></h4>\n", 'h4');
 is(run('## other   '), "<h2>other</h2>\n", 'h5');
 
-is(run('    test'), "<pre><code>test</code></pre>", 'code1');
-is(run("    test\n      next\n"), "<pre><code>test\n  next\n</code></pre>", 'code2');
+is(run('    test'), "<pre><code>test</code></pre>", 'indented_code1');
+is(run("    test\n      next\n"), "<pre><code>test\n  next\n</code></pre>", 'indented_code2');
+is(run("\t  test\n\t  next\n"), "<pre><code>  test\n  next\n</code></pre>", 'indented_code3');
+
+is(run("```\ntest\n```"), "<pre><code>test\n</code></pre>", 'fenced_code1');
+is(run("  ```\ntest\n   other\n```"), "<pre><code>test\n other\n</code></pre>", 'fenced_code2');
+is(run("```\ntest\nother\n"), "<pre><code>test\nother\n</code></pre>", 'fenced_code3');
+is(run("~~~~\ntest\n~~~~"), "<pre><code>test\n</code></pre>", 'fenced_code4');
+is(run("~~~~\ntest\n~~~"), "<pre><code>test\n~~~</code></pre>", 'fenced_code5');
+is(run("```abc\ntest\n```"), "<pre><code class=\"language-abc\">test\n</code></pre>", 'fenced_code6');
+is(run("```abc def\ntest\n```"), "<pre><code class=\"language-abc\">test\n</code></pre>", 'fenced_code7');
 
 done_testing;

@@ -40,4 +40,11 @@ is(indent_size("  \tabc"), 4, 'indent_size5');
 is(indent_size("  \t  abc"), 6, 'indent_size6');
 is(indent_size("  \t     abc"), 9, 'indent_size7');
 
+is(indented_one_tab("abc"), F(), 'indented_one_tab0');
+is(indented_one_tab("   abc"), F(), 'indented_one_tab1');
+is(indented_one_tab("    abc"), T(), 'indented_one_tab2');
+is(indented_one_tab("xxx    abc"), F(), 'indented_one_tab3');
+is(indented_one_tab("\tabc"), T(), 'indented_one_tab4');
+is(indented_one_tab("  \tabc"), T(), 'indented_one_tab5');
+
 done_testing;
