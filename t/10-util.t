@@ -32,4 +32,12 @@ is(remove_prefix_spaces(8, '        test'), 'test', 'remove_prefix_spaces13');
 is(remove_prefix_spaces(8, '          test'), '  test', 'remove_prefix_spaces14');
 is(remove_prefix_spaces(2, "  \n"), "\n", 'remove_prefix_spaces15');
 
+is(indent_size("abc"), 0, 'indent_size1');
+is(indent_size(" abc"), 1, 'indent_size2');
+is(indent_size("    abc"), 4, 'indent_size3');
+is(indent_size("\tabc"), 4, 'indent_size4');
+is(indent_size("  \tabc"), 4, 'indent_size5');
+is(indent_size("  \t  abc"), 6, 'indent_size6');
+is(indent_size("  \t     abc"), 9, 'indent_size7');
+
 done_testing;

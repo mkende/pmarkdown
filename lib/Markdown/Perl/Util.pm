@@ -9,7 +9,7 @@ use Exporter 'import';
 use List::MoreUtils 'first_index';
 
 our @EXPORT = ();
-our @EXPORT_OK = qw(split_while remove_prefix_spaces);
+our @EXPORT_OK = qw(split_while remove_prefix_spaces indent_size);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 # Partition a list into a continuous chunk for which the given code evaluates to
@@ -52,6 +52,15 @@ sub remove_prefix_spaces {
     substr $text, 0, 1, ' ' x (4 - $s);
   }
   return $text;
+}
+
+# Return the indentation of the given text
+sub indent_size {
+  my ($text) = @_;
+  my $t = ($text =~ m/\G( {0,3}\t| {4})/g);
+  $text =~ m/\G( *)/;
+  my $s = length($1);
+  return $t * 4 + $s;
 }
 
 1;
