@@ -6,7 +6,7 @@ use utf8;
 use feature ':5.24';
 
 use List::Util 'pairs';
-use Markdown::Perl::Util 'split_while', 'remove_prefix_spaces', 'indented_one_tab';
+use Markdown::Perl::Util 'split_while', 'remove_prefix_spaces', 'indented_one_tab', 'indent_size';
 use Scalar::Util 'blessed';
 
 our $VERSION = '0.01';
@@ -19,7 +19,7 @@ our $VERSION = '0.01';
 
 sub new {
   my ($class, %options) = @_;
-  return bless { %options }, $class;
+  return bless { options => \%options }, $class;
 }
 
 # Returns @_, unless the first argument is not blessed as a Markdown::Perl
@@ -68,34 +68,89 @@ sub convert {
   # TODO: probably nothing is needed here.
 
 
-  my $blocks = $this->_parse_blocks([], @lines);
-  return $this->_emit_html(@{$blocks});
+  $this->{blocks} = [];
+  $this->{paragraph} = [];
+  my $blocks = $this->_parse_blocks(@lines);
+  return $this->_emit_html(@{delete $this->{blocks}});
+}
+
+sub _finalize_paragraph {
+  my ($this) = @_;
+  return unless @{$this->{paragraph}};
+  push @{$this->{blocks}}, { type => 'paragraph', content => $this->{paragraph}};
+  $this->{paragraph} = [];
+  return;
+}
+
+sub _add_block {
+  my ($this, $block) = @_;
+  $this->_finalize_paragraph();
+  push @{$this->{blocks}}, $block;
+  return;
+}
+
+sub _is_thematic_break {
+  my ($this, $l) = @_;
+  return $l =~ /^ {0,3}(?:(?:-[ \t]*){3,}|(_[ \t]*){3,}|(\*[ \t]*){3,})$/;
 }
 
 # Tail-rec method to parse all the blocks of the document (both leaf and
 # container blocks):
 # https://spec.commonmark.org/0.30/#blocks-and-inlines
 sub _parse_blocks {
-  my ($this, $blocks, @tl) = @_;
-  return $blocks unless @tl;  # Base case, we have no more lines to process.
+  my ($this, @tl) = @_;
+  # Base case, we have no more lines to process.
+  unless (@tl) {
+    $this->_finalize_paragraph();
+    return;
+  }
   my $hd = shift @tl;
   my $l = $hd->[0];
-
-  # https://spec.commonmark.org/0.30/#thematic-breaks
-  if ($l =~ /^ {0,3}(?:(?:-[ \t]*){3,}|(_[ \t]*){3,}|(\*[ \t]*){3,})$/) {
-    # Note: thematic breaks can interrupt a paragraph or a list
-    return $this->_parse_blocks([@{$blocks}, { type => 'break' }], @tl);
-  }
 
   # https://spec.commonmark.org/0.30/#atx-headings
   if ($l =~ /^ {0,3}(#{1,6})(?:[ \t]+(.+?))??(?:[ \t]+#+)?[ \t]*$/) {
     # Note: heading breaks can interrupt a paragraph or a list
     # TODO: the content of the header needs to be interpreted for inline content.
-    return $this->_parse_blocks([@{$blocks}, { type => "heading", level => length($1), content => $2 // '' }], @tl);
+    $this->_add_block({ type => 'heading', level => length($1), content => $2 // '', debug => 'atx' });
+    return $this->_parse_blocks(@tl);
+  }
+
+  # https://spec.commonmark.org/0.30/#setext-headings
+  if ($l =~ /^ {0,3}(-+|=+)[ \t]*$/ &&
+     @{$this->{paragraph}} && indent_size($this->{paragraph}[0]) < 4) {
+    # TODO: this should not interrupt a list if the heading is just one -
+    my $c = substr $1, 0, 1;
+    my $p = $this->{paragraph};
+    my $m = $this->multi_lines_setext_headings;
+    if ($m eq 'single_line' && @{$p} > 1) {
+      my $last_line = pop @{$p};
+      $this->_finalize_paragraph();
+      @{$p} = [$last_line];
+    } elsif ($m eq 'break' && $this->_is_thematic_break($l)) {
+      $this->_finalize_paragraph();
+      $this->_add_block({ type => 'break', debug => 'setext_as_break' });
+      return $this->_parse_blocks(@tl);
+    } elsif ($m eq 'ignore') {
+      push @{$this->{paragraph}}, $l;
+      return $this->_parse_blocks(@tl);
+    }
+    $this->{paragraph} = [];
+    $this->_add_block({ type => 'heading', level => ($c eq '=' ? 1 : 2), content => $p, debug => 'setext' });
+    return $this->_parse_blocks(@tl);
+  }
+
+
+  # https://spec.commonmark.org/0.30/#thematic-breaks
+  # Thematic breaks are described first in the spec, but the setext headings has
+  # precedence in case of conflict, so we test for the break after the heading.
+  if ($l =~ /^ {0,3}(?:(?:-[ \t]*){3,}|(_[ \t]*){3,}|(\*[ \t]*){3,})$/) {
+    $this->_add_block({ type => 'break', debug => 'native_break' });
+    return $this->_parse_blocks(@tl);
   }
 
   # https://spec.commonmark.org/0.30/#indented-code-blocks
-  if (indented_one_tab($l)) {
+  # Indented code blocks cannot interrupt a paragraph.
+  if (!@{$this->{paragraph}} && indented_one_tab($l)) {
     my $last = -1;
     for my $i (0..$#tl) {
       if (indented_one_tab($tl[$i]->[0])) {
@@ -106,7 +161,8 @@ sub _parse_blocks {
     }
     my @code_lines = splice @tl, 0, ($last + 1);
     my $code = join('', map { remove_prefix_spaces(4, $_->[0].$_->[1]) } ($hd, @code_lines));
-    return $this->_parse_blocks([@{$blocks}, { type => "code", content => $code, debug => 'indented'}], @tl);
+    $this->_add_block({ type => "code", content => $code, debug => 'indented'});
+    return $this->_parse_blocks(@tl);
   }
 
   # https://spec.commonmark.org/0.30/#fenced-code-blocks
@@ -122,22 +178,33 @@ sub _parse_blocks {
     # although we could consider that this was then not a code-block.
     if (!$this->fenced_code_blocks_must_be_closed || @{$rest}) {
       shift @{$rest};  # OK even if @$rest is empty.
-      return $this->_parse_blocks([@{$blocks}, { type => "code", content => $code, info => $info, debug => 'fenced' }], @{$rest});
+      $this->_add_block({ type => "code", content => $code, info => $info, debug => 'fenced' });
+      return $this->_parse_blocks(@{$rest});
     } else {
       # pass-through intended
     }
   }
 
+  # TODO:
+  # - https://spec.commonmark.org/0.30/#html-blocks
+  # - https://spec.commonmark.org/0.30/#link-reference-definitions
+
+  # https://spec.commonmark.org/0.30/#paragraphs
+  if ($l ne '') {
+    push @{$this->{paragraph}}, $l;
+    return $this->_parse_blocks(@tl);
+  }
+
+
+  # https://spec.commonmark.org/0.30/#blank-lines
   if ($l eq  '') {
-    # TODO: is it correct?
-    return $this->_parse_blocks($blocks, @tl);
+    $this->_finalize_paragraph();
+    return $this->_parse_blocks(@tl);
   } 
   
   {
     ...
   }
-  # TODO: https://spec.commonmark.org/0.30/#setext-headings
-  # This requires looking at future lines when processing a paragraph.
 }
 
 sub _emit_html {
@@ -149,6 +216,7 @@ sub _emit_html {
     } elsif ($b->{type} eq 'heading') {
       my $l = $b->{level};
       my $c = $b->{content};
+      $c = join(' ',@{$c}) if ref $c eq 'ARRAY';
       $out .= "<h${l}>$c</h${l}>\n";
     } elsif ($b->{type} eq 'code') {
       my $c = $b->{content};
@@ -158,6 +226,8 @@ sub _emit_html {
         $i = " class=\"language-${l}\"";
       }
       $out .= "<pre><code${i}>$c</code></pre>";
+    } elsif ($b->{type} eq 'paragraph') {
+      $out .= "<p>".join(' ', @{$b->{content}})."</p>\n";
     }
   }
   return $out;
@@ -165,7 +235,7 @@ sub _emit_html {
 
 sub _get_option {
   my ($this, $option) = @_;
-  return $this->{local_options}{$option} // $this->{$option};
+  return $this->{local_options}{$option} // $this->{$option}{$option};
 }
 
 =pod
@@ -190,13 +260,20 @@ sub fenced_code_blocks_must_be_closed {
 
 =pod
 
-=item B<code_blocks_info> I<default: language>
+=item B<code_blocks_info>
+
+Fenced code blocks can have info strings on their opening lines (any text after
+the C<```> or C<~~~> fence). This option controls what is done with that text.
+
+The possible values are:
 
 =over 4
 
-=item B<none>
+=item B<ignored>
 
-=item B<language>
+The info text is ignored.
+
+=item B<language> I<(default)>
 
 =back
 
@@ -205,6 +282,62 @@ sub fenced_code_blocks_must_be_closed {
 sub code_blocks_info {
   my ($this) = @_;
   return $this->_get_option('code_blocks_info') // 'language';
+}
+
+=pod=item B<multi_lines_setext_headings>
+
+The default behavior of setext headings in the CommonMark spec is that they can
+have multiple lines of text preceeding them (forming the heading itself).
+
+This option allows to change this behavior. And is illustrated with this example
+of Markdown:
+
+    Foo
+    bar
+    ---
+    baz
+
+The possible values are:
+
+=over 4
+
+=item B<single_line>
+
+Only the last line of text is kept as part of the heading. The preceeding lines
+are a paragraph of themselves. The result on the example would be:
+paragraph C<Foo>, heading C<bar>, paragraph C<baz>
+
+=item B<break>
+
+If the heading underline can be interpreted as a thematic break, then it is
+interpreted as such (normally the heading interpretation takes precedence). The
+result on the example would be: paragraph C<Foo bar>, thematic break,
+paragraph C<baz>.
+
+If the heading underline cannot be interpreted as a thematic break, then the
+heading will use the default B<multi_line> behavior.
+
+=item B<multi_line> I<(default)>
+
+This is the default CommonMark behavior where all the preceeding lines are part
+of the heading. The result on the example would be:
+heading C<Foo bar>, paragraph C<baz>
+
+=item B<ignore>
+
+The heading is ignored, and form just one large paragraph. The result on the
+example would be: paragraph C<Foo bar --- baz>.
+
+Note that this actually has an impact on the interpretation of the thematic
+breaks too.
+
+=back
+
+=cut
+
+sub multi_lines_setext_headings {
+  my ($this) = @_;
+  return $this->_get_option('multi_lines_setext_headings') // 'multi_line';
 }
 
 =pod
