@@ -281,6 +281,15 @@ sub _parse_blocks {
   }
 }
 
+sub _render_inline {
+  my ($this, @lines) = @_;
+  map { s/ {2,}$/<br \/>/ } @lines[0 .. $#lines -1];
+  # Should we consider more types of whitespace here?
+  map { s/^[ \t]+// } @lines;
+  map { s/[ \t]+$// } @lines;
+  return join("\n", @lines);
+}
+
 sub _emit_html {
   my ($this, @blocks) = @_;
   my $out =  '';
@@ -290,7 +299,7 @@ sub _emit_html {
     } elsif ($b->{type} eq 'heading') {
       my $l = $b->{level};
       my $c = $b->{content};
-      $c = join(' ',@{$c}) if ref $c eq 'ARRAY';
+      $c = $this->_render_inline(ref $c eq 'ARRAY' ? @{$c} : $c);
       $out .= "<h${l}>$c</h${l}>\n";
     } elsif ($b->{type} eq 'code') {
       my $c = $b->{content};
@@ -301,7 +310,7 @@ sub _emit_html {
       }
       $out .= "<pre><code${i}>$c</code></pre>";
     } elsif ($b->{type} eq 'paragraph') {
-      $out .= "<p>".join(' ', @{$b->{content}})."</p>\n";
+      $out .= "<p>".$this->_render_inline(@{$b->{content}})."</p>\n";
     } elsif ($b->{type} eq 'quotes') {
       my $c = $this->_emit_html(@{$b->{content}});
       $out .= "<blockquote>\n${c}</blockquote>\n";

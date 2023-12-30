@@ -20,7 +20,7 @@ is(run('#### ###'), "<h4></h4>\n", 'atx_heading4');
 is(run('## other   '), "<h2>other</h2>\n", 'atx_heading5');
 
 is(run("abc\n===\n"), "<h1>abc</h1>\n", 'setext_heading1');
-is(run("abc\ndef\n===\n"), "<h1>abc def</h1>\n", 'setext_heading2');
+is(run("abc\ndef\n===\n"), "<h1>abc\ndef</h1>\n", 'setext_heading2');
 is(run("abc\n---\n"), "<h2>abc</h2>\n", 'setext_heading3');
 is(run("   abc\n===\n"), "<h1>   abc</h1>\n", 'setext_heading4');  # TODO: this is wrong, atsome point the spaces must be remove in the output
 is(run("abc\n   =\n"), "<h1>abc</h1>\n", 'setext_heading5');
@@ -38,7 +38,7 @@ is(run("```abc\ntest\n```"), "<pre><code class=\"language-abc\">test\n</code></p
 is(run("```abc def\ntest\n```"), "<pre><code class=\"language-abc\">test\n</code></pre>", 'fenced_code7');
 
 is(run("abc"), "<p>abc</p>\n", 'paragraph1');
-is(run("abc\ndef"), "<p>abc def</p>\n", 'paragraph2');
+is(run("abc\ndef"), "<p>abc\ndef</p>\n", 'paragraph2');
 is(run("abc\n\ndef"), "<p>abc</p>\n<p>def</p>\n", 'paragraph3');
 
 done_testing;
