@@ -5,11 +5,16 @@ use warnings;
 use utf8;
 use feature ':5.24';
 
+use Exporter 'import';
 use List::Util 'pairs';
 use Markdown::Perl::Util 'split_while', 'remove_prefix_spaces', 'indented_one_tab', 'indent_size';
 use Scalar::Util 'blessed';
 
 our $VERSION = '0.01';
+
+our @EXPORT = ();
+our @EXPORT_OK = qw(convert);
+our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 =pod
 
@@ -125,7 +130,7 @@ sub _parse_blocks {
     if ($m eq 'single_line' && @{$p} > 1) {
       my $last_line = pop @{$p};
       $this->_finalize_paragraph();
-      @{$p} = [$last_line];
+      $p = [$last_line];
     } elsif ($m eq 'break' && $this->_is_thematic_break($l)) {
       $this->_finalize_paragraph();
       $this->_add_block({ type => 'break', debug => 'setext_as_break' });
