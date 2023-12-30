@@ -6,6 +6,7 @@ use utf8;
 use feature ':5.24';
 
 use Exporter 'import';
+use Hash::Util 'lock_keys';
 use List::Util 'pairs';
 use Markdown::Perl::Util 'split_while', 'remove_prefix_spaces', 'indented_one_tab', 'indent_size';
 use Scalar::Util 'blessed';
@@ -24,7 +25,17 @@ our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 sub new {
   my ($class, %options) = @_;
-  return bless { options => \%options }, $class;
+
+  my $this = bless {
+    options => \%options,
+    local_options => {},
+    blocks => [],
+    blocks_stack => [],
+    paragraph => [],
+    lines => [] }, $class;
+  lock_keys %{$this};
+
+  return $this;
 }
 
 # Returns @_, unless the first argument is not blessed as a Markdown::Perl
@@ -73,9 +84,18 @@ sub convert {
   # TODO: probably nothing is needed here.
 
 
-  $this->{blocks} = [];
-  $this->{paragraph} = [];
-  my $blocks = $this->_parse_blocks(@lines);
+  # $this->{blocks} = [];
+  # $this->{blocks_stack} = [];
+  # $this->{paragraph} = [];
+  $this->{lines} = \@lines;
+
+  while (my $hd = shift @{$this->{lines}}) {
+    $this->_parse_blocks($hd)
+  }
+  $this->_finalize_paragraph();
+  while (@{$this->{blocks_stack}}) {
+    $this->_restore_parent_block();
+  }
   return $this->_emit_html(@{delete $this->{blocks}});
 }
 
@@ -99,25 +119,60 @@ sub _is_thematic_break {
   return $l =~ /^ {0,3}(?:(?:-[ \t]*){3,}|(_[ \t]*){3,}|(\*[ \t]*){3,})$/;
 }
 
-# Tail-rec method to parse all the blocks of the document (both leaf and
-# container blocks):
+sub _enter_child_block {
+  my ($this, $hd, $new_block, $cond) = @_;
+  $this->_finalize_paragraph();
+  unshift @{$this->{lines}}, $hd;
+  push @{$this->{blocks_stack}}, { cond => $cond, block => $new_block, parent_blocks => $this->{blocks} };
+  $this->{blocks} = [];
+  return;
+}
+
+sub _restore_parent_block {
+  my ($this) = @_;
+  # TODO: rename the variables here with something better.
+  my $last_block = pop @{$this->{blocks_stack}};
+  my $block = delete $last_block->{block};
+  $block->{content} = $this->{blocks};
+  $this->{blocks} = delete $last_block->{parent_blocks};
+  $this->_add_block($block);
+  return;
+}
+
+# Parse at least one line of text to build a new block; and possibly several
+# lines, depending on the block type.
 # https://spec.commonmark.org/0.30/#blocks-and-inlines
 sub _parse_blocks {
-  my ($this, @tl) = @_;
-  # Base case, we have no more lines to process.
-  unless (@tl) {
-    $this->_finalize_paragraph();
+  my ($this, $hd) = @_;
+  my $l = $hd->[0];
+
+  {
+    for my $i (0..$#{$this->{blocks_stack}}) {
+      local *::_ = \$l;
+      unless ($this->{blocks_stack}[$i]{cond}()) {
+        $this->_finalize_paragraph();
+        for my $j (@{$this->{blocks_stack}} > $i) {
+          $this->_restore_parent_block();
+        }
+        last;
+      }
+    }
+  }
+
+  # https://spec.commonmark.org/0.30/#block-quotes
+  my $block_quotes_re = qr/^ {0,3}>[ \t]?/;
+  if ($l =~ /$block_quotes_re/) {
+    # TODO: handle laziness (block quotes where the > prefix is missing)
+    $this->_enter_child_block($hd, { type => 'quotes' }, sub { $_ =~ s/${block_quotes_re}// });
     return;
   }
-  my $hd = shift @tl;
-  my $l = $hd->[0];
 
   # https://spec.commonmark.org/0.30/#atx-headings
   if ($l =~ /^ {0,3}(#{1,6})(?:[ \t]+(.+?))??(?:[ \t]+#+)?[ \t]*$/) {
     # Note: heading breaks can interrupt a paragraph or a list
     # TODO: the content of the header needs to be interpreted for inline content.
     $this->_add_block({ type => 'heading', level => length($1), content => $2 // '', debug => 'atx' });
-    return $this->_parse_blocks(@tl);
+    return;
   }
 
   # https://spec.commonmark.org/0.30/#setext-headings
@@ -134,14 +189,14 @@ sub _parse_blocks {
     } elsif ($m eq 'break' && $this->_is_thematic_break($l)) {
       $this->_finalize_paragraph();
       $this->_add_block({ type => 'break', debug => 'setext_as_break' });
-      return $this->_parse_blocks(@tl);
+      return;
     } elsif ($m eq 'ignore') {
       push @{$this->{paragraph}}, $l;
-      return $this->_parse_blocks(@tl);
+      return;
     }
     $this->{paragraph} = [];
     $this->_add_block({ type => 'heading', level => ($c eq '=' ? 1 : 2), content => $p, debug => 'setext' });
-    return $this->_parse_blocks(@tl);
+    return;
   }
 
 
@@ -150,24 +205,24 @@ sub _parse_blocks {
   # precedence in case of conflict, so we test for the break after the heading.
   if ($l =~ /^ {0,3}(?:(?:-[ \t]*){3,}|(_[ \t]*){3,}|(\*[ \t]*){3,})$/) {
     $this->_add_block({ type => 'break', debug => 'native_break' });
-    return $this->_parse_blocks(@tl);
+    return;
   }
 
   # https://spec.commonmark.org/0.30/#indented-code-blocks
   # Indented code blocks cannot interrupt a paragraph.
   if (!@{$this->{paragraph}} && indented_one_tab($l)) {
     my $last = -1;
-    for my $i (0..$#tl) {
-      if (indented_one_tab($tl[$i]->[0])) {
+    for my $i (0..$#{$this->{lines}}) {
+      if (indented_one_tab($this->{lines}[$i]->[0])) {
         $last = $i;
-      } elsif ($tl[$i]->[0] ne '') {
+      } elsif ($this->{lines}[$i]->[0] ne '') {
         last;
       }
     }
-    my @code_lines = splice @tl, 0, ($last + 1);
+    my @code_lines = splice @{$this->{lines}}, 0, ($last + 1);
     my $code = join('', map { remove_prefix_spaces(4, $_->[0].$_->[1]) } ($hd, @code_lines));
     $this->_add_block({ type => "code", content => $code, debug => 'indented'});
-    return $this->_parse_blocks(@tl);
+    return;
   }
 
   # https://spec.commonmark.org/0.30/#fenced-code-blocks
@@ -176,7 +231,7 @@ sub _parse_blocks {
     my $l = length($+{fence});
     my $info = $+{info};
     my $indent = length($+{indent});
-    my ($code_lines, $rest) = split_while { $_->[0] !~ m/^ {0,3}${f}{$l,}[ \t]*$/ } @tl;
+    my ($code_lines, $rest) = split_while { $_->[0] !~ m/^ {0,3}${f}{$l,}[ \t]*$/ } @{$this->{lines}};
     my $code = join('', map { remove_prefix_spaces($indent, $_->[0].$_->[1]) } @{$code_lines});
     # Note that @$rest might be empty if we never find the closing fence. The
     # spec says that we should then consider the whole doc to be a code block
@@ -184,7 +239,8 @@ sub _parse_blocks {
     if (!$this->fenced_code_blocks_must_be_closed || @{$rest}) {
       shift @{$rest};  # OK even if @$rest is empty.
       $this->_add_block({ type => "code", content => $code, info => $info, debug => 'fenced' });
-      return $this->_parse_blocks(@{$rest});
+      $this->{lines} = $rest;
+      return;
     } else {
       # pass-through intended
     }
@@ -197,14 +253,14 @@ sub _parse_blocks {
   # https://spec.commonmark.org/0.30/#paragraphs
   if ($l ne '') {
     push @{$this->{paragraph}}, $l;
-    return $this->_parse_blocks(@tl);
+    return;
   }
 
 
   # https://spec.commonmark.org/0.30/#blank-lines
   if ($l eq  '') {
     $this->_finalize_paragraph();
-    return $this->_parse_blocks(@tl);
+    return;
   } 
   
   {
@@ -233,6 +289,9 @@ sub _emit_html {
       $out .= "<pre><code${i}>$c</code></pre>";
     } elsif ($b->{type} eq 'paragraph') {
       $out .= "<p>".join(' ', @{$b->{content}})."</p>\n";
+    } elsif ($b->{type} eq 'quotes') {
+      my $c = $this->_emit_html(@{$b->{content}});
+      $out .= "<blockquote>\n${c}</blockquote>\n";
     }
   }
   return $out;
@@ -240,7 +299,7 @@ sub _emit_html {
 
 sub _get_option {
   my ($this, $option) = @_;
-  return $this->{local_options}{$option} // $this->{$option}{$option};
+  return $this->{local_options}{$option} // $this->{options}{$option};
 }
 
 =pod
