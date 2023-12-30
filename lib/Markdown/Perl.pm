@@ -139,6 +139,18 @@ sub _restore_parent_block {
   return;
 }
 
+# Returns true if $l would be parsed as the continuation of a paragraph in the
+# context of $this (which is not modified).
+sub _test_lazy_continuation {
+  my ($this, $l) = @_;
+  return unless @{$this->{paragraph}};
+  my $tester = new(ref($this), $this->{options}, $this->{local_options});
+  $tester->{paragraph} = [@{$this->{paragraph}}];
+  # We’re ignoring the eol of the original line as it should not affect parsing.
+  $tester->_parse_blocks([$l, '']);
+  return @{$tester->{paragraph}} > @{$this->{paragraph}};
+}
+
 # Parse at least one line of text to build a new block; and possibly several
 # lines, depending on the block type.
 # https://spec.commonmark.org/0.30/#blocks-and-inlines
@@ -163,7 +175,11 @@ sub _parse_blocks {
   my $block_quotes_re = qr/^ {0,3}>[ \t]?/;
   if ($l =~ /$block_quotes_re/) {
     # TODO: handle laziness (block quotes where the > prefix is missing)
-    $this->_enter_child_block($hd, { type => 'quotes' }, sub { $_ =~ s/${block_quotes_re}// });
+    my $cond = sub {
+      return 1 if $_ =~ s/${block_quotes_re}//;
+      return $this->_test_lazy_continuation($_);
+    };
+    $this->_enter_child_block($hd, { type => 'quotes' }, $cond);
     return;
   }
 
