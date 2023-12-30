@@ -114,11 +114,6 @@ sub _add_block {
   return;
 }
 
-sub _is_thematic_break {
-  my ($this, $l) = @_;
-  return $l =~ /^ {0,3}(?:(?:-[ \t]*){3,}|(_[ \t]*){3,}|(\*[ \t]*){3,})$/;
-}
-
 sub _enter_child_block {
   my ($this, $hd, $new_block, $cond) = @_;
   $this->_finalize_paragraph();
@@ -151,6 +146,9 @@ sub _test_lazy_continuation {
   return @{$tester->{paragraph}} > @{$this->{paragraph}};
 }
 
+my $thematic_break_re = qr/^ {0,3}(?:(?:-[ \t]*){3,}|(_[ \t]*){3,}|(\*[ \t]*){3,})$/;
+my $block_quotes_re = qr/^ {0,3}>[ \t]?/;
+
 # Parse at least one line of text to build a new block; and possibly several
 # lines, depending on the block type.
 # https://spec.commonmark.org/0.30/#blocks-and-inlines
@@ -169,18 +167,6 @@ sub _parse_blocks {
         last;
       }
     }
-  }
-
-  # https://spec.commonmark.org/0.30/#block-quotes
-  my $block_quotes_re = qr/^ {0,3}>[ \t]?/;
-  if ($l =~ /$block_quotes_re/) {
-    # TODO: handle laziness (block quotes where the > prefix is missing)
-    my $cond = sub {
-      return 1 if $_ =~ s/${block_quotes_re}//;
-      return $this->_test_lazy_continuation($_);
-    };
-    $this->_enter_child_block($hd, { type => 'quotes' }, $cond);
-    return;
   }
 
   # https://spec.commonmark.org/0.30/#atx-headings
@@ -202,7 +188,7 @@ sub _parse_blocks {
       my $last_line = pop @{$p};
       $this->_finalize_paragraph();
       $p = [$last_line];
-    } elsif ($m eq 'break' && $this->_is_thematic_break($l)) {
+    } elsif ($m eq 'break' && $l =~ m/${thematic_break_re}/) {
       $this->_finalize_paragraph();
       $this->_add_block({ type => 'break', debug => 'setext_as_break' });
       return;
@@ -219,7 +205,7 @@ sub _parse_blocks {
   # https://spec.commonmark.org/0.30/#thematic-breaks
   # Thematic breaks are described first in the spec, but the setext headings has
   # precedence in case of conflict, so we test for the break after the heading.
-  if ($l =~ /^ {0,3}(?:(?:-[ \t]*){3,}|(_[ \t]*){3,}|(\*[ \t]*){3,})$/) {
+  if ($l =~ /${thematic_break_re}/) {
     $this->_add_block({ type => 'break', debug => 'native_break' });
     return;
   }
@@ -260,6 +246,17 @@ sub _parse_blocks {
     } else {
       # pass-through intended
     }
+  }
+
+  # https://spec.commonmark.org/0.30/#block-quotes
+  if ($l =~ /${block_quotes_re}/) {
+    # TODO: handle laziness (block quotes where the > prefix is missing)
+    my $cond = sub {
+      return 1 if $_ =~ s/${block_quotes_re}//;
+      return $this->_test_lazy_continuation($_);
+    };
+    $this->_enter_child_block($hd, { type => 'quotes' }, $cond);
+    return;
   }
 
   # TODO:
