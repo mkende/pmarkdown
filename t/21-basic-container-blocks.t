@@ -9,11 +9,19 @@ sub run {
   &Markdown::Perl::convert;
 }
 
-is(run('> abc'), "<blockquote>\n<p>abc</p>\n</blockquote>\n", 'quote1');
+is(run("> abc"), "<blockquote>\n<p>abc</p>\n</blockquote>\n", 'quote1');
 is(run("> abc\n> def\n"), "<blockquote>\n<p>abc\ndef</p>\n</blockquote>\n", 'quote2');
 is(run("> abc\n\ndef\n"), "<blockquote>\n<p>abc</p>\n</blockquote>\n<p>def</p>\n", 'quote3');
 is(run("> abc\n> > def\n"), "<blockquote>\n<p>abc</p>\n<blockquote>\n<p>def</p>\n</blockquote>\n</blockquote>\n", 'quote4');
 is(run("> abc\ndef\n"), "<blockquote>\n<p>abc\ndef</p>\n</blockquote>\n", 'quote5');
 is(run("> abc\n>\ndef\n"), "<blockquote>\n<p>abc</p>\n</blockquote>\n<p>def</p>\n", 'quote6');
+
+is(run("- abc"), "<ul>\n<li><p>abc</p>\n</li>\n</ul>\n", 'ul1');
+is(run("- abc\n- def"), "<ul>\n<li><p>abc</p>\n</li>\n<li><p>def</p>\n</li>\n</ul>\n", 'ul2');
+is(run("- abc\n* def"), "<ul>\n<li><p>abc</p>\n</li>\n</ul>\n<ul>\n<li><p>def</p>\n</li>\n</ul>\n", 'ul3');
+
+is(run("1. abc"), "<ol>\n<li><p>abc</p>\n</li>\n</ol>\n", 'ol1');
+is(run("2. abc"), "<ol start=\"2\">\n<li><p>abc</p>\n</li>\n</ol>\n", 'ol2');
+is(run("1. abc\n3. def"), "<ol>\n<li><p>abc</p>\n</li>\n<li><p>def</p>\n</li>\n</ol>\n", 'ol3');
 
 done_testing;

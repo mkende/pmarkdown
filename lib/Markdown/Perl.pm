@@ -96,7 +96,9 @@ sub convert {
   while (@{$this->{blocks_stack}}) {
     $this->_restore_parent_block();
   }
-  return $this->_emit_html(@{delete $this->{blocks}});
+  my $out = $this->_emit_html(@{delete $this->{blocks}});
+  $this->{blocks} = [];
+  return $out;
 }
 
 sub _finalize_paragraph {
@@ -107,17 +109,32 @@ sub _finalize_paragraph {
   return;
 }
 
+sub _list_match {
+  my ($list, $item) = @_;
+  return $list->{type} eq 'list' && $list->{style} eq $item->{style} && $list->{marker} eq $item->{marker};
+}
+
 sub _add_block {
   my ($this, $block) = @_;
   $this->_finalize_paragraph();
-  push @{$this->{blocks}}, $block;
+  if ($block->{type} eq 'list_item') {
+    # https://spec.commonmark.org/0.30/#lists
+    if (@{$this->{blocks}} && _list_match($this->{blocks}[-1], $block)) {
+      push @{$this->{blocks}[-1]{items}}, $block;
+    } else {
+      my $list = { type => 'list', style => $block->{style}, marker => $block->{marker}, start_num => $block->{num}, items => [$block] };
+      push @{$this->{blocks}}, $list;
+    }
+  } else {
+    push @{$this->{blocks}}, $block;
+  }
   return;
 }
 
 sub _enter_child_block {
   my ($this, $hd, $new_block, $cond) = @_;
   $this->_finalize_paragraph();
-  unshift @{$this->{lines}}, $hd;
+  unshift @{$this->{lines}}, $hd if defined $hd;
   push @{$this->{blocks_stack}}, { cond => $cond, block => $new_block, parent_blocks => $this->{blocks} };
   $this->{blocks} = [];
   return;
@@ -128,6 +145,7 @@ sub _restore_parent_block {
   # TODO: rename the variables here with something better.
   my $last_block = pop @{$this->{blocks_stack}};
   my $block = delete $last_block->{block};
+  # TODO: maybe rename content to blocks here.
   $block->{content} = $this->{blocks};
   $this->{blocks} = delete $last_block->{parent_blocks};
   $this->_add_block($block);
@@ -148,6 +166,7 @@ sub _test_lazy_continuation {
 
 my $thematic_break_re = qr/^ {0,3}(?:(?:-[ \t]*){3,}|(_[ \t]*){3,}|(\*[ \t]*){3,})$/;
 my $block_quotes_re = qr/^ {0,3}>[ \t]?/;
+my $indented_code_re = qr/^(?: {0,3}\t| {4})/;
 
 # Parse at least one line of text to build a new block; and possibly several
 # lines, depending on the block type.
@@ -212,10 +231,10 @@ sub _parse_blocks {
 
   # https://spec.commonmark.org/0.30/#indented-code-blocks
   # Indented code blocks cannot interrupt a paragraph.
-  if (!@{$this->{paragraph}} && indented_one_tab($l)) {
+  if (!@{$this->{paragraph}} && $l =~ m/${indented_code_re}/) {
     my $last = -1;
     for my $i (0..$#{$this->{lines}}) {
-      if (indented_one_tab($this->{lines}[$i]->[0])) {
+      if ($this->{lines}[$i]->[0] =~ m/${indented_code_re}/) {
         $last = $i;
       } elsif ($this->{lines}[$i]->[0] ne '') {
         last;
@@ -259,6 +278,41 @@ sub _parse_blocks {
     return;
   }
 
+  # https://spec.commonmark.org/0.30/#list-items
+  if ($l =~ m/^(?<indent> {0,3})(?<marker>[-+*]|(?:(?<digits>\d{1,9})(?<symbol>[.)])))(?<text>.*)$/) {
+    # There is a note in the spec on thematic breaks that are not list items,
+    # it’s not exactly clear what is intended, and there are no examples.
+    my ($indent_outside, $marker, $text, $digits, $symbol) = @+{qw(indent marker text digits symbol)};
+    my $type = $marker =~ m/[-+*]/ ? 'ul' : 'ol';
+    my $text_indent = indent_size($text);
+    # When interrupting a paragraph, the rules are stricter.
+    if (@{$this->{paragraph}} && ($text eq '' || ($type eq 'ol' && $digits != 1))) {
+      # pass-through intended
+    } elsif ($text ne '' && $text_indent == 0) {
+      # pass-through intended
+    } else {
+      # in the current implementation, $text_indent is enough to know if $text
+      # is matching $indented_code_re, but let’s not depend on that.
+      my $indent_inside = ($text eq  '' || $text =~ m/${indented_code_re}/) ? 1 : $text_indent;
+      my $indent_marker = length($indent_outside) + length($marker);
+      my $indent = $indent_inside + $indent_marker;
+      my $cond = sub {
+        if (indent_size($_) >= $indent) {
+          $_ = remove_prefix_spaces($indent, $_);
+          return 1;
+        }
+        return $_ eq '';
+      };
+      my $new_hd = [(' ' x $indent_marker).$text, $hd->[1]] if $text ne '';
+      # Note that we are handling the creation of the lists themselves in the
+      # _add_block method. See https://spec.commonmark.org/0.30/#lists for
+      # reference.
+      # TODO: handle tight and loose lists.
+      $this->_enter_child_block($new_hd, { type => 'list_item', style => $type, marker => $symbol // $marker, num => $digits}, $cond);
+      return;
+    }
+  }
+
   # TODO:
   # - https://spec.commonmark.org/0.30/#html-blocks
   # - https://spec.commonmark.org/0.30/#link-reference-definitions
@@ -290,6 +344,12 @@ sub _render_inline {
   return join("\n", @lines);
 }
 
+sub _preprocess_lists {
+  my ($this, @blocks) = @_;
+  for my $b (@blocks) {
+  }
+}
+
 sub _emit_html {
   my ($this, @blocks) = @_;
   my $out =  '';
@@ -314,6 +374,12 @@ sub _emit_html {
     } elsif ($b->{type} eq 'quotes') {
       my $c = $this->_emit_html(@{$b->{content}});
       $out .= "<blockquote>\n${c}</blockquote>\n";
+    } elsif ($b->{type} eq 'list') {
+      my $type = $b->{style};  # 'ol' or 'ul'
+      my $start = '';
+      my $num = $b->{start_num};
+      $start = " start=\"${num}\"" if $type eq 'ol' && $num != 1;
+      $out .= "<${type}${start}>\n<li>".join("</li>\n<li>", map { $this->_emit_html(@{$_->{content}}) } @{$b->{items}})."</li>\n</${type}>\n";
     }
   }
   return $out;

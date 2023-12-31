@@ -22,7 +22,7 @@ is(run('## other   '), "<h2>other</h2>\n", 'atx_heading5');
 is(run("abc\n===\n"), "<h1>abc</h1>\n", 'setext_heading1');
 is(run("abc\ndef\n===\n"), "<h1>abc\ndef</h1>\n", 'setext_heading2');
 is(run("abc\n---\n"), "<h2>abc</h2>\n", 'setext_heading3');
-is(run("   abc\n===\n"), "<h1>   abc</h1>\n", 'setext_heading4');  # TODO: this is wrong, atsome point the spaces must be remove in the output
+is(run("   abc\n===\n"), "<h1>abc</h1>\n", 'setext_heading4');
 is(run("abc\n   =\n"), "<h1>abc</h1>\n", 'setext_heading5');
 
 is(run('    test'), "<pre><code>test</code></pre>", 'indented_code1');
