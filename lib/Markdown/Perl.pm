@@ -34,6 +34,7 @@ sub new {
     paragraph => [],
     last_line_is_blank => 0,
     last_line_was_blank => 0,
+    skip_next_block_matching => 0,
     lines => [] }, $class;
   lock_keys %{$this};
 
@@ -187,7 +188,7 @@ sub _all_blocks_match {
 }
 
 my $thematic_break_re = qr/^ {0,3}(?:(?:-[ \t]*){3,}|(_[ \t]*){3,}|(\*[ \t]*){3,})$/;
-my $block_quotes_re = qr/^ {0,3}>[ \t]?/;
+my $block_quotes_re = qr/^ {0,3}>/;
 my $indented_code_re = qr/^(?: {0,3}\t| {4})/;
 my $list_item_re = qr/^(?<indent> {0,3})(?<marker>[-+*]|(?:(?<digits>\d{1,9})(?<symbol>[.)])))(?<text>.*)$/;
 
@@ -197,25 +198,26 @@ my $list_item_re = qr/^(?<indent> {0,3})(?<marker>[-+*]|(?:(?<digits>\d{1,9})(?<
 sub _parse_blocks {
   my ($this, $hd) = @_;
   my $l = $hd->[0];
-
-  my $top_block = $this->{blocks}[-1];  # useless
   
-  #use Data::Dumper; print Dumper($this);
-
-  my $matched_block = $this->_count_matching_blocks(\$l);
-  if (@{$this->{blocks_stack}} > $matched_block) {
-    $this->_finalize_paragraph();
-    while (@{$this->{blocks_stack}} > $matched_block) {
-      $this->_restore_parent_block();
+  if (!$this->{skip_next_block_matching}) {
+    my $matched_block = $this->_count_matching_blocks(\$l);
+    if (@{$this->{blocks_stack}} > $matched_block) {
+      $this->_finalize_paragraph();
+      while (@{$this->{blocks_stack}} > $matched_block) {
+        $this->_restore_parent_block();
+      }
     }
+  } else {
+    $this->{skip_next_block_matching} = 0;
   }
 
-  #use Data::Dumper; print Dumper($this);
-
+  # There are two different cases. The first one, handled here, is when we have
+  # multiple blocks inside a list item separated by a blank line. The second
+  # case (when the list items themselves are separated by a blank line) is
+  # handled when parsing the list item itself (based on the last_line_was_blank
+  # setting).
   if ($this->{last_line_is_blank}) {
-    if (@{$this->{blocks}} && $this->{blocks}[-1]{type} eq 'list' && $top_block == $this->{blocks}[-1]) {
-    #  $this->{blocks}[-1]{loose} = 1;
-    } elsif (@{$this->{blocks_stack}} && $this->{blocks_stack}[-1]{block}{type} eq 'list_item') {
+    if (@{$this->{blocks_stack}} && $this->{blocks_stack}[-1]{block}{type} eq 'list_item') {
       $this->{blocks_stack}[-1]{block}{loose} = 1;
     }
   }
@@ -340,7 +342,15 @@ sub _parse_blocks {
   if ($l =~ /${block_quotes_re}/) {
     # TODO: handle laziness (block quotes where the > prefix is missing)
     my $cond = sub {
-      return 1 if $_ =~ s/${block_quotes_re}//;
+      if ($_ =~ s/(${block_quotes_re})/' ' x length($1)/e) {
+        # We remove the '>' character that we replaced by a space, and the
+        # optional space after it. We’re using this approach to correctly handle
+        # the case of a line like '>\t\tfoo' where we need to retain the 6
+        # spaces of indentation, to produce a code block starting with two 
+        # spaces.
+        $_ = remove_prefix_spaces(length($1) + 1, $_);
+        return 1;
+      };
       return $this->_test_lazy_continuation($_);
     };
     $this->_enter_child_block($hd, { type => 'quotes' }, $cond);
@@ -356,7 +366,6 @@ sub _parse_blocks {
     my $text_indent = indent_size($text);
     # When interrupting a paragraph, the rules are stricter.
     if (@{$this->{paragraph}} && ($text eq '' || ($type eq 'ol' && $digits != 1))) {
-      use Data::Dumper; print Dumper($l, $this);
       # pass-through intended
     } elsif ($text ne '' && $text_indent == 0) {
       # pass-through intended
@@ -373,7 +382,14 @@ sub _parse_blocks {
         }
         return ($l !~ m/${list_item_re}/ && $this->_test_lazy_continuation($_)) || $_ eq '';
       };
-      my $new_hd = [(' ' x $indent_marker).$text, $hd->[1]] if $text ne '';
+      my $new_hd;
+      if ($text ne '') {
+        # We are doing a weird compensation for the fact that we are not
+        # processing the condition and to correctly handle the case where the
+        # list marker was following by tabs.
+        $new_hd = [remove_prefix_spaces($indent, (' ' x $indent_marker).$text), $hd->[1]];
+        $this->{skip_next_block_matching} = 1 ;
+      }
       # Note that we are handling the creation of the lists themselves in the
       # _add_block method. See https://spec.commonmark.org/0.30/#lists for
       # reference.
@@ -444,7 +460,7 @@ sub _emit_html {
       $out .= "<pre><code${i}>$c</code></pre>\n";
     } elsif ($b->{type} eq 'paragraph') {
       if ($tight_block) {
-        $out .= $this->_render_inline(@{$b->{content}})."\n";
+        $out .= $this->_render_inline(@{$b->{content}});
       } else {
         $out .= "<p>".$this->_render_inline(@{$b->{content}})."</p>\n";
       }

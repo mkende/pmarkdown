@@ -24,13 +24,15 @@ is(remove_prefix_spaces(2, ' test'), 'test', 'remove_prefix_spaces5');
 is(remove_prefix_spaces(2, 'test'), 'test', 'remove_prefix_spaces6');
 is(remove_prefix_spaces(2, '    test'), '  test', 'remove_prefix_spaces7');
 is(remove_prefix_spaces(2, "\ttest"), '  test', 'remove_prefix_spaces8');
-is(remove_prefix_spaces(2, " \ttest"), "   test", 'remove_prefix_spaces9');
-is(remove_prefix_spaces(2, "  \ttest"), "\ttest", 'remove_prefix_spaces10');
-is(remove_prefix_spaces(4, '    test'), 'test', 'remove_prefix_spaces11');
-is(remove_prefix_spaces(4, '      test'), '  test', 'remove_prefix_spaces12');
-is(remove_prefix_spaces(8, '        test'), 'test', 'remove_prefix_spaces13');
-is(remove_prefix_spaces(8, '          test'), '  test', 'remove_prefix_spaces14');
-is(remove_prefix_spaces(2, "  \n"), "\n", 'remove_prefix_spaces15');
+is(remove_prefix_spaces(2, " \ttest"), "  test", 'remove_prefix_spaces9');
+is(remove_prefix_spaces(2, "  \ttest"), "  test", 'remove_prefix_spaces10');
+is(remove_prefix_spaces(2, "    \ttest"), "      test", 'remove_prefix_spaces11');
+is(remove_prefix_spaces(4, '    test'), 'test', 'remove_prefix_spaces12');
+is(remove_prefix_spaces(4, '      test'), '  test', 'remove_prefix_spaces13');
+is(remove_prefix_spaces(8, '        test'), 'test', 'remove_prefix_spaces14');
+is(remove_prefix_spaces(8, '          test'), '  test', 'remove_prefix_spaces15');
+is(remove_prefix_spaces(2, "  \n"), "\n", 'remove_prefix_spaces16');
+is(remove_prefix_spaces(2, "\t\ttest"), "\t  test", 'remove_prefix_spaces17');
 
 is(indent_size("abc"), 0, 'indent_size1');
 is(indent_size(" abc"), 1, 'indent_size2');
@@ -39,6 +41,13 @@ is(indent_size("\tabc"), 4, 'indent_size4');
 is(indent_size("  \tabc"), 4, 'indent_size5');
 is(indent_size("  \t  abc"), 6, 'indent_size6');
 is(indent_size("  \t     abc"), 9, 'indent_size7');
+is(indent_size("\t\tabc"), 8, 'indent_size8');
+
+is(horizontal_size("ab\tcd"), 6, 'horizontal_size1');
+is(horizontal_size("ab\t\tcd"), 10, 'horizontal_size2');
+is(horizontal_size("\t\tcd"), 10, 'horizontal_size3');
+is(horizontal_size("abcd\t"), 8, 'horizontal_size4');
+is(horizontal_size("ab"), 2, 'horizontal_size5');
 
 is(indented_one_tab("abc"), F(), 'indented_one_tab0');
 is(indented_one_tab("   abc"), F(), 'indented_one_tab1');

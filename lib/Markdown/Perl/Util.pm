@@ -9,7 +9,7 @@ use Exporter 'import';
 use List::MoreUtils 'first_index';
 
 our @EXPORT = ();
-our @EXPORT_OK = qw(split_while remove_prefix_spaces indent_size indented_one_tab);
+our @EXPORT_OK = qw(split_while remove_prefix_spaces indent_size indented_one_tab horizontal_size);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 # Partition a list into a continuous chunk for which the given code evaluates to
@@ -42,24 +42,32 @@ sub remove_prefix_spaces {
     }
   }
   return $text if $s == 0;
-  $text =~ m/^( {0,$s})/;
-  substr $text, 0, length($1), '';
-  $s -= length($1);
-  return $text if $s == 0;
-  if ($text =~ m/^\t/) {
-    # The spec is unclear on that topic, but it seems that the right thing to do
-    # is to convert the tabs into spaces here, to keep the right alignment.
-    substr $text, 0, 1, ' ' x (4 - $s);
+  $text =~ m/^(?<p> {0,3}\t| {4})*?(?<l> {0,3}\t| {4})?(?<s> {0,3})(?<e>[^ \t].*|$)/s;
+  my $ns = length $+{s};
+  if ($ns >= $s) {
+    return ($+{p} // '').($+{l} // '').(' ' x ($ns - $s)).$+{e};
+  } elsif (length($+{l})) {
+    return ($+{p} // '').(' ' x (4 + $ns - $s)).$+{e};
+  } else {
+    return $+{e};
   }
-  return $text;
 }
 
 # Return the indentation of the given text
 sub indent_size {
   my ($text) = @_;
-  my $t = ($text =~ m/\G( {0,3}\t| {4})/g);
+  my $t = () = $text =~ m/\G( {0,3}\t| {4})/gc;  # Forcing list context.
   $text =~ m/\G( *)/;
   my $s = length($1);
+  return $t * 4 + $s;
+}
+
+# Compute the horizontal size of a given string (similar to indent_size, but
+# all characters count, not just tabs and space).
+sub horizontal_size {
+  my ($text) = @_;
+  my $t = () = $text =~ m/\G([^\t]{0,3}\t|[^\t]{4})/gc;  # Forcing list context.
+  my $s = length($text) - (pos($text) // 0);
   return $t * 4 + $s;
 }
 

@@ -11,5 +11,8 @@ sub run {
 
 is(run("> ```\n> abc\n> def\n> ```"), "<blockquote>\n<pre><code>abc\ndef\n</code></pre>\n</blockquote>\n", 'fenced_code_in_quotes');
 is(run(">     abc\n>     def\n"), "<blockquote>\n<pre><code>abc\ndef\n</code></pre>\n</blockquote>\n", 'indented_code_in_quotes');
+is(run(">\t\tabc\n"), "<blockquote>\n<pre><code>  abc\n</code></pre>\n</blockquote>\n", 'indented_code_in_quotes_tabs');
+
+is(run("> abc\n> - def\n> - ghi\n"), "<blockquote>\n<p>abc</p>\n<ul>\n<li>def</li>\n<li>ghi</li>\n</ul>\n</blockquote>\n", 'list_in_quotes');
 
 done_testing;
