@@ -15,4 +15,7 @@ is(run(">\t\tabc\n"), "<blockquote>\n<pre><code>  abc\n</code></pre>\n</blockquo
 
 is(run("> abc\n> - def\n> - ghi\n"), "<blockquote>\n<p>abc</p>\n<ul>\n<li>def</li>\n<li>ghi</li>\n</ul>\n</blockquote>\n", 'list_in_quotes');
 
+is(run("> abc\n===\n"), "<blockquote>\n<p>abc\n===</p>\n</blockquote>\n", 'no_lazy_setext_heading');
+is(run("> abc\n---\n"), "<blockquote>\n<p>abc</p>\n</blockquote>\n<hr />\n", 'no_lazy_thematic_break');
+
 done_testing;

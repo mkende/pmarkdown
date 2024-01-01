@@ -35,6 +35,7 @@ sub new {
     last_line_is_blank => 0,
     last_line_was_blank => 0,
     skip_next_block_matching => 0,
+    is_lazy_continuation => 0,
     lines => [] }, $class;
   lock_keys %{$this};
 
@@ -93,7 +94,10 @@ sub convert {
   $this->{lines} = \@lines;
 
   while (my $hd = shift @{$this->{lines}}) {
-    $this->_parse_blocks($hd)
+    # This field might be set to true at the beginning of the processing, while
+    # we’re looking at the conditions of the currently open containers.
+    $this->{is_lazy_continuation} = 0;
+    $this->_parse_blocks($hd);
   }
   $this->_finalize_paragraph();
   while (@{$this->{blocks_stack}}) {
@@ -168,9 +172,16 @@ sub _test_lazy_continuation {
   return unless @{$this->{paragraph}};
   my $tester = new(ref($this), $this->{options}, $this->{local_options});
   $tester->{paragraph} = [@{$this->{paragraph}}];
+  # We use this field both in the tester and in the actual object when we
+  # matched a lazy continuation.
+  $tester->{is_lazy_continuation} = 1;
   # We’re ignoring the eol of the original line as it should not affect parsing.
   $tester->_parse_blocks([$l, '']);
-  return @{$tester->{paragraph}} > @{$this->{paragraph}};
+  if (@{$tester->{paragraph}} > @{$this->{paragraph}}) {
+    $this->{is_lazy_continuation} = 1;
+    return 1;
+  }
+  return 0;
 }
 
 sub _count_matching_blocks {
@@ -233,8 +244,9 @@ sub _parse_blocks {
   }
 
   # https://spec.commonmark.org/0.30/#setext-headings
-  if ($l =~ /^ {0,3}(-+|=+)[ \t]*$/ &&
-     @{$this->{paragraph}} && indent_size($this->{paragraph}[0]) < 4) {
+  if ($l =~ /^ {0,3}(-+|=+)[ \t]*$/
+     && @{$this->{paragraph}} && indent_size($this->{paragraph}[0]) < 4
+     && !$this->{is_lazy_continuation}) {
     # TODO: this should not interrupt a list if the heading is just one -
     my $c = substr $1, 0, 1;
     my $p = $this->{paragraph};
