@@ -32,6 +32,7 @@ sub new {
     blocks => [],
     blocks_stack => [],
     paragraph => [],
+    last_line_is_blank => 0,
     lines => [] }, $class;
   lock_keys %{$this};
 
@@ -96,7 +97,7 @@ sub convert {
   while (@{$this->{blocks_stack}}) {
     $this->_restore_parent_block();
   }
-  my $out = $this->_emit_html(@{delete $this->{blocks}});
+  my $out = $this->_emit_html(0, @{delete $this->{blocks}});
   $this->{blocks} = [];
   return $out;
 }
@@ -164,6 +165,20 @@ sub _test_lazy_continuation {
   return @{$tester->{paragraph}} > @{$this->{paragraph}};
 }
 
+sub _count_matching_blocks {
+  my ($this, $lr) = @_;  # $lr is a scalar *reference* to the current line text.
+  for my $i (0..$#{$this->{blocks_stack}}) {
+    local *::_ = $lr;
+    return $i unless $this->{blocks_stack}[$i]{cond}();
+  }
+  return @{$this->{blocks_stack}};
+}
+
+sub _all_blocks_match {
+  my ($this, $lr) =@_;
+  return @{$this->{blocks_stack}} == $this->_count_matching_blocks($lr);
+}
+
 my $thematic_break_re = qr/^ {0,3}(?:(?:-[ \t]*){3,}|(_[ \t]*){3,}|(\*[ \t]*){3,})$/;
 my $block_quotes_re = qr/^ {0,3}>[ \t]?/;
 my $indented_code_re = qr/^(?: {0,3}\t| {4})/;
@@ -175,18 +190,22 @@ sub _parse_blocks {
   my ($this, $hd) = @_;
   my $l = $hd->[0];
 
-  {
-    for my $i (0..$#{$this->{blocks_stack}}) {
-      local *::_ = \$l;
-      unless ($this->{blocks_stack}[$i]{cond}()) {
-        $this->_finalize_paragraph();
-        for my $j (@{$this->{blocks_stack}} > $i) {
-          $this->_restore_parent_block();
-        }
-        last;
-      }
+  my $cur_block = 0;
+
+  my $matched_block = $this->_count_matching_blocks(\$l);
+  if (@{$this->{blocks_stack}} > $matched_block) {
+    $this->_finalize_paragraph();
+    while (@{$this->{blocks_stack}} > $matched_block) {
+      $this->_restore_parent_block();
     }
   }
+
+  if ($this->{last_line_is_blank}) {
+    if (@{$this->{blocks}} && $this->{blocks}[-1]{type} eq 'list') {
+      $this->{blocks}[-1]{loose} = 1;
+    }
+  }
+  $this->{last_line_is_blank} = 0;
 
   # https://spec.commonmark.org/0.30/#atx-headings
   if ($l =~ /^ {0,3}(#{1,6})(?:[ \t]+(.+?))??(?:[ \t]+#+)?[ \t]*$/) {
@@ -233,15 +252,24 @@ sub _parse_blocks {
   # Indented code blocks cannot interrupt a paragraph.
   if (!@{$this->{paragraph}} && $l =~ m/${indented_code_re}/) {
     my $last = -1;
+    my @code_lines = remove_prefix_spaces(4, $l.$hd->[1]);
     for my $i (0..$#{$this->{lines}}) {
-      if ($this->{lines}[$i]->[0] =~ m/${indented_code_re}/) {
-        $last = $i;
-      } elsif ($this->{lines}[$i]->[0] ne '') {
+      my $l = $this->{lines}[$i]->[0];
+      if ($this->_all_blocks_match(\$l)) {
+        push @code_lines, remove_prefix_spaces(4, $l.$this->{lines}[$i]->[1]);
+        if ($l =~ m/${indented_code_re}/) {
+          $last = $i;
+        } elsif ($this->{lines}[$i]->[0] ne '') {
+          last;
+        }
+      } else {
         last;
       }
     }
-    my @code_lines = splice @{$this->{lines}}, 0, ($last + 1);
-    my $code = join('', map { remove_prefix_spaces(4, $_->[0].$_->[1]) } ($hd, @code_lines));
+    # @code_lines starts with $hd, so there is one more element than what is removed from our lines.
+    splice @code_lines, ($last + 2);
+    splice @{$this->{lines}}, 0, ($last + 1);
+    my $code = join('', @code_lines);
     $this->_add_block({ type => "code", content => $code, debug => 'indented'});
     return;
   }
@@ -249,20 +277,46 @@ sub _parse_blocks {
   # https://spec.commonmark.org/0.30/#fenced-code-blocks
   if ($l =~ /^(?<indent> {0,3})(?<fence>`{3,}|~{3,})[ \t]*(?<info>.*?)[ \t]*$/
             && (((my $f = substr $+{fence}, 0, 1) ne '`') || (index($+{info}, '`') == -1))) {
-    my $l = length($+{fence});
+    my $fl = length($+{fence});
     my $info = $+{info};
     my $indent = length($+{indent});
-    my ($code_lines, $rest) = split_while { $_->[0] !~ m/^ {0,3}${f}{$l,}[ \t]*$/ } @{$this->{lines}};
-    my $code = join('', map { remove_prefix_spaces($indent, $_->[0].$_->[1]) } @{$code_lines});
-    # Note that @$rest might be empty if we never find the closing fence. The
-    # spec says that we should then consider the whole doc to be a code block
-    # although we could consider that this was then not a code-block.
-    if (!$this->fenced_code_blocks_must_be_closed || @{$rest}) {
-      shift @{$rest};  # OK even if @$rest is empty.
+    # The spec does not describe what we should do with fenced code blocks inside
+    # other containers if we don’t match them.
+    my @code_lines;  # The first line is not part of the block.
+    my $end_fence_seen = -1;
+    for my $i (0..$#{$this->{lines}}) {
+      my $l = $this->{lines}[$i]->[0];
+      if ($this->_all_blocks_match(\$l)) {
+        if ($l =~ m/^ {0,3}${f}{$fl,}[ \t]*$/) {
+          $end_fence_seen = $i;
+          last;
+        } else {
+          # We’re adding one line to the fenced code block
+          push @code_lines, remove_prefix_spaces($indent, $l.$this->{lines}[$i]->[1]);
+        }
+      } else {
+        # We’re out of our enclosing block and we haven’t seen the end of the
+        # fence.
+        last;
+      }
+    }
+    
+    # The spec is unclear about what happens if we haven’t seen the end-fence at
+    # the end of the enclosing block. For now, we decide that we don’t have a
+    # fenced code block at all.
+    if ($end_fence_seen >= 0 || (!@{$this->{blocks_stack}} && !$this->fenced_code_blocks_must_be_closed)) {
+      my $code = join('', @code_lines);
       $this->_add_block({ type => "code", content => $code, info => $info, debug => 'fenced' });
-      $this->{lines} = $rest;
+      if ($end_fence_seen >= 0) {
+        splice @{$this->{lines}}, 0, ($end_fence_seen + 1);
+      } else {
+        # If we ever accept unclosed fenced code blocks inside other blocks we
+        # will need to track the end of the block (instead of assuming that we
+        # reached the end of the document as we do here).
+        @{$this->{lines}} = ();
+      }
       return;
-    } else {
+    } {
       # pass-through intended
     }
   }
@@ -301,7 +355,7 @@ sub _parse_blocks {
           $_ = remove_prefix_spaces($indent, $_);
           return 1;
         }
-        return $_ eq '';
+        return $this->_test_lazy_continuation($_) || $_ eq '';
       };
       my $new_hd = [(' ' x $indent_marker).$text, $hd->[1]] if $text ne '';
       # Note that we are handling the creation of the lists themselves in the
@@ -327,9 +381,10 @@ sub _parse_blocks {
   # https://spec.commonmark.org/0.30/#blank-lines
   if ($l eq  '') {
     $this->_finalize_paragraph();
+    $this->{last_line_is_blank} = 1;
     return;
-  } 
-  
+  }
+
   {
     ...
   }
@@ -351,7 +406,7 @@ sub _preprocess_lists {
 }
 
 sub _emit_html {
-  my ($this, @blocks) = @_;
+  my ($this, $tight_block, @blocks) = @_;
   my $out =  '';
   for my $b (@blocks) {
     if ($b->{type} eq 'break') {
@@ -368,18 +423,23 @@ sub _emit_html {
         my $l = $b->{info} =~ s/\s.*//r;  # The spec does not really cover this behavior so we’re using Perl notion of whitespace here.
         $i = " class=\"language-${l}\"";
       }
-      $out .= "<pre><code${i}>$c</code></pre>";
+      $out .= "<pre><code${i}>$c</code></pre>\n";
     } elsif ($b->{type} eq 'paragraph') {
-      $out .= "<p>".$this->_render_inline(@{$b->{content}})."</p>\n";
+      if ($tight_block) {
+        $out .= $this->_render_inline(@{$b->{content}})."\n";
+      } else {
+        $out .= "<p>".$this->_render_inline(@{$b->{content}})."</p>\n";
+      }
     } elsif ($b->{type} eq 'quotes') {
-      my $c = $this->_emit_html(@{$b->{content}});
+      my $c = $this->_emit_html(0, @{$b->{content}});
       $out .= "<blockquote>\n${c}</blockquote>\n";
     } elsif ($b->{type} eq 'list') {
       my $type = $b->{style};  # 'ol' or 'ul'
       my $start = '';
       my $num = $b->{start_num};
+      my $loose = $b->{loose};
       $start = " start=\"${num}\"" if $type eq 'ol' && $num != 1;
-      $out .= "<${type}${start}>\n<li>".join("</li>\n<li>", map { $this->_emit_html(@{$_->{content}}) } @{$b->{items}})."</li>\n</${type}>\n";
+      $out .= "<${type}${start}>\n<li>".join("</li>\n<li>", map { $this->_emit_html(!$loose, @{$_->{content}}) } @{$b->{items}})."</li>\n</${type}>\n";
     }
   }
   return $out;

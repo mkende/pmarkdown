@@ -25,17 +25,17 @@ is(run("abc\n---\n"), "<h2>abc</h2>\n", 'setext_heading3');
 is(run("   abc\n===\n"), "<h1>abc</h1>\n", 'setext_heading4');
 is(run("abc\n   =\n"), "<h1>abc</h1>\n", 'setext_heading5');
 
-is(run('    test'), "<pre><code>test</code></pre>", 'indented_code1');
-is(run("    test\n      next\n"), "<pre><code>test\n  next\n</code></pre>", 'indented_code2');
-is(run("\t  test\n\t  next\n"), "<pre><code>  test\n  next\n</code></pre>", 'indented_code3');
+is(run('    test'), "<pre><code>test</code></pre>\n", 'indented_code1');
+is(run("    test\n      next\n"), "<pre><code>test\n  next\n</code></pre>\n", 'indented_code2');
+is(run("\t  test\n\t  next\n"), "<pre><code>  test\n  next\n</code></pre>\n", 'indented_code3');
 
-is(run("```\ntest\n```"), "<pre><code>test\n</code></pre>", 'fenced_code1');
-is(run("  ```\ntest\n   other\n```"), "<pre><code>test\n other\n</code></pre>", 'fenced_code2');
-is(run("```\ntest\nother\n"), "<pre><code>test\nother\n</code></pre>", 'fenced_code3');
-is(run("~~~~\ntest\n~~~~"), "<pre><code>test\n</code></pre>", 'fenced_code4');
-is(run("~~~~\ntest\n~~~"), "<pre><code>test\n~~~</code></pre>", 'fenced_code5');
-is(run("```abc\ntest\n```"), "<pre><code class=\"language-abc\">test\n</code></pre>", 'fenced_code6');
-is(run("```abc def\ntest\n```"), "<pre><code class=\"language-abc\">test\n</code></pre>", 'fenced_code7');
+is(run("```\ntest\n```"), "<pre><code>test\n</code></pre>\n", 'fenced_code1');
+is(run("  ```\ntest\n   other\n```"), "<pre><code>test\n other\n</code></pre>\n", 'fenced_code2');
+is(run("```\ntest\nother\n"), "<pre><code>test\nother\n</code></pre>\n", 'fenced_code3');
+is(run("~~~~\ntest\n~~~~"), "<pre><code>test\n</code></pre>\n", 'fenced_code4');
+is(run("~~~~\ntest\n~~~"), "<pre><code>test\n~~~</code></pre>\n", 'fenced_code5');
+is(run("```abc\ntest\n```"), "<pre><code class=\"language-abc\">test\n</code></pre>\n", 'fenced_code6');
+is(run("```abc def\ntest\n```"), "<pre><code class=\"language-abc\">test\n</code></pre>\n", 'fenced_code7');
 
 is(run("abc"), "<p>abc</p>\n", 'paragraph1');
 is(run("abc\ndef"), "<p>abc\ndef</p>\n", 'paragraph2');
