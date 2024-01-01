@@ -33,6 +33,7 @@ sub new {
     blocks_stack => [],
     paragraph => [],
     last_line_is_blank => 0,
+    last_line_was_blank => 0,
     lines => [] }, $class;
   lock_keys %{$this};
 
@@ -110,8 +111,12 @@ sub _finalize_paragraph {
   return;
 }
 
+# Whether the list_item match the most recent list (should we add to the same
+# list or create a new one).
 sub _list_match {
-  my ($list, $item) = @_;
+  my ($this, $item) = @_;
+  return 0 unless @{$this->{blocks}};
+  my $list = $this->{blocks}[-1];
   return $list->{type} eq 'list' && $list->{style} eq $item->{style} && $list->{marker} eq $item->{marker};
 }
 
@@ -120,10 +125,12 @@ sub _add_block {
   $this->_finalize_paragraph();
   if ($block->{type} eq 'list_item') {
     # https://spec.commonmark.org/0.30/#lists
-    if (@{$this->{blocks}} && _list_match($this->{blocks}[-1], $block)) {
+    if ($this->_list_match($block)) {
       push @{$this->{blocks}[-1]{items}}, $block;
+      $this->{blocks}[-1]{loose} ||= $block->{loose};
     } else {
-      my $list = { type => 'list', style => $block->{style}, marker => $block->{marker}, start_num => $block->{num}, items => [$block] };
+      my $list = { type => 'list', style => $block->{style}, marker => $block->{marker},
+                   start_num => $block->{num}, items => [$block], loose => $block->{loose} };
       push @{$this->{blocks}}, $list;
     }
   } else {
@@ -182,6 +189,7 @@ sub _all_blocks_match {
 my $thematic_break_re = qr/^ {0,3}(?:(?:-[ \t]*){3,}|(_[ \t]*){3,}|(\*[ \t]*){3,})$/;
 my $block_quotes_re = qr/^ {0,3}>[ \t]?/;
 my $indented_code_re = qr/^(?: {0,3}\t| {4})/;
+my $list_item_re = qr/^(?<indent> {0,3})(?<marker>[-+*]|(?:(?<digits>\d{1,9})(?<symbol>[.)])))(?<text>.*)$/;
 
 # Parse at least one line of text to build a new block; and possibly several
 # lines, depending on the block type.
@@ -190,7 +198,9 @@ sub _parse_blocks {
   my ($this, $hd) = @_;
   my $l = $hd->[0];
 
-  my $cur_block = 0;
+  my $top_block = $this->{blocks}[-1];  # useless
+  
+  #use Data::Dumper; print Dumper($this);
 
   my $matched_block = $this->_count_matching_blocks(\$l);
   if (@{$this->{blocks_stack}} > $matched_block) {
@@ -200,11 +210,16 @@ sub _parse_blocks {
     }
   }
 
+  #use Data::Dumper; print Dumper($this);
+
   if ($this->{last_line_is_blank}) {
-    if (@{$this->{blocks}} && $this->{blocks}[-1]{type} eq 'list') {
-      $this->{blocks}[-1]{loose} = 1;
+    if (@{$this->{blocks}} && $this->{blocks}[-1]{type} eq 'list' && $top_block == $this->{blocks}[-1]) {
+    #  $this->{blocks}[-1]{loose} = 1;
+    } elsif (@{$this->{blocks_stack}} && $this->{blocks_stack}[-1]{block}{type} eq 'list_item') {
+      $this->{blocks_stack}[-1]{block}{loose} = 1;
     }
   }
+  $this->{last_line_was_blank} = $this->{last_line_is_blank};
   $this->{last_line_is_blank} = 0;
 
   # https://spec.commonmark.org/0.30/#atx-headings
@@ -316,7 +331,7 @@ sub _parse_blocks {
         @{$this->{lines}} = ();
       }
       return;
-    } {
+    } else {
       # pass-through intended
     }
   }
@@ -333,7 +348,7 @@ sub _parse_blocks {
   }
 
   # https://spec.commonmark.org/0.30/#list-items
-  if ($l =~ m/^(?<indent> {0,3})(?<marker>[-+*]|(?:(?<digits>\d{1,9})(?<symbol>[.)])))(?<text>.*)$/) {
+  if ($l =~ m/${list_item_re}/) {
     # There is a note in the spec on thematic breaks that are not list items,
     # it’s not exactly clear what is intended, and there are no examples.
     my ($indent_outside, $marker, $text, $digits, $symbol) = @+{qw(indent marker text digits symbol)};
@@ -341,6 +356,7 @@ sub _parse_blocks {
     my $text_indent = indent_size($text);
     # When interrupting a paragraph, the rules are stricter.
     if (@{$this->{paragraph}} && ($text eq '' || ($type eq 'ol' && $digits != 1))) {
+      use Data::Dumper; print Dumper($l, $this);
       # pass-through intended
     } elsif ($text ne '' && $text_indent == 0) {
       # pass-through intended
@@ -355,14 +371,16 @@ sub _parse_blocks {
           $_ = remove_prefix_spaces($indent, $_);
           return 1;
         }
-        return $this->_test_lazy_continuation($_) || $_ eq '';
+        return ($l !~ m/${list_item_re}/ && $this->_test_lazy_continuation($_)) || $_ eq '';
       };
       my $new_hd = [(' ' x $indent_marker).$text, $hd->[1]] if $text ne '';
       # Note that we are handling the creation of the lists themselves in the
       # _add_block method. See https://spec.commonmark.org/0.30/#lists for
       # reference.
       # TODO: handle tight and loose lists.
-      $this->_enter_child_block($new_hd, { type => 'list_item', style => $type, marker => $symbol // $marker, num => $digits}, $cond);
+      my $item = { type => 'list_item', style => $type, marker => $symbol // $marker, num => $digits};
+      $item->{loose} = $this->_list_match($item) && $this->{last_line_was_blank};
+      $this->_enter_child_block($new_hd, $item, $cond);
       return;
     }
   }
@@ -381,7 +399,7 @@ sub _parse_blocks {
   # https://spec.commonmark.org/0.30/#blank-lines
   if ($l eq  '') {
     $this->_finalize_paragraph();
-    $this->{last_line_is_blank} = 1;
+    $this->{last_line_is_blank} = 1;  # Needed to detect loose lists.
     return;
   }
 

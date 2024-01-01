@@ -20,7 +20,7 @@ is(run("- abc"), "<ul>\n<li>abc\n</li>\n</ul>\n", 'ul1');
 is(run("- abc\n- def"), "<ul>\n<li>abc\n</li>\n<li>def\n</li>\n</ul>\n", 'ul2');
 is(run("- abc\n\n- def"), "<ul>\n<li><p>abc</p>\n</li>\n<li><p>def</p>\n</li>\n</ul>\n", 'ul3');
 is(run("- abc\n  def\n"), "<ul>\n<li>abc\ndef\n</li>\n</ul>\n", 'ul4');
-is(run("- abc\n\n  def\n"), "<ul>\n<li><p>abc</p>\n<p>def</p>\n</li></ul>\n", 'ul5');
+is(run("- abc\n\n  def\n"), "<ul>\n<li><p>abc</p>\n<p>def</p>\n</li>\n</ul>\n", 'ul5');
 is(run("- abc\n* def"), "<ul>\n<li>abc\n</li>\n</ul>\n<ul>\n<li>def\n</li>\n</ul>\n", 'ul6');
 is(run("- abc\n\n* def"), "<ul>\n<li>abc\n</li>\n</ul>\n<ul>\n<li>def\n</li>\n</ul>\n", 'ul7');
 
