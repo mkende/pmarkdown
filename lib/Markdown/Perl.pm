@@ -8,6 +8,7 @@ use feature ':5.24';
 use Exporter 'import';
 use Hash::Util 'lock_keys';
 use List::Util 'pairs';
+use Markdown::Perl::Inlines;
 use Markdown::Perl::Util 'split_while', 'remove_prefix_spaces', 'indented_one_tab', 'indent_size';
 use Scalar::Util 'blessed';
 
@@ -436,19 +437,15 @@ sub _parse_blocks {
   }
 }
 
-sub _render_inline {
-  my ($this, @lines) = @_;
-  map { s/ {2,}$/<br \/>/ } @lines[0 .. $#lines -1];
-  # Should we consider more types of whitespace here?
-  map { s/^[ \t]+// } @lines;
-  map { s/[ \t]+$// } @lines;
-  return join("\n", @lines);
-}
-
 sub _preprocess_lists {
   my ($this, @blocks) = @_;
   for my $b (@blocks) {
   }
+}
+
+sub _render_inlines {
+  my ($this, @lines) = @_;
+  return Markdown::Perl::Inlines::render($this, @lines);
 }
 
 sub _emit_html {
@@ -460,7 +457,7 @@ sub _emit_html {
     } elsif ($b->{type} eq 'heading') {
       my $l = $b->{level};
       my $c = $b->{content};
-      $c = $this->_render_inline(ref $c eq 'ARRAY' ? @{$c} : $c);
+      $c = $this->_render_inlines(ref $c eq 'ARRAY' ? @{$c} : $c);
       $out .= "<h${l}>$c</h${l}>\n";
     } elsif ($b->{type} eq 'code') {
       my $c = $b->{content};
@@ -472,9 +469,9 @@ sub _emit_html {
       $out .= "<pre><code${i}>$c</code></pre>\n";
     } elsif ($b->{type} eq 'paragraph') {
       if ($tight_block) {
-        $out .= $this->_render_inline(@{$b->{content}});
+        $out .= $this->_render_inlines(@{$b->{content}});
       } else {
-        $out .= "<p>".$this->_render_inline(@{$b->{content}})."</p>\n";
+        $out .= "<p>".$this->_render_inlines(@{$b->{content}})."</p>\n";
       }
     } elsif ($b->{type} eq 'quotes') {
       my $c = $this->_emit_html(0, @{$b->{content}});
