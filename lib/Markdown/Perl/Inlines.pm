@@ -22,8 +22,8 @@ sub render {
   my $text = join("\n", @lines);
   my @runs = find_code_and_tag_runs($that, $text);
 
-  # At this point, @runs contains only 'text' or  'code' elements, that can’t
-  # have any children.
+  # At this point, @runs contains only 'text',  'code', or 'link' elements, that
+  # can’t have any children (yet).
 
   @runs = map { process_char_escaping($that, $_) } @runs;
 
@@ -46,7 +46,7 @@ sub find_code_and_tag_runs {
   # We are manually handling the backcslash escaping here because they are not
   # interpreted inside code blocks. We will then process all the others
   # afterward.
-  while ($text =~ m/(?<! \\) (?<backslashes> (\\\\)*) (?<code>\`+)/gx) {
+  while ($text =~ m/(?<! \\) (?<backslashes> (\\\\)*) (?: (?<code>\`+) | \< )/gx) {
     my ($start_before, $start_after) = ($-[0] + length($+{backslashes}), $+[0]);
     if ($+{code}) {
       my $fence = $+{code};
@@ -58,6 +58,19 @@ sub find_code_and_tag_runs {
         push @runs, { type => 'code', content => substr $text, $start_after, ($end_before - $start_after) };
         substr $text, 0, $end_after, '';  # This resets pos($text) as we want it to.
       }  # in the else clause, pos($text) == $start_after (because of the /c modifier).
+    } else {
+      # We matched a single < character.
+      my $re = $that->autolinks_regex;
+      my $email_re = $that->autolinks_email_regex;
+      if ($text =~ m/\G(?<link>${re})\>/gc) {
+        push @runs, { type => 'text', content => substr $text, 0, $start_before} if $start_before > 0;
+        push @runs, { type => 'link', content => $+{link}, target => $+{link} };
+        substr $text, 0, $+[0], '';  # This resets pos($text) as we want it to.
+      } elsif ($text =~ m/\G(?<link>${email_re})\>/gc) {
+        push @runs, { type => 'text', content => substr $text, 0, $start_before} if $start_before > 0;
+        push @runs, { type => 'link', content => $+{link}, target => 'mailto:'.$+{link} };
+        substr $text, 0, $+[0], '';  # This resets pos($text) as we want it to.
+      }
     }
   }
   push @runs, { type => 'text', content => $text } if $text;
@@ -72,6 +85,7 @@ sub process_char_escaping {
   if ($run->{type} eq 'code') {
     return $run;
   } elsif ($run->{type} eq 'text') {
+    # At this stage, these nodes cannot yet contain sub-nodes.
     my @new_runs;
     #while ($run->{content} =~ s/\\[!"#$%&'()*+,\-./:;<=>?+[\\\]^_`{|}~]//)
     while ($run->{content} =~ m/\\(\p{PosixPunct})/g) {
@@ -81,6 +95,10 @@ sub process_char_escaping {
     }
     push @new_runs, { type => 'text', content => decode_entities($run->{content}) } if $run->{content};
     return @new_runs;
+  } elsif  ($run->{type} eq 'link') {
+    # For now, a link can only be an autolink. So we will later escape the
+    # content of the link text. But we don’t want to decode HTML entities in it.
+    return $run;
   }
 }
 
@@ -98,6 +116,10 @@ sub map_entity {
   return '&amp;' if $1 eq '&';
   return '&lt;' if $1 eq '<';
   return '&gt;' if $1 eq '>';
+}
+
+sub http_escape {
+  $_[0] =~ s/([\\\[\]])/sprintf('%%%02X', ord($1))/ge;
 }
 
 sub render_runs {
@@ -122,6 +144,13 @@ sub render_runs {
       $r->{content} =~ s/ (.*[^ ].*) /$1/g;
       html_escape($r->{content});
       $out .= '<code>'.$r->{content}.'</code>';
+    } elsif ($r->{type} eq 'link') {
+      # TODO: in the future links can contain sub-node (right?)
+      # For now this is only autolinks.
+      html_escape($r->{content});
+      html_escape($r->{target});
+      http_escape($r->{target});
+      $out .= '<a href="'.($r->{target}).'">'.($r->{content}).'</a>';
     }
   }
 

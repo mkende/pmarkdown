@@ -597,6 +597,43 @@ sub multi_lines_setext_headings {
 
 =pod
 
+=item B<autolinks_regex>
+
+The regex that an autolink must match. This is for commonmark autolinks, that
+are recognized only if they appear between brackets C<\<I<link>\>>.
+
+The default value is meant to match the
+L<spec|https://spec.commonmark.org/0.30/#autolinks>. Basically it requires a
+scheme (e.g. C<https:>) followed by mostly anything else except that spaces and
+the bracket symbols (C<\<> and C<\>>) must be escaped.
+
+=cut
+
+sub autolinks_regex {
+  my ($this) = @_;
+  return $this->_get_option('autolinks_regex') // '(?i)[a-z][-+.a-z0-9]{1,31}:[^ <>[:cntrl:]]*';
+}
+
+=pod
+
+=item B<autolinks_email_regex>
+
+The regex that an autolink must match to be recognised as an email adress. This
+allows to omit the C<mailto:> scheme that would be needed to be recognised as
+an autolink otherwise.
+
+The default value is exactly the regex specified by the
+L<spec|https://spec.commonmark.org/0.30/#autolinks>.
+
+=cut
+
+sub autolinks_email_regex {
+  my ($this) = @_;
+  return $this->_get_option('autolinks_email_regex') // q{[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*};
+}
+
+=pod
+
 =back
 
 =cut
