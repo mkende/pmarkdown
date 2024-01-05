@@ -499,7 +499,7 @@ sub _get_option {
 
 =over 4
 
-=item B<fenced_code_blocks_must_be_closed> I<default: false>
+=item B<fenced_code_blocks_must_be_closed> I<(boolean, default: false)>
 
 By default, a fenced code block with no closing fence will run until the end of
 the document. With this setting, the openning fence will be treated as normal
@@ -515,7 +515,7 @@ sub fenced_code_blocks_must_be_closed {
 
 =pod
 
-=item B<code_blocks_info>
+=item B<code_blocks_info> I<(enum, default: language)>
 
 Fenced code blocks can have info strings on their opening lines (any text after
 the C<```> or C<~~~> fence). This option controls what is done with that text.
@@ -539,7 +539,7 @@ sub code_blocks_info {
   return $this->_get_option('code_blocks_info') // 'language';
 }
 
-=pod=item B<multi_lines_setext_headings>
+=pod=item B<multi_lines_setext_headings> I<(enum, default: multi_line)>
 
 The default behavior of setext headings in the CommonMark spec is that they can
 have multiple lines of text preceeding them (forming the heading itself).
@@ -597,7 +597,7 @@ sub multi_lines_setext_headings {
 
 =pod
 
-=item B<autolinks_regex>
+=item B<autolinks_regex> I<(regex string)>
 
 The regex that an autolink must match. This is for commonmark autolinks, that
 are recognized only if they appear between brackets C<\<I<link>\>>.
@@ -616,7 +616,7 @@ sub autolinks_regex {
 
 =pod
 
-=item B<autolinks_email_regex>
+=item B<autolinks_email_regex> I<(regex string)>
 
 The regex that an autolink must match to be recognised as an email adress. This
 allows to omit the C<mailto:> scheme that would be needed to be recognised as
@@ -629,7 +629,8 @@ L<spec|https://spec.commonmark.org/0.30/#autolinks>.
 
 sub autolinks_email_regex {
   my ($this) = @_;
-  return $this->_get_option('autolinks_email_regex') // q{[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*};
+  return $this->_get_option('autolinks_email_regex') //
+    q{[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*};
 }
 
 =pod
