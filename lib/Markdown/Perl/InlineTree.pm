@@ -288,4 +288,95 @@ sub find_balanced_in_text {
   return;
 }
 
+sub render_html {
+  my ($tree) = @_;
+  return $tree->iter(\&render_node_html, '');
+}
+
+sub render_node_html {
+  my ($n, $acc) = @_;
+
+  if ($n->{type} eq 'text') {
+    # TODO: Maybe we should not do that on the last newline of the string?
+    html_escape($n->{content});
+    $n->{content} =~ s{(?: {2,}|\\)\n}{<br />\n}g;
+    return $acc . $n->{content};
+  } elsif ($n->{type} eq 'literal') {
+    html_escape($n->{content});
+    return $acc . $n->{content};
+  } elsif ($n->{type} eq 'code') {
+    # New lines are treated like spaces in code.
+    $n->{content} =~ s/\n/ /g;
+    # If the content is not just whitespace and it has one space at the
+    # beginning and one at the end, then we remove them.
+    $n->{content} =~ s/ (.*[^ ].*) /$1/g;
+    html_escape($n->{content});
+    return $acc . '<code>'.$n->{content}.'</code>';
+  } elsif ($n->{type} eq 'link') {
+    # TODO: in the future links can contain sub-node (right?)
+    # For now this is only autolinks.
+    if (exists $n->{content}) {
+      html_escape($n->{content});
+      html_escape($n->{target});
+      http_escape($n->{target});
+      return $acc . '<a href="'.($n->{target}).'">'.($n->{content}).'</a>';
+    } else {
+      # TODO: the target should not be stored as a tree but directly as a string.
+      my $target = $n->{target}->render_lite();
+      my $content = $n->{subtree}->render_html();
+      return $acc . "<a href=\"${target}\">${content}</a>";
+    }
+  }
+}
+
+# Render the original Markdown code, more or less (with some html escaping still
+# done).
+sub render_lite {
+  my ($tree) = @_;
+  return $tree->iter(\&render_node_lite, '');
+}
+
+sub render_node_lite {
+  my ($n, $acc) = @_;
+
+  if ($n->{type} eq 'text') {
+    html_escape($n->{content});
+    return $acc . $n->{content};
+  } elsif ($n->{type} eq 'literal') {
+    # TODO: this should be the original string, stored somewhere in the node.
+    # (to follow the rules to match link-reference name).
+    html_escape($n->{content});
+    return $acc . $n->{content};
+  } elsif ($n->{type} eq 'code') {
+    html_escape($n->{content});
+    return $acc . '<code>'.$n->{content}.'</code>';
+  } elsif ($n->{type} eq 'link') {
+    die "The render_lite method does not support link nodes"
+  }
+}
+
+# There are four characters that are escaped in the html output (although the
+# spec never really says so because they claim that they care only about parsing).
+# TODO: move to the Util module.
+sub html_escape {
+  $_[0] =~ s/([&"<>])/&map_entity/eg;
+  # TODO, compare speed with `encode_entities($_[0], '<>&"')` from HTML::Entities
+  return;
+}
+# TODO: fork HTML::Escape at some point, so that it supports only these 4
+# characters.
+# TODO: move to the Util module.
+sub map_entity {
+  return '&quot;' if $1 eq '"';
+  return '&amp;' if $1 eq '&';
+  return '&lt;' if $1 eq '<';
+  return '&gt;' if $1 eq '>';
+}
+
+# TODO: move to the Util module.
+sub http_escape {
+  $_[0] =~ s/([\\\[\]])/sprintf('%%%02X', ord($1))/ge;
+}
+
+
 1;

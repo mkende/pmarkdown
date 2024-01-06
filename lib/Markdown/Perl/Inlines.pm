@@ -25,12 +25,12 @@ sub render {
   # At this point, @runs can also contain 'literal' elements, that don’t have
   # children either.
 
-  # my @runs = process_links($that, @runs);
+  process_links($that, $tree, 0, 0);  # We start at the beginning of the first node.
 
   # Now, there are more link elements and they can have children instead of
   # content.
 
-  my $out = $tree->iter(\&render_node, '');
+  my $out = $tree->render_html();
 
   # We remove white-space at the beginning and end of the lines.
   # TODO: maybe this could be done more efficiently earlier in the processing?
@@ -93,8 +93,17 @@ sub process_char_escaping {
     # content of the link text. But we don’t want to decode HTML entities in it.
     return $node;
   } elsif ($node->{type} eq 'text') {
+    # TODO: with the current code for map, this could just be @nodes.
     my $new_tree = Markdown::Perl::InlineTree->new();
     while ($node->{content} =~ m/\\(\p{PosixPunct})/g) {
+      # TODO, BUG: We are introducing a bug here, due to the fact that when we parse
+      # reference links, we should compare the exact string and not the decoded
+      # ones. See: https://spec.commonmark.org/dingus/?text=%5Bb%60ar%60%3C%5D%0A%0A%5Bb%60ar%60%26lt%3B%5D%3Afoo%0A
+      # So we should still parse the literals here, but only decode the HTML
+      # entities later, after we have parsed the links.
+      # Literal parsing is OK because we can always invert it (and it makes the
+      # rest of the processing be much simpler because we don’t need to check
+      # whether we have escaped text or not).
       $new_tree->push(new_text(decode_entities(substr $node->{content}, 0, $-[0]))) if $-[0] > 0;
       $new_tree->push(new_literal($1));
       substr $node->{content}, 0, $+[0], '';  # This resets pos($node->{content}) as we want it to.      
@@ -104,72 +113,114 @@ sub process_char_escaping {
   }
 }
 
+# We find all the links in the tree, starting at the child $child_start and its
+# offset $text_start. If the bounds are set, then we don’t investigate links
+# that starts further than this bound.
+#
+# We are not implementing the recommended parsing strategy from the spec:
+# https://spec.commonmark.org/0.30/#phase-2-inline-structure
+# Instead, we are doing a more straight-forward algorithm, that is probably
+# slower but easier to extend.
+#
+# Overall, this methods implement this whole section of the spec:
+# https://spec.commonmark.org/0.30/#links
 sub process_links {
-  my ($that, @runs) = @_;
+  my ($that, $tree, $child_start, $text_start, $start_child_bound, $start_text_bound) = @_;
 
-  for (my $i = 0; $i < @runs; $i++) {
-    if ($runs[$i]{type} eq 'text') {
-      if ($runs[$i]{content} =~ m/\[/) {
-        my $open_pos = $-[0];
-
+  my @open = $tree->find_in_text(qr/\[/, $child_start, $text_start, $start_child_bound, $start_text_bound);
+  return unless @open;
+  # TODO: add an argument here that recurse into sub-trees and returns false if
+  # we cross a link element. However, at this stage, the only links that we
+  # could find would be autolinks. Although it would make sense that the spec
+  # disallow shuch elements (because it does not make sense in the resulting
+  # HTLM), the current cmark implementation accepts that:
+  # https://spec.commonmark.org/dingus/?text=%5Bbar%3Chttp%3A%2F%2Ftest.fr%3Ebaz%5D(%2Fbaz)%0A%0A
+  # Maybe we want to fix this bug in our implementation.
+  my @close = $tree->find_balanced_in_text(qr/\[/, qr/\]/, $open[0], $open[2]);
+  if (@close) {
+    # We found something that could be a link, now let’s see if it contains a
+    # link (if so, we won’t process the current one).
+    if (my @ret = process_links($that, $tree, $open[0], $open[2], $close[0], $close[1])) {
+      # We found a link within our bounds, so we don’t create a new link around
+      # it. If we are a top-level call we try again after the end of the
+      # inner-most link found (which was necessarily the left-most valid link.
+      # If we are not the top-level call, we just propagate that bound.
+      return @ret if defined $start_child_bound;
+      process_links($that, $tree, @ret);
+      return;  # For top-level calls, we don’t care about the return value.
+    } else {
+      # We have a candidate link and no internal links, so we try to look at its
+      # destination.
+      # It’s unclear in the spec what happens in the case when a link
+      # destination crosses the boundary of an enclosing candidate link. We
+      # assume that the inner one is defined by the link text and not by the
+      # destination.
+      
+      my $target = process_link_destination($that, $tree, $close[0], $close[2]);
+      if ($target) {
+        my $text_tree = $tree->extract($open[0], $open[2], $close[0], $close[1]);
+        my (undef, $dest_node_index) = $tree->extract($open[0], $open[1], $open[0]+1, 1);
+        # TODO: $target should be rendered to a "simple text" or something and
+        # not added as a sub-tree.
+        my $link = new_link($text_tree, target => $target);
+        $tree->insert($dest_node_index, $link);
+        # If we are not a top-level call, we return the coordinate where to
+        # start looking again for a link.
+        return ($dest_node_index + 1, 0) unless defined $start_child_bound;
+        # If we are a top-level call, we directly start the search at these
+        # coordinates.
+        process_links($that, $tree, $dest_node_index + 1, 0);
+        return;  # For top-level calls, we don’t care about the return value.
+      } else {
+        # We could not match a link target, so this is not a link at all.
+        # We continue the search just after our initial opening bracket.
+        # We do the same call whether or not we are a top-level call.
+        return process_links($that, $tree, $open[0], $open[2], $start_child_bound, $start_text_bound);
       }
-    } elsif ($runs[$i]{type} eq 'code') {
-      # passthrough
-    } elsif ($runs[$i]{type} eq 'link') {
-      # passthrough, these are autolink with no content.
-    } elsif ($runs[$i]{type} eq 'literal') {
-      # passthrough
     }
+  } else {
+    # Our open bracket was unmatched. This necessarily means that we are in the
+    # unbounded case (as, otherwise we are within a balanced pair of brackets).
+    die "Unexpected bounded call to process_links with unbalanced brackets" if defined $start_child_bound;
+    # We continue to search starting just after the open bracket that we found.
+    process_links($that, $tree, $open[0], $open[2]);
+    return;  # For top-level calls, we don’t care about the return value.
   }
 }
 
-# There are four characters that are escaped in the html output (although the
-# spec never really says so because they claim that they care only about parsing).
-sub html_escape {
-  $_[0] =~ s/([&"<>])/&map_entity/eg;
-  # TODO, compare speed with `encode_entities($_[0], '<>&"')` from HTML::Entities
+sub process_link_destination {
+  my ($that, $tree, $child_start, $text_start) = @_;
+  # We assume that the beginning of the link destination must be just after the
+  # link text and in the same child, as there can be no other constructs
+  # in-between.
+  # TODO: For now we only look at a single element.
+  # TODO: this is a very very partial treatment of the link destination.
+  # We need to support more formatting and the case where there are Literal
+  # elements in the link. The spec does not say what happens if there are
+  # other type of elements in the link destination like, stuff that looks like
+  # code for example (in practice, cmark will not process their content).
+  # So let’s not care too much...
+
+  my $n = $tree->{children}[$child_start];
+  die "Unexpected link destination search in a non-text element: ".$n->{type} unless $n->{type} eq 'text';
+  # TODO: use find_in_text bounded (to work across child limit);
+  return unless substr($n->{content}, $text_start, 1) eq '(';
+
+  pos($n->{content}) = $text_start + 1;
+  # TODO: use find_in_text (balanced?) to find the end of the potential target
+  # and then try to build the text.
+  if ($n->{content} =~ m/(\G[^ ()[:cntrl:]]*)\)/) {
+    # If we found a target, we know that we will use it, so we can remove it
+    # from the tree.
+    my $target = $tree->extract($child_start, $text_start + 1, $child_start, $+[1]);
+    # We remove the parenthesis. This relies on the fact that we were in one
+    # large text node (that is now two text nodes).
+    # TODO: remove this assumption.
+    $tree->extract($child_start, $text_start, $child_start+1, 1);
+    return $target;
+  }
   return;
-}
-# TODO: fork HTML::Escape at some point, so that it supports only these 4
-# characters.
-sub map_entity {
-  return '&quot;' if $1 eq '"';
-  return '&amp;' if $1 eq '&';
-  return '&lt;' if $1 eq '<';
-  return '&gt;' if $1 eq '>';
-}
 
-sub http_escape {
-  $_[0] =~ s/([\\\[\]])/sprintf('%%%02X', ord($1))/ge;
-}
-
-sub render_node {
-  my ($n, $acc) = @_;
-
-  if ($n->{type} eq 'text') {
-    # TODO: Maybe we should not do that on the last newline of the string?
-    html_escape($n->{content});
-    $n->{content} =~ s{(?: {2,}|\\)\n}{<br />\n}g;
-    return $acc . $n->{content};
-  } elsif ($n->{type} eq 'literal') {
-    html_escape($n->{content});
-    return $acc . $n->{content};
-  } elsif ($n->{type} eq 'code') {
-    # New lines are treated like spaces in code.
-    $n->{content} =~ s/\n/ /g;
-    # If the content is not just whitespace and it has one space at the
-    # beginning and one at the end, then we remove them.
-    $n->{content} =~ s/ (.*[^ ].*) /$1/g;
-    html_escape($n->{content});
-    return $acc . '<code>'.$n->{content}.'</code>';
-  } elsif ($n->{type} eq 'link') {
-    # TODO: in the future links can contain sub-node (right?)
-    # For now this is only autolinks.
-    html_escape($n->{content});
-    html_escape($n->{target});
-    http_escape($n->{target});
-    return $acc . '<a href="'.($n->{target}).'">'.($n->{content}).'</a>';
-  }
 }
 
 1;

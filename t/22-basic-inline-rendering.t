@@ -42,4 +42,6 @@ is(run('<http://foo>'), "<p><a href=\"http://foo\">http://foo</a></p>\n", 'autol
 is(run('<http:>'), "<p><a href=\"http:\">http:</a></p>\n", 'autolink2');
 is(run('<http:foo&bar>'), "<p><a href=\"http:foo&amp;bar\">http:foo&amp;bar</a></p>\n", 'autolink3');
 
+is(run('[foo](/bar)'), "<p><a href=\"/bar\">foo</a></p>\n", 'link1');
+
 done_testing;
