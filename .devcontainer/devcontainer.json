@@ -1,0 +1,7 @@
+# DO NOT EDIT! This file is written by perl_setup_dist.
+# If needed, you can add content at the end of the file.
+{
+  "build": { "dockerfile": "Dockerfile" },
+  "updateContentCommand": "sh .devcontainer/update_content.sh"
+}
+# End of the template. You can add custom content below this line.
