@@ -1,22 +1,26 @@
 # DO NOT EDIT! This file is written by perl_setup_dist.
 # If needed, you can add content at the end of the file.
-^.aspelldict$
-^.git/
-^.gitmodules$
-^.gitignore$
-^.perlcriticrc$
-^.perltidyrc$
+
+^\.aspelldict$
+^\.devcontainer/
+^\.git/
+^\.gitignore$
+^\.gitmodules$
+^\.perlcriticrc$
+^\.perltidyrc$
 ^Makefile$
+^Makefile.old$
 ^MANIFEST\.bak$
-^MANIFEST\.skip$
+^MANIFEST\.SKIP$
 ^blib/
-^cpanfile.snapshot$
-^dist_setup.conf$
+^cpanfile\.snapshot$
+^dist_setup\.conf$
 ^local/
 ^third_party/
 ^pm_to_blib$
 ^Markdown-Perl\.tar\.gz
 ^Markdown-Perl/
+
 # End of the template. You can add custom content below this line.
 
 ^TODO$

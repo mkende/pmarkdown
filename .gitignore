@@ -1,5 +1,6 @@
 # DO NOT EDIT! This file is written by perl_setup_dist.
 # If needed, you can add content at the end of the file.
+
 /.aspell.en.prepl
 /Makefile
 /Makefile.old
@@ -14,6 +15,7 @@
 *.bak
 *.tdy
 /Markdown-Perl-*/
+
 # End of the template. You can add custom content below this line.
 
 /TODO

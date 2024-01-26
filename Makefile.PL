@@ -1,5 +1,6 @@
 # DO NOT EDIT! This file is written by perl_setup_dist.
 # If needed, you can add content at the end of the file.
+
 use 5.026;
 use strict;
 use warnings;
@@ -43,5 +44,21 @@ WriteMakefile(
     clean => { FILES => 'Markdown-Perl-*' },
 );
 
+sub MY::postamble {
+  my ($self) = @_;
+
+  my @postamble;
+  push @postamble, ::postamble() if *::postamble{CODE};
+
+  push @postamble, <<"MAKE_FRAGMENT";
+distupload: tardist
+\tcpan-upload --directory Markdown-Perl \$(DISTVNAME).tar\$(SUFFIX)
+MAKE_FRAGMENT
+
+  return join "\n", @postamble;
+}
+
+# You can add below this template a `postamble` sub that returns more content to
+# add to the generated Makefile.
 
 # End of the template. You can add custom content below this line.
