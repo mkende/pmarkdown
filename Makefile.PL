@@ -53,6 +53,22 @@ sub MY::postamble {
   push @postamble, <<"MAKE_FRAGMENT";
 distupload: tardist
 \tcpan-upload --directory Markdown-Perl \$(DISTVNAME).tar\$(SUFFIX)
+
+cover:
+\tcover -test
+
+critic:
+\tperlcritic lib script
+
+tidy:
+\tperltidy -b -bext='/' \$(shell find lib -name "*.pm") script/pmarkdown
+
+spelling: export EXTENDED_TESTING = 1
+spelling:
+\t\$(PERLRUN) t/001-spelling.t --interactive
+
+alltest: export EXTENDED_TESTING = 1
+alltest: test
 MAKE_FRAGMENT
 
   return join "\n", @postamble;
