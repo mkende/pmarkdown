@@ -5,7 +5,11 @@ use utf8;
 use FindBin;
 use Test2::V0;
 
-skip_all('Author test.  Set $ENV{TEST_AUTHOR} to a true value to run.') unless $ENV{TEST_AUTHOR};
+BEGIN {
+  if (not $ENV{EXTENDED_TESTING}) {
+    skip_all('Extended test. Set $ENV{EXTENDED_TESTING} to a true value to run.');
+  }
+}
 
 skip_all('Python3 must be installed.') if system 'python3 -c "exit()" 2>/dev/null';
 
