@@ -19,7 +19,7 @@ our %EXPORT_TAGS = (all => \@EXPORT_OK);
 sub new {
   my ($class) = @_;
 
-  return bless { children => [] }, $class;
+  return bless {children => []}, $class;
 }
 
 package Markdown::Perl::InlineNode {
@@ -29,15 +29,19 @@ package Markdown::Perl::InlineNode {
 
     my $this;
     if ($type eq 'text' || $type eq 'code' || $type eq 'literal') {
-      die "Unexpected content for inline ${type} node: ".ref($content) if ref $content;
-      die "Unexpected parameters for inline ${type} node: ".join(', ', %options) if %options;
-      $this = { type => $type, content => $content};
+      die "Unexpected content for inline ${type} node: ".ref($content)
+          if ref $content;
+      die "Unexpected parameters for inline ${type} node: ".join(', ', %options)
+          if %options;
+      $this = {type => $type, content => $content};
     } elsif ($type eq 'link') {
-      die "Unexpected parameters for inline ${type} node: ".join(', ', %options) if keys %options > 1 || !exists $options{target};
-      if (Scalar::Util::blessed($content) && $content->isa('Markdown::Perl::InlineTree')) {
-        $this = { type => $type, subtree => $content, target => $options{target} };
+      die "Unexpected parameters for inline ${type} node: ".join(', ', %options)
+          if keys %options > 1 || !exists $options{target};
+      if (Scalar::Util::blessed($content)
+        && $content->isa('Markdown::Perl::InlineTree')) {
+        $this = {type => $type, subtree => $content, target => $options{target}};
       } elsif (!ref($content)) {
-        $this = { type => $type, content => $content, target => $options{target} };
+        $this = {type => $type, content => $content, target => $options{target}};
       } else {
         die "Unexpected content for inline ${type} node: ".ref($content);
       }
@@ -53,7 +57,7 @@ package Markdown::Perl::InlineNode {
   sub clone {
     my ($this) = @_;
 
-    return bless { %{$this} }, ref($this);
+    return bless {%{$this}}, ref($this);
   }
 
   sub has_subtree {
@@ -100,7 +104,8 @@ sub push {
 # Replace the child at the given index by the given list of new nodes.
 sub replace {
   my ($this, $child_index, @new_nodes) = @_;
-  splice @{$this->{children}}, $child_index, 1, map { is_node($_) ? $_ : @{$_->{children}} } @new_nodes;
+  splice @{$this->{children}}, $child_index, 1,
+      map { is_node($_) ? $_ : @{$_->{children}} } @new_nodes;
   return;
 }
 
@@ -124,17 +129,21 @@ sub extract {
 
   my $sn = $this->{children}[$child_start];
   my $en = $this->{children}[$child_end];
-  die "Start node in an extract operation is not of type text: ".$sn->{type} unless $sn->{type} eq 'text';
-  die "End node in an extract operation is not of type text: ".$en->{type} unless $en->{type} eq 'text';
+  die "Start node in an extract operation is not of type text: ".$sn->{type}
+      unless $sn->{type} eq 'text';
+  die "End node in an extract operation is not of type text: ".$en->{type}
+      unless $en->{type} eq 'text';
   die "Start offset is less than 0 in an extract operation" if $text_start < 0;
-  die "End offset is past the end of the text an extract operation" if $text_end > length($en->{content});
+  die "End offset is past the end of the text an extract operation"
+      if $text_end > length($en->{content});
 
   # Clone will not recurse into sub-trees. But the start and end nodes can’t
   # have sub-trees, and the middle ones don’t matter because they are not shared
   # with the initial tree.
-  my @nodes = map { $_->clone() } @{$this->{children}}[$child_start .. $child_end];
-  substr($nodes[-1]{content}, $text_end)= '';
-  substr($nodes[0]{content}, 0, $text_start)= '';  # We must do this after text_end in case they are the same node.
+  my @nodes =
+      map { $_->clone() } @{$this->{children}}[$child_start .. $child_end];
+  substr($nodes[-1]{content}, $text_end) = '';
+  substr($nodes[0]{content}, 0, $text_start) = '';  # We must do this after text_end in case they are the same node.
   shift @nodes if length($nodes[0]{content}) == 0;
   pop @nodes if @nodes and length($nodes[-1]{content}) == 0;
   my $new_tree = Markdown::Perl::InlineTree->new();
@@ -144,12 +153,12 @@ sub extract {
     if ($text_start == 0) {
       $child_start--;
     } else {
-      substr($sn->{content}, $text_start)= '';
+      substr($sn->{content}, $text_start) = '';
     }
     if ($text_end == length($en->{content})) {
       $child_end++;
     } else {
-      substr($en->{content}, 0, $text_end)= '';
+      substr($en->{content}, 0, $text_end) = '';
     }
     splice @{$this->{children}}, $child_start + 1, $child_end - $child_start - 1;
   } else {
@@ -229,7 +238,7 @@ sub iter {
 
   for (@{$this->{children}}) {
     $out = $sub->($_, $out);
-  };
+  }
 
   return $out;
 }
@@ -300,10 +309,10 @@ sub render_node_html {
     # TODO: Maybe we should not do that on the last newline of the string?
     html_escape($n->{content});
     $n->{content} =~ s{(?: {2,}|\\)\n}{<br />\n}g;
-    return $acc . $n->{content};
+    return $acc.$n->{content};
   } elsif ($n->{type} eq 'literal') {
     html_escape($n->{content});
-    return $acc . $n->{content};
+    return $acc.$n->{content};
   } elsif ($n->{type} eq 'code') {
     # New lines are treated like spaces in code.
     $n->{content} =~ s/\n/ /g;
@@ -311,7 +320,7 @@ sub render_node_html {
     # beginning and one at the end, then we remove them.
     $n->{content} =~ s/ (.*[^ ].*) /$1/g;
     html_escape($n->{content});
-    return $acc . '<code>'.$n->{content}.'</code>';
+    return $acc.'<code>'.$n->{content}.'</code>';
   } elsif ($n->{type} eq 'link') {
     # TODO: in the future links can contain sub-node (right?)
     # For now this is only autolinks.
@@ -319,12 +328,12 @@ sub render_node_html {
       html_escape($n->{content});
       html_escape($n->{target});
       http_escape($n->{target});
-      return $acc . '<a href="'.($n->{target}).'">'.($n->{content}).'</a>';
+      return $acc.'<a href="'.($n->{target}).'">'.($n->{content}).'</a>';
     } else {
       # TODO: the target should not be stored as a tree but directly as a string.
       my $target = $n->{target}->render_lite();
       my $content = $n->{subtree}->render_html();
-      return $acc . "<a href=\"${target}\">${content}</a>";
+      return $acc."<a href=\"${target}\">${content}</a>";
     }
   }
 }
@@ -341,17 +350,17 @@ sub render_node_lite {
 
   if ($n->{type} eq 'text') {
     html_escape($n->{content});
-    return $acc . $n->{content};
+    return $acc.$n->{content};
   } elsif ($n->{type} eq 'literal') {
     # TODO: this should be the original string, stored somewhere in the node.
     # (to follow the rules to match link-reference name).
     html_escape($n->{content});
-    return $acc . $n->{content};
+    return $acc.$n->{content};
   } elsif ($n->{type} eq 'code') {
     html_escape($n->{content});
-    return $acc . '<code>'.$n->{content}.'</code>';
+    return $acc.'<code>'.$n->{content}.'</code>';
   } elsif ($n->{type} eq 'link') {
-    die "The render_lite method does not support link nodes"
+    die "The render_lite method does not support link nodes";
   }
 }
 
@@ -377,6 +386,5 @@ sub map_entity {
 sub http_escape {
   $_[0] =~ s/([\\\[\]])/sprintf('%%%02X', ord($1))/ge;
 }
-
 
 1;

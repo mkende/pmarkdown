@@ -12,7 +12,7 @@
 # Code indentation
 
 --indent-columns=2
---maximum-line-length=80
+--maximum-line-length=100
 # --variable-maximum-line-length
 --continuation-indentation=4
 --extended-continuation-indentation
@@ -48,7 +48,7 @@
 --noopening-brace-on-new-line         # Opening braces on the line of their keywords (this is actually the default).
 --opening-brace-always-on-right       # Opening braces at the right of the line even if there isn’t enough space for it.
 --opening-token-right                 # braces, parens, and brackets on the right after a comma.
-#--stack-opening-tokens          # ??? # Several opening tokens are on the same lines (can be controlled per type of tokens if needed).
+--stack-opening-tokens                # Several opening tokens are on the same lines (can be controlled per type of tokens if needed).
 --comma-arrow-breakpoint=5            # Control how hash are indented. 5 is the default.
 --paren-vertical-tightness-closing=3  # Break before a closing paren except in a hash constructior.
 --square-bracket-vertical-tightness-closing=0  # Break before a closing square bracket.

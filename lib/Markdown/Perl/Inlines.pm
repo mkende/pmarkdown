@@ -60,7 +60,8 @@ sub find_code_and_tag_runs {
       # before or after.
       if ($text =~ m/(?<!\`)${fence}(?!\`)/gc) {
         my ($end_before, $end_after) = ($-[0], $+[0]);
-        $tree->push(new_text(substr($text, 0, $start_before))) if $start_before > 0;
+        $tree->push(new_text(substr($text, 0, $start_before)))
+            if $start_before > 0;
         $tree->push(new_code(substr($text, $start_after, ($end_before - $start_after))));
         substr $text, 0, $end_after, '';  # This resets pos($text) as we want it to.
       }  # in the else clause, pos($text) == $start_after (because of the /c modifier).
@@ -69,11 +70,13 @@ sub find_code_and_tag_runs {
       my $re = $that->autolinks_regex;
       my $email_re = $that->autolinks_email_regex;
       if ($text =~ m/\G(?<link>${re})\>/gc) {
-        $tree->push(new_text(substr($text, 0, $start_before))) if $start_before > 0;
+        $tree->push(new_text(substr($text, 0, $start_before)))
+            if $start_before > 0;
         $tree->push(new_link($+{link}, target => $+{link}));
         substr $text, 0, $+[0], '';  # This resets pos($text) as we want it to.
       } elsif ($text =~ m/\G(?<link>${email_re})\>/gc) {
-        $tree->push(new_text(substr($text, 0, $start_before))) if $start_before > 0;
+        $tree->push(new_text(substr($text, 0, $start_before)))
+            if $start_before > 0;
         $tree->push(new_link($+{link}, target => 'mailto:'.$+{link}));
         substr $text, 0, $+[0], '';  # This resets pos($text) as we want it to.
       }
@@ -87,7 +90,7 @@ sub find_code_and_tag_runs {
 sub process_char_escaping {
   my ($that, $node) = @_;
 
-  # This is executed after 
+  # This is executed after
   if ($node->{type} eq 'code' || $node->{type} eq 'link') {
     # For now, a link can only be an autolink. So we will later escape the
     # content of the link text. But we don’t want to decode HTML entities in it.
@@ -104,11 +107,13 @@ sub process_char_escaping {
       # Literal parsing is OK because we can always invert it (and it makes the
       # rest of the processing be much simpler because we don’t need to check
       # whether we have escaped text or not).
-      $new_tree->push(new_text(decode_entities(substr $node->{content}, 0, $-[0]))) if $-[0] > 0;
+      $new_tree->push(new_text(decode_entities(substr $node->{content}, 0, $-[0])))
+          if $-[0] > 0;
       $new_tree->push(new_literal($1));
-      substr $node->{content}, 0, $+[0], '';  # This resets pos($node->{content}) as we want it to.      
+      substr $node->{content}, 0, $+[0], '';  # This resets pos($node->{content}) as we want it to.
     }
-    $new_tree->push(new_text(decode_entities($node->{content}))) if $node->{content};
+    $new_tree->push(new_text(decode_entities($node->{content})))
+        if $node->{content};
     return $new_tree;
   }
 }
@@ -127,7 +132,8 @@ sub process_char_escaping {
 sub process_links {
   my ($that, $tree, $child_start, $text_start, $start_child_bound, $start_text_bound) = @_;
 
-  my @open = $tree->find_in_text(qr/\[/, $child_start, $text_start, $start_child_bound, $start_text_bound);
+  my @open =
+      $tree->find_in_text(qr/\[/, $child_start, $text_start, $start_child_bound, $start_text_bound);
   return unless @open;
   # TODO: add an argument here that recurse into sub-trees and returns false if
   # we cross a link element. However, at this stage, the only links that we
@@ -155,11 +161,13 @@ sub process_links {
       # destination crosses the boundary of an enclosing candidate link. We
       # assume that the inner one is defined by the link text and not by the
       # destination.
-      
+
       my $target = process_link_destination($that, $tree, $close[0], $close[2]);
       if ($target) {
-        my $text_tree = $tree->extract($open[0], $open[2], $close[0], $close[1]);
-        my (undef, $dest_node_index) = $tree->extract($open[0], $open[1], $open[0]+1, 1);
+        my $text_tree =
+            $tree->extract($open[0], $open[2], $close[0], $close[1]);
+        my (undef, $dest_node_index) =
+            $tree->extract($open[0], $open[1], $open[0] + 1, 1);
         # TODO: $target should be rendered to a "simple text" or something and
         # not added as a sub-tree.
         my $link = new_link($text_tree, target => $target);
@@ -175,13 +183,15 @@ sub process_links {
         # We could not match a link target, so this is not a link at all.
         # We continue the search just after our initial opening bracket.
         # We do the same call whether or not we are a top-level call.
-        return process_links($that, $tree, $open[0], $open[2], $start_child_bound, $start_text_bound);
+        return process_links($that, $tree, $open[0], $open[2],
+          $start_child_bound, $start_text_bound);
       }
     }
   } else {
     # Our open bracket was unmatched. This necessarily means that we are in the
     # unbounded case (as, otherwise we are within a balanced pair of brackets).
-    die "Unexpected bounded call to process_links with unbalanced brackets" if defined $start_child_bound;
+    die "Unexpected bounded call to process_links with unbalanced brackets"
+        if defined $start_child_bound;
     # We continue to search starting just after the open bracket that we found.
     process_links($that, $tree, $open[0], $open[2]);
     return;  # For top-level calls, we don’t care about the return value.
@@ -202,7 +212,8 @@ sub process_link_destination {
   # So let’s not care too much...
 
   my $n = $tree->{children}[$child_start];
-  die "Unexpected link destination search in a non-text element: ".$n->{type} unless $n->{type} eq 'text';
+  die "Unexpected link destination search in a non-text element: ".$n->{type}
+      unless $n->{type} eq 'text';
   # TODO: use find_in_text bounded (to work across child limit);
   return unless substr($n->{content}, $text_start, 1) eq '(';
 
@@ -216,7 +227,7 @@ sub process_link_destination {
     # We remove the parenthesis. This relies on the fact that we were in one
     # large text node (that is now two text nodes).
     # TODO: remove this assumption.
-    $tree->extract($child_start, $text_start, $child_start+1, 1);
+    $tree->extract($child_start, $text_start, $child_start + 1, 1);
     return $target;
   }
   return;

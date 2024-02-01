@@ -14,12 +14,12 @@ our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 # Partition a list into a continuous chunk for which the given code evaluates to
 # true, and the rest of the list. Returns a list of two array-ref.
-sub split_while :prototype(&@) {
+sub split_while : prototype(&@) {
   my $test = shift;
-  my $i = first_index { ! $test->($_) } @_;
+  my $i = first_index { !$test->($_) } @_;
   return (\@_, []) unless $i >= 0;
   my @pass = splice(@_, 0, $i);
-  return (\@pass,  \@_);
+  return (\@pass, \@_);
 }
 
 # Removes the equivalent of n spaces at the beginning of the line. Tabs are
@@ -31,10 +31,10 @@ sub remove_prefix_spaces {
   my $t = int($n / 4);
   my $s = $n % 4;
   # return substr $text, length($1) if $n % 4 == 0 && $text =~ m/^((?: {0,3}\t| {4}){$t})/;
-  for my $i (1..$t) {
+  for my $i (1 .. $t) {
     if ($text =~ m/^( {0,3}\t| {4})/) {
       # We remove one full tab-stop from the string.
-      substr $text, 0, length($1), '';    
+      substr $text, 0, length($1), '';
     } else {
       # We didn’t have a full tab-stop, so we remove as many spaces as we had.
       $text =~ m/^( {0,3})/;
