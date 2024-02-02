@@ -7,8 +7,11 @@ use warnings;
 use utf8;
 use feature ':5.24';
 
+use English;
 use HTML::Entities 'decode_entities';
 use Markdown::Perl::InlineTree ':all';
+
+our $VERSION = 0.01;
 
 # Everywhere here, $that is a Markdown::Perl instance.
 sub render {
@@ -52,14 +55,15 @@ sub find_code_and_tag_runs {
   # We are manually handling the backcslash escaping here because they are not
   # interpreted inside code blocks. We will then process all the others
   # afterward.
-  while ($text =~ m/(?<! \\) (?<backslashes> (\\\\)*) (?: (?<code>\`+) | \< )/gx) {
-    my ($start_before, $start_after) = ($-[0] + length($+{backslashes}), $+[0]);
+  while ($text =~ m/(?<! \\) (?<backslashes> (?:\\\\)*) (?: (?<code>\`+) | \< )/gx) {
+    my ($start_before, $start_after) =
+        ($LAST_MATCH_START[0] + length($+{backslashes}), $LAST_MATCH_END[0]);
     if ($+{code}) {
       my $fence = $+{code};
       # We’re searching for a fence of the same length, without any backticks
       # before or after.
       if ($text =~ m/(?<!\`)${fence}(?!\`)/gc) {
-        my ($end_before, $end_after) = ($-[0], $+[0]);
+        my ($end_before, $end_after) = ($LAST_MATCH_START[0], $LAST_MATCH_END[0]);
         $tree->push(new_text(substr($text, 0, $start_before)))
             if $start_before > 0;
         $tree->push(new_code(substr($text, $start_after, ($end_before - $start_after))));
@@ -69,12 +73,15 @@ sub find_code_and_tag_runs {
       # We matched a single < character.
       my $re = $that->autolinks_regex;
       my $email_re = $that->autolinks_email_regex;
-      if ($text =~ m/\G(?<link>${re})\>/gc) {
+      # We’re not using /gc in these to regex because this confuses the ProhibitUnusedCapture
+      # PerlCritic policy. Anyway, as we are always reseting pos() in case of
+      # successful match, it’s not important to update it.
+      if ($text =~ m/\G(?<link>${re})\>/) {
         $tree->push(new_text(substr($text, 0, $start_before)))
             if $start_before > 0;
         $tree->push(new_link($+{link}, target => $+{link}));
         substr $text, 0, $+[0], '';  # This resets pos($text) as we want it to.
-      } elsif ($text =~ m/\G(?<link>${email_re})\>/gc) {
+      } elsif ($text =~ m/\G(?<link>${email_re})\>/) {
         $tree->push(new_text(substr($text, 0, $start_before)))
             if $start_before > 0;
         $tree->push(new_link($+{link}, target => 'mailto:'.$+{link}));
@@ -107,10 +114,10 @@ sub process_char_escaping {
       # Literal parsing is OK because we can always invert it (and it makes the
       # rest of the processing be much simpler because we don’t need to check
       # whether we have escaped text or not).
-      $new_tree->push(new_text(decode_entities(substr $node->{content}, 0, $-[0])))
-          if $-[0] > 0;
+      $new_tree->push(new_text(decode_entities(substr $node->{content}, 0, $LAST_MATCH_START[0])))
+          if $LAST_MATCH_START[0] > 0;
       $new_tree->push(new_literal($1));
-      substr $node->{content}, 0, $+[0], '';  # This resets pos($node->{content}) as we want it to.
+      substr $node->{content}, 0, $LAST_MATCH_END[0], '';  # This resets pos($node->{content}) as we want it to.
     }
     $new_tree->push(new_text(decode_entities($node->{content})))
         if $node->{content};
@@ -190,7 +197,7 @@ sub process_links {
   } else {
     # Our open bracket was unmatched. This necessarily means that we are in the
     # unbounded case (as, otherwise we are within a balanced pair of brackets).
-    die "Unexpected bounded call to process_links with unbalanced brackets"
+    die 'Unexpected bounded call to process_links with unbalanced brackets'
         if defined $start_child_bound;
     # We continue to search starting just after the open bracket that we found.
     process_links($that, $tree, $open[0], $open[2]);
@@ -212,7 +219,7 @@ sub process_link_destination {
   # So let’s not care too much...
 
   my $n = $tree->{children}[$child_start];
-  die "Unexpected link destination search in a non-text element: ".$n->{type}
+  die 'Unexpected link destination search in a non-text element: '.$n->{type}
       unless $n->{type} eq 'text';
   # TODO: use find_in_text bounded (to work across child limit);
   return unless substr($n->{content}, $text_start, 1) eq '(';

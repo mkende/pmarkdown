@@ -21,6 +21,10 @@ short_subroutine_statements = 2
 [ValuesAndExpressions::ProhibitInterpolationOfLiterals]
 allow_if_string_contains_single_quote = 1
 
+# Let’s allow moderately complex regex using the default syntax.
+[RegularExpressions::RequireExtendedFormatting]
+minimum_regex_length_to_complain_about = 30
+
 # And we disable some policies that don’t work well:
 
 # This policy confuses sub prototype with signatures.
@@ -44,4 +48,35 @@ allow_if_string_contains_single_quote = 1
 # All the sections that I want to include are there already.
 [-Documentation::RequirePodSections]
 
+# This policy has many bugs, also I think that using the topic variable can make
+# the code clearer, even in place where it would not be required to use it.
+[-BuiltinFunctions::ProhibitUselessTopic]
+
+# Let’s assume the reader knows how to write regex.
+[-RegularExpressions::RequireDotMatchAnything]
+[-RegularExpressions::RequireLineBoundaryMatching]
+
 # End of the template. You can add custom content below this line.
+
+# This is a binary, not a library, so let’s not require Carp
+[-ErrorHandling::RequireCarping]
+
+# This is inconvenient
+[-ValuesAndExpressions::ProhibitEmptyQuotes]
+[-ValuesAndExpressions::ProhibitNoisyQuotes]
+
+# 0, 1, and 2 are always allowed. We are adding 3 and 4 as they are very
+# frequently used here to match spaces, with a tab-stop of 4.
+# TODO: remove this override once the tab-stop is configurable.
+[-ValuesAndExpressions::ProhibitMagicNumbers]
+allowed_values = 0 1 2 3 4
+
+# Actually, we are using %+, not $+ or @+ but this policy is buggy.
+[Variables::ProhibitPunctuationVars]
+allow = $+ @+
+
+# I can’t find a better name than close
+[-NamingConventions::ProhibitAmbiguousNames]
+
+# TODO: get rid of this and simplify the code.
+[-ControlStructures::ProhibitCascadingIfElse]

@@ -24,6 +24,7 @@
 ^pm_to_blib$
 ^Markdown-Perl-[\d.]+/
 ^Markdown-Perl-[\d.]+\.tar\.gz
+.*\.bak
 
 # End of the template. You can add custom content below this line.
 

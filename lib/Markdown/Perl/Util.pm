@@ -8,16 +8,17 @@ use feature ':5.24';
 use Exporter 'import';
 use List::MoreUtils 'first_index';
 
-our @EXPORT = ();
+our $VERSION = 0.01;
+
 our @EXPORT_OK = qw(split_while remove_prefix_spaces indent_size indented_one_tab horizontal_size);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 # Partition a list into a continuous chunk for which the given code evaluates to
 # true, and the rest of the list. Returns a list of two array-ref.
-sub split_while : prototype(&@) {
+sub split_while : prototype(&@) {  ## no critic (RequireArgUnpacking)
   my $test = shift;
   my $i = first_index { !$test->($_) } @_;
-  return (\@_, []) unless $i >= 0;
+  return (\@_, []) if $i < 0;
   my @pass = splice(@_, 0, $i);
   return (\@pass, \@_);
 }
@@ -38,11 +39,11 @@ sub remove_prefix_spaces {
     } else {
       # We didn’t have a full tab-stop, so we remove as many spaces as we had.
       $text =~ m/^( {0,3})/;
-      return substr $text, length($1);
+      return substr $text, length($1);  ## no critic (ProhibitCaptureWithoutTest)
     }
   }
   return $text if $s == 0;
-  $text =~ m/^(?<p> {0,3}\t| {4})*?(?<l> {0,3}\t| {4})?(?<s> {0,3})(?<e>[^ \t].*|$)/s;
+  $text =~ m/^(?<p>\ {0,3}\t|\ {4})*?(?<l>\ {0,3}\t|\ {4})?(?<s>\ {0,3})(?<e>[^ \t].*|$)/xs;  ## no critic (ProhibitComplexRegexes)
   my $ns = length $+{s};
   if ($ns >= $s) {
     return ($+{p} // '').($+{l} // '').(' ' x ($ns - $s)).$+{e};
@@ -58,7 +59,7 @@ sub indent_size {
   my ($text) = @_;
   my $t = () = $text =~ m/\G( {0,3}\t| {4})/gc;  # Forcing list context.
   $text =~ m/\G( *)/;
-  my $s = length($1);
+  my $s = length($1);  ## no critic (ProhibitCaptureWithoutTest)
   return $t * 4 + $s;
 }
 

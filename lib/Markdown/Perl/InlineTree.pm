@@ -8,11 +8,13 @@ use warnings;
 use utf8;
 use feature ':5.24';
 
+use English;
 use Exporter 'import';
 use Hash::Util ();
 use Scalar::Util 'blessed';
 
-our @EXPORT = ();
+our $VERSION = 0.01;
+
 our @EXPORT_OK = qw(new_text new_code new_link new_literal is_node is_tree);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
@@ -22,7 +24,7 @@ sub new {
   return bless {children => []}, $class;
 }
 
-package Markdown::Perl::InlineNode {
+package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
 
   sub new {
     my ($class, $type, $content, %options) = @_;
@@ -46,7 +48,7 @@ package Markdown::Perl::InlineNode {
         die "Unexpected content for inline ${type} node: ".ref($content);
       }
     } else {
-      die "Unexpected type for an InlineNode: ".$type;
+      die "Unexpected type for an InlineNode: ${type}";
     }
     bless $this, $class;
 
@@ -85,7 +87,7 @@ sub is_tree {
 # Add new nodes at the end of the list of children of this tree.
 # The passed values can either be nodes or InlineTrees, whose children will be
 # added to the current tree (directly, not as sub-trees).
-sub push {
+sub push {  ## no critic (ProhibitBuiltinHomonyms)
   my ($this, @nodes_or_trees) = @_;
 
   for my $node_or_tree (@nodes_or_trees) {
@@ -94,7 +96,7 @@ sub push {
     } elsif (is_tree($node_or_tree)) {
       push @{$this->{children}}, @{$node_or_tree->{children}};
     } else {
-      die "Invalid argument type for InlineTree::push: ".ref($node_or_tree);
+      die 'Invalid argument type for InlineTree::push: '.ref($node_or_tree);
     }
   }
 
@@ -129,12 +131,12 @@ sub extract {
 
   my $sn = $this->{children}[$child_start];
   my $en = $this->{children}[$child_end];
-  die "Start node in an extract operation is not of type text: ".$sn->{type}
+  die 'Start node in an extract operation is not of type text: '.$sn->{type}
       unless $sn->{type} eq 'text';
-  die "End node in an extract operation is not of type text: ".$en->{type}
+  die 'End node in an extract operation is not of type text: '.$en->{type}
       unless $en->{type} eq 'text';
-  die "Start offset is less than 0 in an extract operation" if $text_start < 0;
-  die "End offset is past the end of the text an extract operation"
+  die 'Start offset is less than 0 in an extract operation' if $text_start < 0;
+  die 'End offset is past the end of the text an extract operation'
       if $text_end > length($en->{content});
 
   # Clone will not recurse into sub-trees. But the start and end nodes can’t
@@ -142,6 +144,7 @@ sub extract {
   # with the initial tree.
   my @nodes =
       map { $_->clone() } @{$this->{children}}[$child_start .. $child_end];
+  ## no critic (ProhibitLvalueSubstr)
   substr($nodes[-1]{content}, $text_end) = '';
   substr($nodes[0]{content}, 0, $text_start) = '';  # We must do this after text_end in case they are the same node.
   shift @nodes if length($nodes[0]{content}) == 0;
@@ -173,6 +176,7 @@ sub extract {
     }
     $this->replace($child_start, @new_nodes);
   }
+  ## use critic (ProhibitLvalueSubstr)
 
   return ($new_tree, $child_start + 1) if wantarray;
   return $new_tree;
@@ -196,11 +200,12 @@ sub map_shallow {
 
   return $new_tree if defined wantarray;
   %{$this} = %{$new_tree};
+  return;
 }
 
 # Same as map_shallow, but the tree is visited recursively.
 # The subtree of individual nodes are visited before the node itself is visited.
-sub map {
+sub map {  ## no critic (ProhibitBuiltinHomonyms)
   my ($this, $sub) = @_;
 
   my $new_tree = Markdown::Perl::InlineTree->new();
@@ -224,6 +229,7 @@ sub map {
 
   return $new_tree if defined wantarray;
   %{$this} = %{$new_tree};
+  return;
 }
 
 # Sub uses $a and $b as input. $a is the new item and $b is the output being
@@ -257,10 +263,10 @@ sub find_in_text {
     if ($i == $child_start && $text_start != 0) {
       pos($this->{children}[$i]{content}) = $text_start;
       $match = $this->{children}[$i]{content} =~ m/${re}/g;
-      @pos = ($-[0], $+[0]) if $match;  # @- and @+ are localized to this block
+      @pos = ($LAST_MATCH_START[0], $LAST_MATCH_END[0]) if $match;  # @- and @+ are localized to this block
     } else {
       $match = $this->{children}[$i]{content} =~ m/${re}/;
-      @pos = ($-[0], $+[0]) if $match;  # @- and @+ are localized to this block
+      @pos = ($LAST_MATCH_START[0], $LAST_MATCH_END[0]) if $match;  # @- and @+ are localized to this block
     }
     if ($match) {
       return if $i == ($child_bound // -1) && $pos[0] >= $text_bound;
@@ -289,8 +295,10 @@ sub find_balanced_in_text {
 
     # When the code in this regex is executed, we are sure that the engine
     # won’t backtrack (as we are at the end of the regex).
-    while ($this->{children}[$i]{content} =~ m/${open_re}(?{$open++})|${close_re}(?{$open--})/g) {
-      return ($i, $-[0], $+[0]) if $open == 0;
+    while (
+      $this->{children}[$i]{content} =~ m/ ${open_re}(?{$open++}) | ${close_re}(?{$open--}) /gx)
+    {
+      return ($i, $LAST_MATCH_START[0], $LAST_MATCH_END[0]) if $open == 0;
     }
   }
 
@@ -360,31 +368,30 @@ sub render_node_lite {
     html_escape($n->{content});
     return $acc.'<code>'.$n->{content}.'</code>';
   } elsif ($n->{type} eq 'link') {
-    die "The render_lite method does not support link nodes";
+    die 'The render_lite method does not support link nodes';
   }
 }
 
 # There are four characters that are escaped in the html output (although the
 # spec never really says so because they claim that they care only about parsing).
 # TODO: move to the Util module.
+
+my %char_to_html_entity = (
+  '"' => '&quot;',
+  '&' => '&amp;',
+  '<' => '&lt;',
+  '>' => '&gt;'
+);
+
 sub html_escape {
-  $_[0] =~ s/([&"<>])/&map_entity/eg;
-  # TODO, compare speed with `encode_entities($_[0], '<>&"')` from HTML::Entities
+  $_[0] =~ s/([&"<>])/$char_to_html_entity{$1}/eg;
   return;
-}
-# TODO: fork HTML::Escape at some point, so that it supports only these 4
-# characters.
-# TODO: move to the Util module.
-sub map_entity {
-  return '&quot;' if $1 eq '"';
-  return '&amp;' if $1 eq '&';
-  return '&lt;' if $1 eq '<';
-  return '&gt;' if $1 eq '>';
 }
 
 # TODO: move to the Util module.
 sub http_escape {
   $_[0] =~ s/([\\\[\]])/sprintf('%%%02X', ord($1))/ge;
+  return;
 }
 
 1;

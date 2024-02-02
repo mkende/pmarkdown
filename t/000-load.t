@@ -7,12 +7,14 @@ use strict;
 use warnings;
 use Test2::V0;
 
+our $VERSION = 0.01;
+
 BEGIN {
-  ok(eval "use Markdown::Perl; 1", "use Markdown::Perl");
+  ok(eval 'use Markdown::Perl; 1', 'use Markdown::Perl');  ## no critic (ProhibitStringyEval, RequireCheckingReturnValueOfEval)
 }
 {
-  no warnings 'once';
-  note("Testing Markdown::Perl $Markdown::Perl::VERSION, Perl $], $^X, $ENV{SHELL}");
+  no warnings 'once';  ## no critic (ProhibitNoWarnings)
+  note("Testing Markdown::Perl $Markdown::Perl::VERSION, Perl $], $^X");
 }
 
 done_testing;

@@ -14,7 +14,6 @@ use Scalar::Util 'blessed';
 
 our $VERSION = '0.01';
 
-our @EXPORT = ();
 our @EXPORT_OK = qw(convert);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
@@ -48,12 +47,12 @@ sub new {
 # object, in which case it returns a default object.
 my $default_this = Markdown::Perl->new();
 
-sub _get_this_and_args {
+sub _get_this_and_args {  ## no critic (RequireArgUnpacking)
   my $this = shift @_;
   # We could use `$this isa Markdown::Perl` that does not require to test
   # blessedness first. However this requires 5.31.6 which is not in Debian
   # stable as of writing this.
-  unless (blessed($this) && $this->isa(__PACKAGE__)) {
+  if (!blessed($this) || !$this->isa(__PACKAGE__)) {
     unshift @_, $this;
     $this = $default_this;
   }
@@ -65,7 +64,7 @@ sub _get_this_and_args {
 # class constructor.
 # Both the input and output are unicode strings.
 sub convert {
-  my ($this, $md, %options) = &_get_this_and_args;
+  my ($this, $md, %options) = &_get_this_and_args;  ## no critic (ProhibitAmpersandSigils)
   $this->{local_options} = \%options;
 
   # https://spec.commonmark.org/0.30/#characters-and-lines
@@ -74,25 +73,20 @@ sub convert {
   @lines = pairs @lines;
   # We simplify all blank lines (but keep the data around as it does matter in
   # some cases, so we move the black part to the line separator field).
-  map { $_ = ['', $_->[0].$_->[1]] if $_->[0] =~ /^[ \t]+$/ } @lines;
+  for (@lines) {
+    $_ = ['', $_->[0].$_->[1]] if $_->[0] =~ /^[ \t]+$/;
+    # https://spec.commonmark.org/0.30/#insecure-characters
+    $_->[0] =~ s/\000/\xfffd/g;
+  }
 
   # https://spec.commonmark.org/0.30/#tabs
   # TODO: nothing to do at this stage.
 
-  # https://spec.commonmark.org/0.30/#insecure-characters
-  map { $_->[0] =~ s/\000/\xfffd/g } @lines;
-
   # https://spec.commonmark.org/0.30/#backslash-escapes
-  # TODO: at a later stage, as escaped characters don’t have their Markdown
-  # meaning, we need a way to represent that.
-  # map { s{\\(.)}{slash_escape($1)}ge } @lines
-
   # https://spec.commonmark.org/0.30/#entity-and-numeric-character-references
-  # TODO: probably nothing is needed here.
+  # Done at a later stage, as escaped characters don’t have their Markdown
+  # meaning, we need a way to represent that.
 
-  # $this->{blocks} = [];
-  # $this->{blocks_stack} = [];
-  # $this->{paragraph} = [];
   $this->{lines} = \@lines;
 
   while (my $hd = shift @{$this->{lines}}) {
@@ -210,16 +204,16 @@ sub _all_blocks_match {
   return @{$this->{blocks_stack}} == $this->_count_matching_blocks($lr);
 }
 
-my $thematic_break_re = qr/^ {0,3}(?:(?:-[ \t]*){3,}|(_[ \t]*){3,}|(\*[ \t]*){3,})$/;
+my $thematic_break_re = qr/^\ {0,3} (?: (?:-[ \t]*){3,} | (_[ \t]*){3,} | (\*[ \t]*){3,} ) $/x;
 my $block_quotes_re = qr/^ {0,3}>/;
 my $indented_code_re = qr/^(?: {0,3}\t| {4})/;
-my $list_item_re =
-    qr/^(?<indent> {0,3})(?<marker>[-+*]|(?:(?<digits>\d{1,9})(?<symbol>[.)])))(?<text>.*)$/;
+my $list_item_marker_re = qr/ [-+*] | (?<digits>\d{1,9}) (?<symbol>[.)])/x;
+my $list_item_re = qr/^ (?<indent>\ {0,3}) (?<marker>${list_item_marker_re}) (?<text>.*) $/x;
 
 # Parse at least one line of text to build a new block; and possibly several
 # lines, depending on the block type.
 # https://spec.commonmark.org/0.30/#blocks-and-inlines
-sub _parse_blocks {
+sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce complexity
   my ($this, $hd) = @_;
   my $l = $hd->[0];
 
@@ -250,7 +244,7 @@ sub _parse_blocks {
   $this->{last_line_is_blank} = 0;
 
   # https://spec.commonmark.org/0.30/#atx-headings
-  if ($l =~ /^ {0,3}(#{1,6})(?:[ \t]+(.+?))??(?:[ \t]+#+)?[ \t]*$/) {
+  if ($l =~ /^ \ {0,3} (\#{1,6}) (?:[ \t]+(.+?))?? (?:[ \t]+\#+)? [ \t]* $/x) {
     # Note: heading breaks can interrupt a paragraph or a list
     # TODO: the content of the header needs to be interpreted for inline content.
     $this->_add_block({
@@ -304,14 +298,14 @@ sub _parse_blocks {
   # https://spec.commonmark.org/0.30/#indented-code-blocks
   # Indented code blocks cannot interrupt a paragraph.
   if (!@{$this->{paragraph}} && $l =~ m/${indented_code_re}/) {
-    my $last = -1;
+    my $final = -1;
     my @code_lines = remove_prefix_spaces(4, $l.$hd->[1]);
     for my $i (0 .. $#{$this->{lines}}) {
-      my $l = $this->{lines}[$i]->[0];
-      if ($this->_all_blocks_match(\$l)) {
-        push @code_lines, remove_prefix_spaces(4, $l.$this->{lines}[$i]->[1]);
-        if ($l =~ m/${indented_code_re}/) {
-          $last = $i;
+      my $nl = $this->{lines}[$i]->[0];
+      if ($this->_all_blocks_match(\$nl)) {
+        push @code_lines, remove_prefix_spaces(4, $nl.$this->{lines}[$i]->[1]);
+        if ($nl =~ m/${indented_code_re}/) {
+          $final = $i;
         } elsif ($this->{lines}[$i]->[0] ne '') {
           last;
         }
@@ -320,16 +314,16 @@ sub _parse_blocks {
       }
     }
     # @code_lines starts with $hd, so there is one more element than what is removed from our lines.
-    splice @code_lines, ($last + 2);
-    splice @{$this->{lines}}, 0, ($last + 1);
+    splice @code_lines, ($final + 2);
+    splice @{$this->{lines}}, 0, ($final + 1);
     my $code = join('', @code_lines);
-    $this->_add_block({type => "code", content => $code, debug => 'indented'});
+    $this->_add_block({type => 'code', content => $code, debug => 'indented'});
     return;
   }
 
   # https://spec.commonmark.org/0.30/#fenced-code-blocks
   if (
-    $l =~ /^(?<indent> {0,3})(?<fence>`{3,}|~{3,})[ \t]*(?<info>.*?)[ \t]*$/
+    $l =~ /^ (?<indent>\ {0,3}) (?<fence>`{3,}|~{3,}) [ \t]* (?<info>.*?) [ \t]* $/x  ## no critic (ProhibitComplexRegexes)
     && ( ((my $f = substr $+{fence}, 0, 1) ne '`')
       || (index($+{info}, '`') == -1))
   ) {
@@ -341,14 +335,14 @@ sub _parse_blocks {
     my @code_lines;  # The first line is not part of the block.
     my $end_fence_seen = -1;
     for my $i (0 .. $#{$this->{lines}}) {
-      my $l = $this->{lines}[$i]->[0];
-      if ($this->_all_blocks_match(\$l)) {
-        if ($l =~ m/^ {0,3}${f}{$fl,}[ \t]*$/) {
+      my $nl = $this->{lines}[$i]->[0];
+      if ($this->_all_blocks_match(\$nl)) {
+        if ($nl =~ m/^ {0,3}${f}{$fl,}[ \t]*$/) {
           $end_fence_seen = $i;
           last;
         } else {
           # We’re adding one line to the fenced code block
-          push @code_lines, remove_prefix_spaces($indent, $l.$this->{lines}[$i]->[1]);
+          push @code_lines, remove_prefix_spaces($indent, $nl.$this->{lines}[$i]->[1]);
         }
       } else {
         # We’re out of our enclosing block and we haven’t seen the end of the
@@ -367,7 +361,7 @@ sub _parse_blocks {
     ) {
       my $code = join('', @code_lines);
       $this->_add_block({
-        type => "code",
+        type => 'code',
         content => $code,
         info => $info,
         debug => 'fenced'
@@ -390,7 +384,7 @@ sub _parse_blocks {
   if ($l =~ /${block_quotes_re}/) {
     # TODO: handle laziness (block quotes where the > prefix is missing)
     my $cond = sub {
-      if ($_ =~ s/(${block_quotes_re})/' ' x length($1)/e) {
+      if (s/(${block_quotes_re})/' ' x length($1)/e) {
         # We remove the '>' character that we replaced by a space, and the
         # optional space after it. We’re using this approach to correctly handle
         # the case of a line like '>\t\tfoo' where we need to retain the 6
@@ -469,21 +463,10 @@ sub _parse_blocks {
   }
 
   # https://spec.commonmark.org/0.30/#blank-lines
-  if ($l eq '') {
-    $this->_finalize_paragraph();
-    $this->{last_line_is_blank} = 1;  # Needed to detect loose lists.
-    return;
-  }
-
-  {
-    ...
-  }
-}
-
-sub _preprocess_lists {
-  my ($this, @blocks) = @_;
-  for my $b (@blocks) {
-  }
+  # if ($l eq '')
+  $this->_finalize_paragraph();
+  $this->{last_line_is_blank} = 1;  # Needed to detect loose lists.
+  return;
 }
 
 sub _render_inlines {
@@ -514,7 +497,7 @@ sub _emit_html {
       if ($tight_block) {
         $out .= $this->_render_inlines(@{$b->{content}});
       } else {
-        $out .= "<p>".$this->_render_inlines(@{$b->{content}})."</p>\n";
+        $out .= '<p>'.$this->_render_inlines(@{$b->{content}})."</p>\n";
       }
     } elsif ($b->{type} eq 'quotes') {
       my $c = $this->_emit_html(0, @{$b->{content}});

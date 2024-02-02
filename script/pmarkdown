@@ -5,11 +5,14 @@ use strict;
 use warnings;
 use utf8;
 
+use English;
 use Markdown::Perl;
+
+our $VERSION = $Markdown::Perl::VERSION; ## no critic (ProhibitComplexVersion,RequireConstantVersion)
 
 my $input;
 {
-  local $/ = undef;
+  local $INPUT_RECORD_SEPARATOR = undef;
   $input = <>;
 }
 
@@ -18,6 +21,8 @@ print Markdown::Perl::convert($input);
 __DATA__
 
 =pod
+
+=encoding utf8
 
 =head1 NAME
 
