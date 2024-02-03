@@ -18,6 +18,26 @@ our $VERSION = 0.01;
 our @EXPORT_OK = qw(new_text new_code new_link new_literal is_node is_tree);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
+=pod
+
+=encoding utf8
+
+=head1 NAME Markdown::Perl::InlineTree
+
+=head1 SYNOPSIS
+
+A tree structure meant to represent the inline elements of a Markdown paragraph.
+
+=head1 DESCRIPTION
+
+=head2 new
+
+  my $tree = Markdown::Perl::InlineTree->new();
+
+The constructor currently does not support any options.
+
+=cut
+
 sub new {
   my ($class) = @_;
 
@@ -30,6 +50,9 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
     my ($class, $type, $content, %options) = @_;
 
     my $this;
+    # There is one more node type, not created here, that looks like a text
+    # node but that is a 'delimiter' node. These nodes are created manually
+    # inside the Inlines module.
     if ($type eq 'text' || $type eq 'code' || $type eq 'literal') {
       die "Unexpected content for inline ${type} node: ".ref($content)
           if ref $content;
@@ -69,10 +92,33 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
   }
 }
 
+=pod
+
+=head2 new_text, new_code, new_link, new_literal
+
+  my $text_node = new_text('text content');
+  my $code_node = new_code('code content');
+  my $link_node = new_link('text content', target => 'the target'[, title => 'the title']);
+  my $link_node = new_link($subtree_content, target => 'the target'[, title => 'the title']);
+  my $literal_node = new_literal('literal content');
+
+These methods return a text node that can be inserted in an C<InlineTree>.
+
+=cut
+
 sub new_text { return Markdown::Perl::InlineNode->new(text => @_) }
 sub new_code { return Markdown::Perl::InlineNode->new(code => @_) }
 sub new_link { return Markdown::Perl::InlineNode->new(link => @_) }
 sub new_literal { return Markdown::Perl::InlineNode->new(literal => @_) }
+
+=pod
+
+=head2 is_node, is_tree
+
+These two methods returns whether a given object is a node that can be inserted
+in an C<InlineTree> and whether it’s an C<InlineTree> object.
+
+=cut
 
 sub is_node {
   my ($obj) = @_;
@@ -84,9 +130,19 @@ sub is_tree {
   return blessed($obj) && $obj->isa('Markdown::Perl::InlineTree');
 }
 
-# Add new nodes at the end of the list of children of this tree.
-# The passed values can either be nodes or InlineTrees, whose children will be
-# added to the current tree (directly, not as sub-trees).
+=pod
+
+=head2 push
+
+  $tree->push(@nodes_or_trees);
+
+Push a list of nodes at the end of the top-level nodes of the current tree.
+
+If passed C<InlineTree> objects, then the nodes of these trees are pushed (not
+the tree itself).
+
+=cut
+
 sub push {  ## no critic (ProhibitBuiltinHomonyms)
   my ($this, @nodes_or_trees) = @_;
 
@@ -103,7 +159,17 @@ sub push {  ## no critic (ProhibitBuiltinHomonyms)
   return;
 }
 
-# Replace the child at the given index by the given list of new nodes.
+=pod
+
+=head2 replace
+
+  $tree->replace($index, @nodes);
+
+Remove the existing node at the given index and replace it by the given list of
+nodes (or, if passed C<InlineTree> objects, their own nodes).
+
+=cut
+
 sub replace {
   my ($this, $child_index, @new_nodes) = @_;
   splice @{$this->{children}}, $child_index, 1,
@@ -111,21 +177,44 @@ sub replace {
   return;
 }
 
-# Insert the new nodes at the given offset (the first inserted node will have
-# that index after the operation).
+=pod
+
+=head2 insert
+
+  $tree->insert($index, @new_nodes);
+
+Inserts the given nodes  (or, if passed C<InlineTree> objects, their own nodes)
+at the given index. After the operation, the first inserted node will have that
+index.
+
+=cut
+
 sub insert {
   my ($this, $index, @new_nodes) = @_;
   splice @{$this->{children}}, 0, 0, map { is_node($_) ? $_ : @{$_->{children}} } @new_nodes;
   return;
 }
 
-# Return a new tree, containing a part of $this between the given child and
-# text offsets. The start and end children must be text nodes.
-# The extracted content is removed from the input tree.
-# Returns a pair with the new tree and the index of the first block after the
-# removed content. Usually it will be $child_start + 1, but it can be
-# $child_start if $start_index was 0.
-# In scalar context, returns only the extracted tree.
+=pod
+
+=head2 extract
+
+  $tree->extract($start_child, $start_offset, $end_child, $end_offset);
+
+Extract the content of the given tree, starting at the child with the given
+index (which must be a B<text> node) and at the given offset in the child’s
+text, and ending at the given node and offset (which must also be a B<text>
+node).
+
+That content is removed from the input tree and returned as a new C<InlineTree>
+object. Returns a pair with the new tree and the index of the first child after
+the removed content in the input tree. Usually it will be C<$start_child + 1>,
+but it can be C<$start_child> if C<$start_offset> was 0.
+
+In scalar context, returns only the extracted tree.
+
+=cut
+
 sub extract {
   my ($this, $child_start, $text_start, $child_end, $text_end) = @_;
 
@@ -182,13 +271,25 @@ sub extract {
   return $new_tree;
 }
 
-# Apply the given sub to each direct-child of the tree. The sub can return
-# a node or a tree and the content is concatenated and replace the current tree.
-#
-# Only the top-level nodes of the tree are visited.
-#
-# In void context, update the tree in-place. In all cases, $sub must return new
-# nodes or trees, it can’t modify the input object.
+=pod
+
+=head2 map_shallow
+
+  $tree->map_shallow($sub);
+
+Apply the given sub to each direct child of the tree. The sub can return a node
+or a tree and that returned content is concatenated to form a new tree.
+
+Only the top-level nodes of the tree are visited.
+
+In void context, update the tree in-place. Otherwise, the new tree is returned.
+
+In all cases, C<$sub> must return new nodes or trees, it can’t modify the input
+object. The argument to C<$sub> are passed in the usual way in C<@_>, not in
+C<$_>.
+
+=cut
+
 sub map_shallow {
   my ($this, $sub) = @_;
 
@@ -203,8 +304,18 @@ sub map_shallow {
   return;
 }
 
-# Same as map_shallow, but the tree is visited recursively.
-# The subtree of individual nodes are visited before the node itself is visited.
+=pod
+
+=head2 map
+
+  $tree->map($sub);
+
+Same as C<map_shallow>, but the tree is visited recursively. The subtrees of
+individual nodes are visited and their content replaced before the node itself
+are visited.
+
+=cut
+
 sub map {  ## no critic (ProhibitBuiltinHomonyms)
   my ($this, $sub) = @_;
 
@@ -232,12 +343,24 @@ sub map {  ## no critic (ProhibitBuiltinHomonyms)
   return;
 }
 
-# Sub uses $a and $b as input. $a is the new item and $b is the output being
-# computed.
+=pod
+
+=head2 fold
+
+  $tree->fold($sub, $init);
+
+Iterates over the top-level nodes of the tree, calling C<$sub> for each of them.
+It receives two arguments, the current node and the result of the previous call.
+The first call receives C<$init> as its second argument.
+
+Returns the result of the last call of C<$sub>.
+
+=cut
+
 # TODO: maybe have a "cat" methods that expects each node to return a string and
 # concatenate them, so that we can concatenate them all together at once, which
 #  might be more efficient.
-sub iter {
+sub fold {
   my ($this, $sub, $init) = @_;
 
   my $out = $init;
@@ -249,12 +372,25 @@ sub iter {
   return $out;
 }
 
-# $tree->find_in_text($re, first_child, offset_in_first_child)
-# finds the first offset match of re in the tree (not recursing in sub-tree),
-# starting at the given child index and the given index in the child content.
-# Only considers children of type text.
-# We don’t look for anything startint at or after the bounds if they are given.
-# Returns (child_number, start_offset, end_offset) or undef.
+=pod
+
+=head2 find_in_text
+
+  $tree->find_in_text($regex, $start_child, $start_offset, [$end_child, $end_offset]);
+
+Find the first match of the given regex in the tree, starting at the given
+offset in the node. This only considers top-level nodes of the tree and skip
+over non B<text> node (including the first one).
+
+If C<$end_child> and C<$end_offset> are given, then does not look for anything
+starting at or after that bound.
+
+Does not match the regex across multiple nodes.
+
+Returns C<$child_number, $match_start_offset, $match_end_offset> or C<undef>.
+
+=cut
+
 sub find_in_text {
   my ($this, $re, $child_start, $text_start, $child_bound, $text_bound) = @_;
   for my $i ($child_start .. ($child_bound // $#{$this->{children}})) {
@@ -276,10 +412,19 @@ sub find_in_text {
   return;
 }
 
-# Same as find_in_text except that we look for both open_re and close_re and,
-# each time open_re is found, we need to find close_re one more time before we
-# return. We assume that $open_re has already been seen once before the given
-# start child and text offset.
+=pod
+
+=head2 find_balanced_in_text
+
+  $tree->find_balanced_in_text($open_re, $close_re, $start_child, $start_offset);
+
+Same as C<find_in_text> except that this method searchs for both C<$open_re> and
+C<$close_re> and, each time C<$open_re> is found, it needs to find C<$close_re>
+one more time before we it returns. The method assumes that C<$open_re> has
+already been seen once before the given C<$start_child> and C<$start_offset>.
+
+=cut
+
 sub find_balanced_in_text {
   my ($this, $open_re, $close_re, $child_start, $text_start) = @_;
 
@@ -305,9 +450,19 @@ sub find_balanced_in_text {
   return;
 }
 
+=pod
+
+=head2 render_html
+
+  $tree->render_html();
+
+Returns the HTLM representation of that C<InlineTree>.
+
+=cut
+
 sub render_html {
   my ($tree) = @_;
-  return $tree->iter(\&render_node_html, '');
+  return $tree->fold(\&render_node_html, '');
 }
 
 sub render_node_html {
@@ -345,11 +500,21 @@ sub render_node_html {
   }
 }
 
-# Render the original Markdown code, more or less (with some html escaping still
-# done).
+=pod
+
+=head2 to_text
+
+  $tree->to_text();
+
+Returns the text content of this C<InlineTree>. Not all node types are supported
+and their handling is not specified here. This method is meant to be called
+during the creation of an C<InlineTree>, before all the processing as been done.
+
+=cut
+
 sub to_text {
   my ($tree) = @_;
-  return $tree->iter(\&node_to_text, '');
+  return $tree->fold(\&node_to_text, '');
 }
 
 sub node_to_text {
