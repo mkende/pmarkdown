@@ -338,22 +338,21 @@ sub render_node_html {
       http_escape($n->{target});
       return $acc.'<a href="'.($n->{target}).'">'.($n->{content}).'</a>';
     } else {
-      # TODO: the target should not be stored as a tree but directly as a string.
-      my $target = $n->{target}->render_lite();
+      my $title = exists $n->{title} ? " title=\"$n->{title}\"" : '';
       my $content = $n->{subtree}->render_html();
-      return $acc."<a href=\"${target}\">${content}</a>";
+      return $acc."<a href=\"$n->{target}\"${title}>${content}</a>";
     }
   }
 }
 
 # Render the original Markdown code, more or less (with some html escaping still
 # done).
-sub render_lite {
+sub to_text {
   my ($tree) = @_;
-  return $tree->iter(\&render_node_lite, '');
+  return $tree->iter(\&node_to_text, '');
 }
 
-sub render_node_lite {
+sub node_to_text {
   my ($n, $acc) = @_;
 
   if ($n->{type} eq 'text') {
@@ -368,7 +367,7 @@ sub render_node_lite {
     html_escape($n->{content});
     return $acc.'<code>'.$n->{content}.'</code>';
   } elsif ($n->{type} eq 'link') {
-    die 'The render_lite method does not support link nodes';
+    die 'The to_text method does not support link nodes';
   }
 }
 

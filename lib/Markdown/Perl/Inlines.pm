@@ -33,6 +33,8 @@ sub render {
   # Now, there are more link elements and they can have children instead of
   # content.
 
+  process_styles($that, $tree);
+
   my $out = $tree->render_html();
 
   # We remove white-space at the beginning and end of the lines.
@@ -169,15 +171,13 @@ sub process_links {
       # assume that the inner one is defined by the link text and not by the
       # destination.
 
-      my $target = process_link_destination($that, $tree, $close[0], $close[2]);
-      if ($target) {
+      my %target = find_link_destination_and_title($that, $tree, $close[0], $close[2]);
+      if (%target) {
         my $text_tree =
             $tree->extract($open[0], $open[2], $close[0], $close[1]);
         my (undef, $dest_node_index) =
             $tree->extract($open[0], $open[1], $open[0] + 1, 1);
-        # TODO: $target should be rendered to a "simple text" or something and
-        # not added as a sub-tree.
-        my $link = new_link($text_tree, target => $target);
+        my $link = new_link($text_tree, %target);
         $tree->insert($dest_node_index, $link);
         # If we are not a top-level call, we return the coordinate where to
         # start looking again for a link.
@@ -205,7 +205,7 @@ sub process_links {
   }
 }
 
-sub process_link_destination {
+sub find_link_destination_and_title {
   my ($that, $tree, $child_start, $text_start) = @_;
   # We assume that the beginning of the link destination must be just after the
   # link text and in the same child, as there can be no other constructs
@@ -217,6 +217,7 @@ sub process_link_destination {
   # other type of elements in the link destination like, stuff that looks like
   # code for example (in practice, cmark will not process their content).
   # So let’s not care too much...
+  # TODO: we are not yet finding the link title, if any.
 
   my $n = $tree->{children}[$child_start];
   die 'Unexpected link destination search in a non-text element: '.$n->{type}
@@ -235,10 +236,13 @@ sub process_link_destination {
     # large text node (that is now two text nodes).
     # TODO: remove this assumption.
     $tree->extract($child_start, $text_start, $child_start + 1, 1);
-    return $target;
+    return (target => $target->to_text());
   }
   return;
+}
 
+sub process_styles {
+  my ($that, $tree) = @_;
 }
 
 1;
