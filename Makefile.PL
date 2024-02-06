@@ -53,13 +53,18 @@ sub MY::postamble {
   push @postamble, ::postamble() if *::postamble{CODE};
 
   push @postamble, <<"MAKE_FRAGMENT";
-distupload: tardist
-\tcpan-upload --directory Markdown-Perl \$(DISTVNAME).tar\$(SUFFIX)
+distupload: distcheck disttest
+\t\$(MAKE) tardist
+\tcpan-upload --directory Dist-Setup \$(DISTVNAME).tar\$(SUFFIX)
 
 cover:
 \tcover -test
 
-critic:
+critic: export EXTENDED_TESTING = 1
+critic: all
+\tperl -Ilib t/001-perlcritic.t 2>&1 | less
+
+rawcritic:
 \tperlcritic lib script
 
 tidy:

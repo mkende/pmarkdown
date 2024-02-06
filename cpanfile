@@ -4,14 +4,18 @@
 requires 'perl', '5.26.0';
 
 on 'configure' => sub {
+  requires 'perl', '5.26.0';
   requires 'ExtUtils::MakeMaker::CPANfile', '0.0.9';
 };
 
 on 'test' => sub {
+  requires 'Test::CPANfile';
   requires 'Test::More';
   requires 'Test2::V0';
+  requires 'Readonly';
   recommends 'Test::Pod', '1.22';
-  recommends 'Test2::Tools::PerlCritic';
+  suggests 'IPC::Run3';  # Only used for spell-checking which is not included in the distribution
+  suggests 'Test2::Tools::PerlCritic';
   suggests 'Perl::Tidy', '20220613';
 };
 

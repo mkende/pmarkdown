@@ -14,6 +14,7 @@
 ^MANIFEST\.bak$
 ^MANIFEST\.SKIP$
 ^blib/
+^cover_db/
 ^cpanfile\.snapshot$
 ^dist_setup\.conf$
 ^local/

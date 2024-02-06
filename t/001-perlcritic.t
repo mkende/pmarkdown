@@ -16,8 +16,7 @@ our $VERSION = 0.01;
 
 BEGIN {
   if (not $ENV{EXTENDED_TESTING}) {
-    skip_all(
-      'Extended test. Set $ENV{EXTENDED_TESTING} to a true value to run.');
+    skip_all('Extended test. Set $ENV{EXTENDED_TESTING} to a true value to run.');
   }
 }
 
