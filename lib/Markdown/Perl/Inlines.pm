@@ -9,11 +9,14 @@ use feature ':5.24';
 
 use English;
 use HTML::Entities 'decode_entities';
+use List::MoreUtils 'first_index';
+use List::Util 'min';
 use Markdown::Perl::InlineTree ':all';
 
 our $VERSION = 0.01;
 
-# Everywhere here, $that is a Markdown::Perl instance.
+# Everywhere here, $that is a Markdown::Perl instance that we carry everywhere
+# because it contains the options that we are using.
 sub render {
   my ($that, @lines) = @_;
 
@@ -34,6 +37,8 @@ sub render {
   # content.
 
   process_styles($that, $tree);
+
+  # At this point we have added the emphasis, strong emphasis, etc. in the tree.
 
   my $out = $tree->render_html();
 
@@ -241,8 +246,175 @@ sub find_link_destination_and_title {
   return;
 }
 
+# This methods adds "style", that is it parses the emphasis (* and _) and also
+# strike-through (~). To do so, we process each level of the tree independently
+# because a style-run can’t cross another HTLM construct (but it can span over
+# it).
+#
+# We first find all the possible delimiters and insert them in the tree instead
+# of their text. And then decide whether they are actually opening, closing, or
+# neither.
+#
+# This methods implement all of:
+# https://spec.commonmark.org/0.30/#emphasis-and-strong-emphasis
 sub process_styles {
   my ($that, $tree) = @_;
+
+  # We recurse first as there are less children to iterate over than after.
+  for my $c (@{$tree->{children}}) {
+    process_styles($that, $c->{subtree}) if exists $c->{subtree};
+  }
+
+  # TODO: only search for characters that are actually used by our current
+  # options.
+  my $current_child = 0;
+  my @delimiters;
+  while (my @match = $tree->find_in_text(qr/[*_~]+/, $current_child, 0)) {
+    # We extract the delimiter run into a new node, that will be at $index.
+    my ($delim_tree, $index) = $tree->extract($match[0], $match[1], $match[0], $match[2]);
+    # We use the type literal so that if we do nothing with the delimiter it
+    # will be rendered correctly. We keep track of which literals might be
+    # delimiters using the @delimiters array.
+    $delim_tree->{children}[0]{type} = 'literal';
+    $tree->insert($index, $delim_tree);
+    push @delimiters, classify_delimiter($that, $tree, $index, 'left');
+    $current_child = $index + 1;
+  }
+
+  match_delimiters($that, $tree, @delimiters);
+  return;
+}
+
+# Decides whether the delimiter run at the given index in the tree can open or
+# close emphasis (or any other style).
+sub classify_delimiter {
+  my ($that, $tree, $index) = @_;
+  my $pred_type = classify_flank($that, $tree, $index, 'left');
+  my $succ_type = classify_flank($that, $tree, $index, 'right');
+  my $is_left = $succ_type ne 'space' && ($succ_type ne 'punct' || $pred_type ne 'none');
+  my $is_right = $pred_type ne 'space' && ($pred_type ne 'punct' || $succ_type ne 'none');
+  my $len = length($tree->{children}[$index]{content});
+  my $delim = substr $tree->{children}[$index]{content}, 0, 1;
+  my $can_open = 0;
+  my $can_close = 0;
+  # This is implementing the first 8 rules (out of 17...) of
+  # https://spec.commonmark.org/0.31.2/#emphasis-and-strong-emphasis
+  # The rules are more complex for '_' than for '*' because it is assuming that
+  # underscores can appear within word. So we apply the star rules to all other
+  # delimiters (that is, we only check for underscore here). Currently our only
+  # other delimiter is '~'.
+  # TODO: add an option to decide which rule to apply per delimiter.
+  if ($delim eq '_') {
+    $can_open = $is_left && (!$is_right || $pred_type eq 'punct');
+    $can_close = $is_right && (!$is_left || $succ_type eq 'punct');
+  } else {
+    $can_open = $is_left;
+    $can_close = $is_right;
+  }
+  # TODO: remove left and right that are here for debug purposes only.
+  return { index => $index, can_open => $can_open, can_close => $can_close, len => $len, delim => $delim, left => $is_left, right => $is_right };
+}
+
+# Computes whether the type of the "flank" of the delimiter run at the given
+# index in the tree (looking either at the "left" or "right" side). This returns
+# one of 'none', 'punct', or 'space' following the rule given in
+# https://spec.commonmark.org/0.31.2/#emphasis-and-strong-emphasis.
+# The purpose is to decide whether the delimiter run is left flanking and/or
+# right flanking (that decision happens in classify_delimiter).
+sub classify_flank {
+  my ($that, $tree, $index, $side) = @_;
+  return 'space' if $index == 0 && $side eq 'left';
+  return 'space' if $index == $#{$tree->{children}} && $side eq 'right';
+  my $node = $tree->{children}[$index + ($side eq 'left' ? -1 : 1)];
+  # If the node before the delimiters is not text, let’s assume that we had some
+  # punctuation characters that delimited it.
+  return 'punct' if $node->{type} ne 'text' && $node->{type} ne 'literal';
+  my $space_re = $side eq 'left' ? qr/\s$/u : qr/^\s/u;
+  return 'space' if $node->{content} =~ m/${space_re}/;
+  my $punct_re = $side eq 'left' ? qr/\p{Punct}$/u : qr/^\p{Punct}/u;
+  return 'punct' if $node->{content} =~ m/${punct_re}/;
+  return 'none';
+}
+
+sub match_delimiters {
+  my ($that, $tree, @delimiters) = @_;
+  while (@delimiters > 1) {
+    # We start by trying to find a closing delimiter of the same style as the
+    # candidate opening delimiter that we have. If we find one. We will consume
+    # as many characters from both sides as possible.
+    my %o = %{$delimiters[0]};
+    if (!$o{can_open}) {
+      shift @delimiters;
+      next;
+    }
+    my $close_index = first_index { $_->{can_close} && $_->{delim} eq $o{delim} } @delimiters[1 .. $#delimiters];
+    if ($close_index == -1) {
+      shift @delimiters;
+      next;
+    }
+    $close_index += 1;
+    my %c = %{$delimiters[$close_index]};
+    # This is rule 9 and 10 of
+    # https://spec.commonmark.org/0.31.2/#emphasis-and-strong-emphasis.
+    # Rules 1-8 have been computed in classify_delimiter.
+    if (($o{can_close} || $c{can_open}) && (($o{len} + $c{len}) % 3 == 0) && !($o{len} % 3 == 0 && $c{len} % 3 == 0)) {
+      shift @delimiters;
+      next;
+    }
+
+    # We have a matching closing delimiter, so we rewrite the tree in between
+    # our two delimiters.
+    my $len = min($o{len}, $c{len});
+    # TODO: maybe we need a splice method in InlineTree.
+    my @styled_subnodes = splice @{$tree->{children}}, $o{index} + 1, $c{index} - $o{index} - 1;
+    my $styled_tree = Markdown::Perl::InlineTree->new();
+    $styled_tree->push(@styled_subnodes);
+    my @styled_delimiters = map { $_->{index} -= $o{index} + 1; $_ } splice @delimiters, 1, $close_index - 1;
+    match_delimiters($that, $styled_tree, @styled_delimiters);
+
+    # And now we rebuild our own tree around the new one.
+    my $styled_node = new_style($styled_tree, tag => delim_to_html_tag($that, $o{delim} x $len));
+    my $style_start = $o{index};
+    my $style_length = 2;
+    if ($len < $o{len}) {
+      substr($tree->{children}[$o{index}]{content}, $o{len} - $len) = '';  ## no critic (ProhibitLvalueSubstr)
+      $style_start++;
+      $style_length--;
+    } else {
+      shift @delimiters;  # We have consumed our entire delimiter.
+      $close_index--;
+    }
+    if ($len < $c{len}) {
+      substr($tree->{children}[$c{index}]{content}, $c{len} - $len) = '';  ## no critic (ProhibitLvalueSubstr)
+      $style_length--;
+    } else {
+      splice @delimiters, $close_index, 1;  # We remove our closing delimiter.
+    }
+    splice @{$tree->{children}}, $style_start, $style_length, $styled_node;
+    for (@delimiters) {
+      $_->{index} -= $c{index} - $o{index} - 2 + $style_length if $_->{index} >= $close_index;
+    }
+  }
+}
+
+my %delimiters_map = (
+  '*' => 'em',
+  '**' => 'strong',
+  '_' => 'em',
+  '__' => 'strong',
+  '~' => 's',
+  '~~' => 'del',
+  # TODO: use ^ and ˇ to represent sup and sub
+  # TODO: add support for MathML in some way.
+);
+sub delim_to_html_tag {
+  my ($that, $delim) = @_;
+  # TODO: this must be based on options on $that.
+  # TODO: this must be called somewhere in process_styles, to ensure that we
+  # are building valid delimiters.
+  # TODO: sort what to do if a given delimiter does not have a variant with
+  # two characters (we must backtrack somewhere in match_delimiters probably).
+  return $delimiters_map{$delim};
 }
 
 1;

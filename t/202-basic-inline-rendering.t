@@ -44,4 +44,11 @@ is(run('<http:foo&bar>'), "<p><a href=\"http:foo&amp;bar\">http:foo&amp;bar</a><
 
 is(run('[foo](/bar)'), "<p><a href=\"/bar\">foo</a></p>\n", 'link1');
 
+is(run('*foo*'), "<p><em>foo</em></p>\n", 'em1');
+is(run('_foo_'), "<p><em>foo</em></p>\n", 'em2');
+is(run('**foo**'), "<p><strong>foo</strong></p>\n", 'strong1');
+is(run('__foo__'), "<p><strong>foo</strong></p>\n", 'strong2');
+is(run('*foo*bar*'), "<p><em>foo</em>bar*</p>\n", 'em3');
+is(run('*foo_bar*baz_'), "<p><em>foo_bar</em>baz_</p>\n", 'em4');
+
 done_testing;

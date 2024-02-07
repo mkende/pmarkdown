@@ -15,7 +15,7 @@ use Scalar::Util 'blessed';
 
 our $VERSION = 0.01;
 
-our @EXPORT_OK = qw(new_text new_code new_link new_literal is_node is_tree);
+our @EXPORT_OK = qw(new_text new_code new_link new_style new_literal is_node is_tree);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 =pod
@@ -45,7 +45,6 @@ sub new {
 }
 
 package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
-
   sub new {
     my ($class, $type, $content, %options) = @_;
 
@@ -60,7 +59,7 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
           if %options;
       $this = {type => $type, content => $content};
     } elsif ($type eq 'link') {
-      die "Unexpected parameters for inline ${type} node: ".join(', ', %options)
+      die "Unexpected parameters for inline link node: ".join(', ', %options)
           if keys %options > 1 || !exists $options{target};
       if (Scalar::Util::blessed($content)
         && $content->isa('Markdown::Perl::InlineTree')) {
@@ -70,6 +69,11 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
       } else {
         die "Unexpected content for inline ${type} node: ".ref($content);
       }
+    } elsif ($type eq 'style') {
+      die "Unexpected parameters for inline style node: ".join(', ', %options)
+          if keys %options > 1 || !exists $options{tag};
+      die "The content of a style node must be an InlineTree" if !Markdown::Perl::InlineTree::is_tree($content);
+      $this = { type => $type, subtree => $content, tag => $options{tag}};
     } else {
       die "Unexpected type for an InlineNode: ${type}";
     }
@@ -100,6 +104,7 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
   my $code_node = new_code('code content');
   my $link_node = new_link('text content', target => 'the target'[, title => 'the title']);
   my $link_node = new_link($subtree_content, target => 'the target'[, title => 'the title']);
+  my $style_node = new_literal($subtree_content, 'html_tag');
   my $literal_node = new_literal('literal content');
 
 These methods return a text node that can be inserted in an C<InlineTree>.
@@ -109,6 +114,7 @@ These methods return a text node that can be inserted in an C<InlineTree>.
 sub new_text { return Markdown::Perl::InlineNode->new(text => @_) }
 sub new_code { return Markdown::Perl::InlineNode->new(code => @_) }
 sub new_link { return Markdown::Perl::InlineNode->new(link => @_) }
+sub new_style { return Markdown::Perl::InlineNode->new(style => @_) }
 sub new_literal { return Markdown::Perl::InlineNode->new(literal => @_) }
 
 =pod
@@ -191,7 +197,7 @@ index.
 
 sub insert {
   my ($this, $index, @new_nodes) = @_;
-  splice @{$this->{children}}, 0, 0, map { is_node($_) ? $_ : @{$_->{children}} } @new_nodes;
+  splice @{$this->{children}}, $index, 0, map { is_node($_) ? $_ : @{$_->{children}} } @new_nodes;
   return;
 }
 
@@ -225,7 +231,7 @@ sub extract {
   die 'End node in an extract operation is not of type text: '.$en->{type}
       unless $en->{type} eq 'text';
   die 'Start offset is less than 0 in an extract operation' if $text_start < 0;
-  die 'End offset is past the end of the text an extract operation'
+  die 'End offset is past the end of the text in an extract operation'
       if $text_end > length($en->{content});
 
   # Clone will not recurse into sub-trees. But the start and end nodes can’t
@@ -497,6 +503,12 @@ sub render_node_html {
       my $content = $n->{subtree}->render_html();
       return $acc."<a href=\"$n->{target}\"${title}>${content}</a>";
     }
+  } elsif ($n->{type} eq 'style') {
+    my $content = $n->{subtree}->render_html();
+    my $tag = $n->{tag};
+    return $acc."<${tag}>${content}</${tag}>";
+  } else {
+    die "Unexpected node type in render_node_html: ".$n->{type};
   }
 }
 
@@ -531,8 +543,8 @@ sub node_to_text {
   } elsif ($n->{type} eq 'code') {
     html_escape($n->{content});
     return $acc.'<code>'.$n->{content}.'</code>';
-  } elsif ($n->{type} eq 'link') {
-    die 'The to_text method does not support link nodes';
+  } else {
+    die "Unsupported node type for to_text: ".$n->{type};
   }
 }
 
