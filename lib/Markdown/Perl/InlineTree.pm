@@ -263,13 +263,12 @@ sub extract {
     my @new_nodes;
     if ($text_start > 0) {
       CORE::push @new_nodes, new_text(substr $sn->{content}, 0, $text_start);
-    } else {
-      $child_start--;
     }
     if ($text_end < length($sn->{content})) {
       CORE::push @new_nodes, new_text(substr $sn->{content}, $text_end);
     }
     $this->replace($child_start, @new_nodes);
+    $child_start-- if $text_start == 0;
   }
   ## use critic (ProhibitLvalueSubstr)
 

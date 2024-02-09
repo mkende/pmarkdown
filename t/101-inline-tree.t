@@ -26,11 +26,30 @@ is($t->find_in_text(qr/\(/, 0, 2, 1, 1), U(), 'find_in_text_with_too_small_bound
 is([$t->find_balanced_in_text(qr/\(/, qr/\)/, 0, 2)], [3, 2, 3], 'find_balanced_in_text');
 
 my $nt = $t->extract(1, 3, 3, 2);
-is($nt->iter(sub { $_[1].$_[0]->{content} }, ''), 'd(e)fignored)gh', 'extract_extracted');
-is($t->iter(sub { $_[1].$_[0]->{content} }, ''), 'a(bc123)i', 'extract_rest');
+is($nt->fold(sub { $_[1].$_[0]->{content} }, ''), 'd(e)fignored)gh', 'extract_extracted');
+is($t->fold(sub { $_[1].$_[0]->{content} }, ''), 'a(bc123)i', 'extract_rest');
 
 $nt = $t->extract(0, 0, 2, 2);
-is($nt->iter(sub { $_[1].$_[0]->{content} }, ''), 'a(bc123)i', 'extract_all');
-is($t->iter(sub { $_[1].$_[0]->{content} }, ''), '', 'extract_rest_nothing');
+is($nt->fold(sub { $_[1].$_[0]->{content} }, ''), 'a(bc123)i', 'extract_all');
+is($t->fold(sub { $_[1].$_[0]->{content} }, ''), '', 'extract_rest_nothing');
+
+{
+  my $t = text_tree('*foo');
+  my $nt = $t->extract(0, 0, 0, 1);
+  is(scalar(@{$nt->{children}}), 1, 'extract_first_char1');
+  is($nt->{children}[0]{content}, '*', 'extract_first_char2');
+  is(scalar(@{$t->{children}}), 1, 'extract_first_char3');
+  is($t->{children}[0]{content}, 'foo', 'extract_first_char4');
+}
+
+{
+  my $t = text_tree('*foo');
+  $t->insert(0, new_text('bar'));
+  my $nt = $t->extract(1, 0, 1, 1);
+  is(scalar(@{$nt->{children}}), 1, 'extract_from_second_child1');
+  is($nt->{children}[0]{content}, '*', 'extract_from_second_child2');
+  is(scalar(@{$t->{children}}), 2, 'extract_from_second_child3');
+  is($t->{children}[1]{content}, 'foo', 'extract_from_second_child4');
+}
 
 done_testing;

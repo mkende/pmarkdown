@@ -16,8 +16,6 @@ my $input;
   $input = <>;
 }
 
-print "called with: ${input}\n";
-
 print Markdown::Perl::convert($input);
 
 __DATA__

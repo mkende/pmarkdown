@@ -9,7 +9,7 @@ use feature ':5.24';
 
 use English;
 use HTML::Entities 'decode_entities';
-use List::MoreUtils 'first_index';
+use List::MoreUtils 'first_index', 'last_index';
 use List::Util 'min';
 use Markdown::Perl::InlineTree ':all';
 
@@ -354,48 +354,84 @@ sub match_delimiters {
     }
     $close_index += 1;
     my %c = %{$delimiters[$close_index]};
-    # This is rule 9 and 10 of
-    # https://spec.commonmark.org/0.31.2/#emphasis-and-strong-emphasis.
-    # Rules 1-8 have been computed in classify_delimiter.
-    if (($o{can_close} || $c{can_open}) && (($o{len} + $c{len}) % 3 == 0) && !($o{len} % 3 == 0 && $c{len} % 3 == 0)) {
+
+    # We have a closing delimiter, now we backtrack and check that we have no
+    # tighter match for this closing delimiter. This is because *foo _bar* baz_
+    # will only match the * (that comes first) but *foo *bar* will match the
+    # second and third star, that are the tightest match.
+    # This is for rule 15 and 16 of
+    # https://spec.commonmark.org/0.31.2/#emphasis-and-strong-emphasis
+    # We also apply rules 9 and 10 here. Rules 1-8 have already been computed in
+    # classify_delimiter.
+    my $open_index = last_index { $_->{can_open} && $_->{delim} eq $c{delim} && valid_rules_9_10($_, \%c) } @delimiters[0 .. $close_index - 1];
+    # This can fail only if the first candidate delimiter fail to validate
+    if ($open_index == -1) {
       shift @delimiters;
       next;
     }
+    # We know that $open_index is 0 in the worse case.
+    %o = %{delimiters[$open_index]} if $open_index != 0;
 
     # We have a matching closing delimiter, so we rewrite the tree in between
-    # our two delimiters.
-    my $len = min($o{len}, $c{len});
-    # TODO: maybe we need a splice method in InlineTree.
-    my @styled_subnodes = splice @{$tree->{children}}, $o{index} + 1, $c{index} - $o{index} - 1;
-    my $styled_tree = Markdown::Perl::InlineTree->new();
-    $styled_tree->push(@styled_subnodes);
-    my @styled_delimiters = map { $_->{index} -= $o{index} + 1; $_ } splice @delimiters, 1, $close_index - 1;
-    match_delimiters($that, $styled_tree, @styled_delimiters);
-
-    # And now we rebuild our own tree around the new one.
-    my $styled_node = new_style($styled_tree, tag => delim_to_html_tag($that, $o{delim} x $len));
-    my $style_start = $o{index};
-    my $style_length = 2;
-    if ($len < $o{len}) {
-      substr($tree->{children}[$o{index}]{content}, $o{len} - $len) = '';  ## no critic (ProhibitLvalueSubstr)
-      $style_start++;
-      $style_length--;
-    } else {
-      shift @delimiters;  # We have consumed our entire delimiter.
-      $close_index--;
-    }
-    if ($len < $c{len}) {
-      substr($tree->{children}[$c{index}]{content}, $c{len} - $len) = '';  ## no critic (ProhibitLvalueSubstr)
-      $style_length--;
-    } else {
-      splice @delimiters, $close_index, 1;  # We remove our closing delimiter.
-    }
-    splice @{$tree->{children}}, $style_start, $style_length, $styled_node;
-    for (@delimiters) {
-      $_->{index} -= $c{index} - $o{index} - 2 + $style_length if $_->{index} >= $close_index;
-    }
+    # our two delimiters and rewrite our tree around it.
+    apply_delimiters($that, $tree, \@delimiters, $open_index, $close_index);
   }
 }
+
+# Given a tree, its delimiters and the index of two delimiters, rewrite the
+# tree with the style applied by these delimiters (we’re assuming here that they
+# are of a matching type).
+#
+# The delimiter may not be consumed entirely (but we will consume as much as
+# possible).
+sub apply_delimiters {
+  my ($that, $tree, $delimiters, $open_index, $close_index) = @_;
+  my %o = %{$delimiters->[$open_index]};
+  my %c = %{$delimiters->[$close_index]};
+
+  # We rewrite the tree in between our two delimiters.
+  # TODO: maybe we need a splice method in InlineTree.
+  my @styled_subnodes = splice @{$tree->{children}}, $o{index} + 1, $c{index} - $o{index} - 1;
+  my $styled_tree = Markdown::Perl::InlineTree->new();
+  $styled_tree->push(@styled_subnodes);
+  my @styled_delimiters = map { $_->{index} -= $o{index} + 1; $_ } splice @{$delimiters}, $open_index + 1, $close_index - $open_index - 1;
+  match_delimiters($that, $styled_tree, @styled_delimiters);
+
+  # And now we rebuild our own tree around the new one.
+  my $len = min($o{len}, $c{len});
+  my $styled_node = new_style($styled_tree, tag => delim_to_html_tag($that, $o{delim} x $len));
+  my $style_start = $o{index};
+  my $style_length = 2;
+  if ($len < $o{len}) {
+    substr($tree->{children}[$o{index}]{content}, $o{len} - $len) = '';  ## no critic (ProhibitLvalueSubstr)
+    $o{len} -= $len;
+    $style_start++;
+    $style_length--;
+  } else {
+    splice @{$delimiters}, $open_index, 1; 
+    $close_index--;
+  }
+  if ($len < $c{len}) {
+    substr($tree->{children}[$c{index}]{content}, $c{len} - $len) = '';  ## no critic (ProhibitLvalueSubstr)
+    $c{len} -= $len;
+    $style_length--;
+  } else {
+    splice @{$delimiters}, $close_index, 1;  # We remove our closing delimiter.
+  }
+  splice @{$tree->{children}}, $style_start, $style_length, $styled_node;
+  for my $i ($close_index .. $#{$delimiters}) {
+    $_->{index} -= $c{index} - $o{index} - 2 + $style_length;
+  }
+}
+
+# Returns true if the given delimiters can be an open/close pair without
+# breaking rules 9 and 10 of
+# https://spec.commonmark.org/0.31.2/#emphasis-and-strong-emphasis.
+sub valid_rules_9_10 {
+  my ($o, $c) = @_;
+  return (!$o->{can_close} && !$c->{can_open}) || (($o->{len} + $c->{len}) % 3 != 0) || ($o->{len} % 3 == 0 && $c->{len} % 3 == 0);
+}
+
 
 my %delimiters_map = (
   '*' => 'em',
@@ -405,7 +441,7 @@ my %delimiters_map = (
   '~' => 's',
   '~~' => 'del',
   # TODO: use ^ and ˇ to represent sup and sub
-  # TODO: add support for MathML in some way.
+  # TODO: add support for MathML in some way.  
 );
 sub delim_to_html_tag {
   my ($that, $delim) = @_;
