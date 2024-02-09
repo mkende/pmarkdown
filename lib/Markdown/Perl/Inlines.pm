@@ -370,7 +370,7 @@ sub match_delimiters {
       next;
     }
     # We know that $open_index is 0 in the worse case.
-    %o = %{delimiters[$open_index]} if $open_index != 0;
+    %o = %{$delimiters[$open_index]} if $open_index != 0;
 
     # We have a matching closing delimiter, so we rewrite the tree in between
     # our two delimiters and rewrite our tree around it.
@@ -404,7 +404,7 @@ sub apply_delimiters {
   my $style_length = 2;
   if ($len < $o{len}) {
     substr($tree->{children}[$o{index}]{content}, $o{len} - $len) = '';  ## no critic (ProhibitLvalueSubstr)
-    $o{len} -= $len;
+    $delimiters->[$open_index]{len} -= $len;
     $style_start++;
     $style_length--;
   } else {
@@ -412,15 +412,16 @@ sub apply_delimiters {
     $close_index--;
   }
   if ($len < $c{len}) {
-    substr($tree->{children}[$c{index}]{content}, $c{len} - $len) = '';  ## no critic (ProhibitLvalueSubstr)
-    $c{len} -= $len;
+    # The closing node is now just after the opening one.
+    substr($tree->{children}[$o{index} + 1]{content}, $c{len} - $len) = '';  ## no critic (ProhibitLvalueSubstr)
+    $delimiters->[$close_index]{len} -= $len;
     $style_length--;
   } else {
     splice @{$delimiters}, $close_index, 1;  # We remove our closing delimiter.
   }
   splice @{$tree->{children}}, $style_start, $style_length, $styled_node;
   for my $i ($close_index .. $#{$delimiters}) {
-    $_->{index} -= $c{index} - $o{index} - 2 + $style_length;
+    $delimiters->[$i]{index} -= $c{index} - $o{index} - 2 + $style_length;
   }
 }
 
