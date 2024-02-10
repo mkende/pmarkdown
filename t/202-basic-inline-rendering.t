@@ -54,6 +54,7 @@ is(run('*foo*bar*'), "<p><em>foo</em>bar*</p>\n", 'em3');
 is(run('*foo_bar*baz_'), "<p><em>foo_bar</em>baz_</p>\n", 'em4');
 is(run('*foo**bar**baz*'), "<p><em>foo<strong>bar</strong>baz</em></p>\n", 'emphasis1');
 is(run('*_*'), "<p><em>_</em></p>\n", 'emphasis2');
+is(run('*foo __bar *baz__ bam*'), "<p><em>foo <strong>bar *baz</strong> bam</em></p>\n", 'emphasis3');
 
 
 
