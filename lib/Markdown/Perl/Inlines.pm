@@ -311,8 +311,7 @@ sub classify_delimiter {
     $can_open = $is_left;
     $can_close = $is_right;
   }
-  # TODO: remove left and right that are here for debug purposes only.
-  return { index => $index, can_open => $can_open, can_close => $can_close, len => $len, delim => $delim, left => $is_left, right => $is_right };
+  return { index => $index, can_open => $can_open, can_close => $can_close, len => $len, delim => $delim, orig_len => $len };
 }
 
 # Computes whether the type of the "flank" of the delimiter run at the given
@@ -336,45 +335,32 @@ sub classify_flank {
   return 'none';
 }
 
+# We match the pair of delimiters together as much as we can, following the
+# rules of the commonmark spec.
 sub match_delimiters {
   my ($that, $tree, @delimiters) = @_;
-  while (@delimiters > 1) {
-    # We start by trying to find a closing delimiter of the same style as the
-    # candidate opening delimiter that we have. If we find one. We will consume
-    # as many characters from both sides as possible.
-    my %o = %{$delimiters[0]};
-    if (!$o{can_open}) {
-      shift @delimiters;
-      next;
-    }
-    my $close_index = first_index { $_->{can_close} && $_->{delim} eq $o{delim} } @delimiters[1 .. $#delimiters];
-    if ($close_index == -1) {
-      shift @delimiters;
-      next;
-    }
-    $close_index += 1;
-    my %c = %{$delimiters[$close_index]};
 
-    # We have a closing delimiter, now we backtrack and check that we have no
-    # tighter match for this closing delimiter. This is because *foo _bar* baz_
-    # will only match the * (that comes first) but *foo *bar* will match the
-    # second and third star, that are the tightest match.
-    # This is for rule 15 and 16 of
+  for (my $close_index = 1; $close_index < @delimiters; $close_index++) {
+    my %c = %{$delimiters[$close_index]};
+    next if !$c{can_close};
+    # We have a closing delimiter, now we backtrack and find the tighter match
+    # for this closing delimiter. This is because "*foo _bar* baz_" will only
+    # match the * (that comes first) but "*foo *bar*"" will match the second
+    # and third star, that are the tightest match. This is for rule 15 and 16 of
     # https://spec.commonmark.org/0.31.2/#emphasis-and-strong-emphasis
     # We also apply rules 9 and 10 here. Rules 1-8 have already been computed in
     # classify_delimiter.
     my $open_index = last_index { $_->{can_open} && $_->{delim} eq $c{delim} && valid_rules_9_10($_, \%c) } @delimiters[0 .. $close_index - 1];
-    # This can fail only if the first candidate delimiter fail to validate
-    if ($open_index == -1) {
-      shift @delimiters;
-      next;
-    }
-    # We know that $open_index is 0 in the worse case.
-    %o = %{$delimiters[$open_index]} if $open_index != 0;
+    # TODO: here there are a lot of optimization that we could apply, based on
+    # the "process emphasis" method from the spec (like removing our closing
+    # delimiter if it is not an opener, and keeping track of the fact that
+    # we have no delimiter in the 0..close_index-1 range that can match a 
+    # delimiter of the same type as %c).
+    # This does not seem very important for reasonable inputs. So, instead, we
+    # just check the next potential closer.
+    next if $open_index == -1;
 
-    # We have a matching closing delimiter, so we rewrite the tree in between
-    # our two delimiters and rewrite our tree around it.
-    apply_delimiters($that, $tree, \@delimiters, $open_index, $close_index);
+    $close_index = apply_delimiters($that, $tree, \@delimiters, $open_index, $close_index);
   }
 }
 
@@ -395,10 +381,13 @@ sub apply_delimiters {
   my $styled_tree = Markdown::Perl::InlineTree->new();
   $styled_tree->push(@styled_subnodes);
   my @styled_delimiters = map { $_->{index} -= $o{index} + 1; $_ } splice @{$delimiters}, $open_index + 1, $close_index - $open_index - 1;
-  match_delimiters($that, $styled_tree, @styled_delimiters);
+  # With our current algorithm in match_delimiters we know that there is no
+  # reasons to recurse (because the closing delimiter here was the first
+  # closing delimiter with a matching opener.)
+  # match_delimiters($that, $styled_tree, @styled_delimiters);
 
   # And now we rebuild our own tree around the new one.
-  my $len = min($o{len}, $c{len});
+  my $len = min($o{len}, $c{len}, 2);
   my $styled_node = new_style($styled_tree, tag => delim_to_html_tag($that, $o{delim} x $len));
   my $style_start = $o{index};
   my $style_length = 2;
@@ -423,6 +412,7 @@ sub apply_delimiters {
   for my $i ($close_index .. $#{$delimiters}) {
     $delimiters->[$i]{index} -= $c{index} - $o{index} - 2 + $style_length;
   }
+  return $open_index - ($len < $o{len} ? 0 : 1);
 }
 
 # Returns true if the given delimiters can be an open/close pair without
@@ -430,7 +420,10 @@ sub apply_delimiters {
 # https://spec.commonmark.org/0.31.2/#emphasis-and-strong-emphasis.
 sub valid_rules_9_10 {
   my ($o, $c) = @_;
-  return (!$o->{can_close} && !$c->{can_open}) || (($o->{len} + $c->{len}) % 3 != 0) || ($o->{len} % 3 == 0 && $c->{len} % 3 == 0);
+  # TODO: BUG: there is a probable bug here in that the length of the delimiter
+  # to consider is not its current length but the length of the original span
+  # of which it was a part.
+  return (!$o->{can_close} && !$c->{can_open}) || (($o->{orig_len} + $c->{orig_len}) % 3 != 0) || ($o->{orig_len} % 3 == 0 && $c->{orig_len} % 3 == 0);
 }
 
 
