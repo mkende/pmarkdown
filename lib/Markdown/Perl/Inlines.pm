@@ -59,7 +59,7 @@ sub find_code_and_tag_runs {
   # TODO: https://spec.commonmark.org/0.30/#autolinks
   # TODO: https://spec.commonmark.org/0.30/#raw-html
   # while ($text =~ m/(?<code>\`+)|(?<html>\<)/g) {
-  # We are manually handling the backcslash escaping here because they are not
+  # We are manually handling the backslash escaping here because they are not
   # interpreted inside code blocks. We will then process all the others
   # afterward.
   while ($text =~ m/(?<! \\) (?<backslashes> (?:\\\\)*) (?: (?<code>\`+) | \< )/gx) {
@@ -67,7 +67,7 @@ sub find_code_and_tag_runs {
         ($LAST_MATCH_START[0] + length($+{backslashes}), $LAST_MATCH_END[0]);
     if ($+{code}) {
       my $fence = $+{code};
-      # We’re searching for a fence of the same length, without any backticks
+      # We’re searching for a fence of the same length, without any backtick
       # before or after.
       if ($text =~ m/(?<!\`)${fence}(?!\`)/gc) {
         my ($end_before, $end_after) = ($LAST_MATCH_START[0], $LAST_MATCH_END[0]);
@@ -81,7 +81,7 @@ sub find_code_and_tag_runs {
       my $re = $that->autolinks_regex;
       my $email_re = $that->autolinks_email_regex;
       # We’re not using /gc in these to regex because this confuses the ProhibitUnusedCapture
-      # PerlCritic policy. Anyway, as we are always reseting pos() in case of
+      # PerlCritic policy. Anyway, as we are always resetting pos() in case of
       # successful match, it’s not important to update it.
       if ($text =~ m/\G(?<link>${re})\>/) {
         $tree->push(new_text(substr($text, 0, $start_before)))
@@ -152,8 +152,8 @@ sub process_links {
   # TODO: add an argument here that recurse into sub-trees and returns false if
   # we cross a link element. However, at this stage, the only links that we
   # could find would be autolinks. Although it would make sense that the spec
-  # disallow shuch elements (because it does not make sense in the resulting
-  # HTLM), the current cmark implementation accepts that:
+  # disallow such elements (because it does not make sense in the resulting
+  # HTML), the current CommonMark implementation accepts that:
   # https://spec.commonmark.org/dingus/?text=%5Bbar%3Chttp%3A%2F%2Ftest.fr%3Ebaz%5D(%2Fbaz)%0A%0A
   # Maybe we want to fix this bug in our implementation.
   my @close = $tree->find_balanced_in_text(qr/\[/, qr/\]/, $open[0], $open[2]);
@@ -220,7 +220,7 @@ sub find_link_destination_and_title {
   # We need to support more formatting and the case where there are Literal
   # elements in the link. The spec does not say what happens if there are
   # other type of elements in the link destination like, stuff that looks like
-  # code for example (in practice, cmark will not process their content).
+  # code for example (in practice, CommonMark will not process their content).
   # So let’s not care too much...
   # TODO: we are not yet finding the link title, if any.
 
@@ -248,7 +248,7 @@ sub find_link_destination_and_title {
 
 # This methods adds "style", that is it parses the emphasis (* and _) and also
 # strike-through (~). To do so, we process each level of the tree independently
-# because a style-run can’t cross another HTLM construct (but it can span over
+# because a style-run can’t cross another HTML construct (but it can span over
 # it).
 #
 # We first find all the possible delimiters and insert them in the tree instead
@@ -311,7 +311,14 @@ sub classify_delimiter {
     $can_open = $is_left;
     $can_close = $is_right;
   }
-  return { index => $index, can_open => $can_open, can_close => $can_close, len => $len, delim => $delim, orig_len => $len };
+  return {
+    index => $index,
+    can_open => $can_open,
+    can_close => $can_close,
+    len => $len,
+    delim => $delim,
+    orig_len => $len
+  };
 }
 
 # Computes whether the type of the "flank" of the delimiter run at the given
@@ -336,11 +343,11 @@ sub classify_flank {
 }
 
 # We match the pair of delimiters together as much as we can, following the
-# rules of the commonmark spec.
+# rules of the CommonMark spec.
 sub match_delimiters {
   my ($that, $tree, @delimiters) = @_;
 
-  for (my $close_index = 1; $close_index < @delimiters; $close_index++) {
+  for (my $close_index = 1; $close_index < @delimiters; $close_index++) {  ## no critic (ProhibitCStyleForLoops)
     my %c = %{$delimiters[$close_index]};
     next if !$c{can_close};
     # We have a closing delimiter, now we backtrack and find the tighter match
@@ -350,11 +357,13 @@ sub match_delimiters {
     # https://spec.commonmark.org/0.31.2/#emphasis-and-strong-emphasis
     # We also apply rules 9 and 10 here. Rules 1-8 have already been computed in
     # classify_delimiter.
-    my $open_index = last_index { $_->{can_open} && $_->{delim} eq $c{delim} && valid_rules_9_10($_, \%c) } @delimiters[0 .. $close_index - 1];
+    my $open_index =
+        last_index { $_->{can_open} && $_->{delim} eq $c{delim} && valid_rules_9_10($_, \%c) }
+    @delimiters[0 .. $close_index - 1];
     # TODO: here there are a lot of optimization that we could apply, based on
     # the "process emphasis" method from the spec (like removing our closing
     # delimiter if it is not an opener, and keeping track of the fact that
-    # we have no delimiter in the 0..close_index-1 range that can match a 
+    # we have no delimiter in the 0..close_index-1 range that can match a
     # delimiter of the same type as %c).
     # This does not seem very important for reasonable inputs. So, instead, we
     # just check the next potential closer.
@@ -362,6 +371,8 @@ sub match_delimiters {
 
     $close_index = apply_delimiters($that, $tree, \@delimiters, $open_index, $close_index);
   }
+
+  return;
 }
 
 # Given a tree, its delimiters and the index of two delimiters, rewrite the
@@ -380,11 +391,13 @@ sub apply_delimiters {
   my @styled_subnodes = splice @{$tree->{children}}, $o{index} + 1, $c{index} - $o{index} - 1;
   my $styled_tree = Markdown::Perl::InlineTree->new();
   $styled_tree->push(@styled_subnodes);
-  my @styled_delimiters = map { $_->{index} -= $o{index} + 1; $_ } splice @{$delimiters}, $open_index + 1, $close_index - $open_index - 1;
   # With our current algorithm in match_delimiters we know that there is no
   # reasons to recurse (because the closing delimiter here was the first
   # closing delimiter with a matching opener.)
+  # my @styled_delimiters = map { $_->{index} -= $o{index} + 1; $_ } splice @{$delimiters},
+  #    $open_index + 1, $close_index - $open_index - 1;
   # match_delimiters($that, $styled_tree, @styled_delimiters);
+  splice @{$delimiters}, $open_index + 1, $close_index - $open_index - 1;
 
   # And now we rebuild our own tree around the new one.
   my $len = min($o{len}, $c{len}, 2);
@@ -397,7 +410,7 @@ sub apply_delimiters {
     $style_start++;
     $style_length--;
   } else {
-    splice @{$delimiters}, $open_index, 1; 
+    splice @{$delimiters}, $open_index, 1;
     $close_index--;
   }
   if ($len < $c{len}) {
@@ -423,9 +436,11 @@ sub valid_rules_9_10 {
   # TODO: BUG: there is a probable bug here in that the length of the delimiter
   # to consider is not its current length but the length of the original span
   # of which it was a part.
-  return (!$o->{can_close} && !$c->{can_open}) || (($o->{orig_len} + $c->{orig_len}) % 3 != 0) || ($o->{orig_len} % 3 == 0 && $c->{orig_len} % 3 == 0);
+  return
+         (!$o->{can_close} && !$c->{can_open})
+      || (($o->{orig_len} + $c->{orig_len}) % 3 != 0)
+      || ($o->{orig_len} % 3 == 0 && $c->{orig_len} % 3 == 0);
 }
-
 
 my %delimiters_map = (
   '*' => 'em',
@@ -435,8 +450,9 @@ my %delimiters_map = (
   '~' => 's',
   '~~' => 'del',
   # TODO: use ^ and ˇ to represent sup and sub
-  # TODO: add support for MathML in some way.  
+  # TODO: add support for MathML in some way.
 );
+
 sub delim_to_html_tag {
   my ($that, $delim) = @_;
   # TODO: this must be based on options on $that.

@@ -531,7 +531,7 @@ sub _get_option {
 =item B<fenced_code_blocks_must_be_closed> I<(boolean, default: false)>
 
 By default, a fenced code block with no closing fence will run until the end of
-the document. With this setting, the openning fence will be treated as normal
+the document. With this setting, the opening fence will be treated as normal
 text, rather than the start of a code block, if there is no matching closing
 fence.
 
@@ -571,7 +571,7 @@ sub code_blocks_info {
 =pod=item B<multi_lines_setext_headings> I<(enum, default: multi_line)>
 
 The default behavior of setext headings in the CommonMark spec is that they can
-have multiple lines of text preceeding them (forming the heading itself).
+have multiple lines of text preceding them (forming the heading itself).
 
 This option allows to change this behavior. And is illustrated with this example
 of Markdown:
@@ -587,7 +587,7 @@ The possible values are:
 
 =item B<single_line>
 
-Only the last line of text is kept as part of the heading. The preceeding lines
+Only the last line of text is kept as part of the heading. The preceding lines
 are a paragraph of themselves. The result on the example would be:
 paragraph C<Foo>, heading C<bar>, paragraph C<baz>
 
@@ -603,7 +603,7 @@ heading will use the default B<multi_line> behavior.
 
 =item B<multi_line> I<(default)>
 
-This is the default CommonMark behavior where all the preceeding lines are part
+This is the default CommonMark behavior where all the preceding lines are part
 of the heading. The result on the example would be:
 heading C<Foo bar>, paragraph C<baz>
 
@@ -628,7 +628,7 @@ sub multi_lines_setext_headings {
 
 =item B<autolinks_regex> I<(regex string)>
 
-The regex that an autolink must match. This is for commonmark autolinks, that
+The regex that an autolink must match. This is for CommonMark autolinks, that
 are recognized only if they appear between brackets C<\<I<link>\>>.
 
 The default value is meant to match the
@@ -647,7 +647,7 @@ sub autolinks_regex {
 
 =item B<autolinks_email_regex> I<(regex string)>
 
-The regex that an autolink must match to be recognised as an email adress. This
+The regex that an autolink must match to be recognised as an email address. This
 allows to omit the C<mailto:> scheme that would be needed to be recognised as
 an autolink otherwise.
 

@@ -31,7 +31,6 @@ sub remove_prefix_spaces {
   my ($n, $text) = @_;
   my $t = int($n / 4);
   my $s = $n % 4;
-  # return substr $text, length($1) if $n % 4 == 0 && $text =~ m/^((?: {0,3}\t| {4}){$t})/;
   for my $i (1 .. $t) {
     if ($text =~ m/^( {0,3}\t| {4})/) {
       # We remove one full tab-stop from the string.

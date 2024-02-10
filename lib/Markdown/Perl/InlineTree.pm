@@ -1,4 +1,4 @@
-# A tree DataStructure to represent the content of an inline text of a block
+# A tree data structure to represent the content of an inline text of a block
 # element.
 
 package Markdown::Perl::InlineTree;
@@ -45,6 +45,7 @@ sub new {
 }
 
 package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
+
   sub new {
     my ($class, $type, $content, %options) = @_;
 
@@ -59,7 +60,7 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
           if %options;
       $this = {type => $type, content => $content};
     } elsif ($type eq 'link') {
-      die "Unexpected parameters for inline link node: ".join(', ', %options)
+      die 'Unexpected parameters for inline link node: '.join(', ', %options)
           if keys %options > 1 || !exists $options{target};
       if (Scalar::Util::blessed($content)
         && $content->isa('Markdown::Perl::InlineTree')) {
@@ -70,10 +71,11 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
         die "Unexpected content for inline ${type} node: ".ref($content);
       }
     } elsif ($type eq 'style') {
-      die "Unexpected parameters for inline style node: ".join(', ', %options)
+      die 'Unexpected parameters for inline style node: '.join(', ', %options)
           if keys %options > 1 || !exists $options{tag};
-      die "The content of a style node must be an InlineTree" if !Markdown::Perl::InlineTree::is_tree($content);
-      $this = { type => $type, subtree => $content, tag => $options{tag}};
+      die 'The content of a style node must be an InlineTree'
+          if !Markdown::Perl::InlineTree::is_tree($content);
+      $this = {type => $type, subtree => $content, tag => $options{tag}};
     } else {
       die "Unexpected type for an InlineNode: ${type}";
     }
@@ -315,7 +317,7 @@ sub map_shallow {
 
   $tree->map($sub);
 
-Same as C<map_shallow>, but the tree is visited recursively. The subtrees of
+Same as C<map_shallow>, but the tree is visited recursively. The subtree of
 individual nodes are visited and their content replaced before the node itself
 are visited.
 
@@ -423,7 +425,7 @@ sub find_in_text {
 
   $tree->find_balanced_in_text($open_re, $close_re, $start_child, $start_offset);
 
-Same as C<find_in_text> except that this method searchs for both C<$open_re> and
+Same as C<find_in_text> except that this method searches for both C<$open_re> and
 C<$close_re> and, each time C<$open_re> is found, it needs to find C<$close_re>
 one more time before we it returns. The method assumes that C<$open_re> has
 already been seen once before the given C<$start_child> and C<$start_offset>.
@@ -461,7 +463,7 @@ sub find_balanced_in_text {
 
   $tree->render_html();
 
-Returns the HTLM representation of that C<InlineTree>.
+Returns the HTML representation of that C<InlineTree>.
 
 =cut
 
@@ -507,7 +509,7 @@ sub render_node_html {
     my $tag = $n->{tag};
     return $acc."<${tag}>${content}</${tag}>";
   } else {
-    die "Unexpected node type in render_node_html: ".$n->{type};
+    die 'Unexpected node type in render_node_html: '.$n->{type};
   }
 }
 
@@ -543,7 +545,7 @@ sub node_to_text {
     html_escape($n->{content});
     return $acc.'<code>'.$n->{content}.'</code>';
   } else {
-    die "Unsupported node type for to_text: ".$n->{type};
+    die 'Unsupported node type for to_text: '.$n->{type};
   }
 }
 
@@ -559,7 +561,8 @@ my %char_to_html_entity = (
 );
 
 sub html_escape {
-  $_[0] =~ s/([&"<>])/$char_to_html_entity{$1}/eg;
+  # We put the " twice, to not confuse our spell-checker.
+  $_[0] =~ s/([&""<>])/$char_to_html_entity{$1}/eg;
   return;
 }
 
