@@ -269,7 +269,7 @@ sub process_styles {
   # options.
   my $current_child = 0;
   my @delimiters;
-  while (my @match = $tree->find_in_text(qr/[*_~]+/, $current_child, 0)) {
+  while (my @match = $tree->find_in_text(qr/([*_~])\1*/, $current_child, 0)) {
     # We extract the delimiter run into a new node, that will be at $index.
     my ($delim_tree, $index) = $tree->extract($match[0], $match[1], $match[0], $match[2]);
     # We use the type literal so that if we do nothing with the delimiter it

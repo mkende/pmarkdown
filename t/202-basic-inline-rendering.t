@@ -43,6 +43,8 @@ is(run('<http:>'), "<p><a href=\"http:\">http:</a></p>\n", 'autolink2');
 is(run('<http:foo&bar>'), "<p><a href=\"http:foo&amp;bar\">http:foo&amp;bar</a></p>\n", 'autolink3');
 
 is(run('[foo](/bar)'), "<p><a href=\"/bar\">foo</a></p>\n", 'link1');
+is(run('[](/bar)'), "<p><a href=\"/bar\"></a></p>\n", 'link2');
+is(run('[foo]()'), "<p><a href=\"\">foo</a></p>\n", 'link3');
 
 is(run('*foo*'), "<p><em>foo</em></p>\n", 'em1');
 is(run('_foo_'), "<p><em>foo</em></p>\n", 'em2');
@@ -50,5 +52,9 @@ is(run('**foo**'), "<p><strong>foo</strong></p>\n", 'strong1');
 is(run('__foo__'), "<p><strong>foo</strong></p>\n", 'strong2');
 is(run('*foo*bar*'), "<p><em>foo</em>bar*</p>\n", 'em3');
 is(run('*foo_bar*baz_'), "<p><em>foo_bar</em>baz_</p>\n", 'em4');
+is(run('*foo**bar**baz*'), "<p><em>foo<strong>bar</strong>baz</em></p>\n", 'emphasis1');
+is(run('*_*'), "<p><em>_</em></p>\n", 'emphasis2');
+
+
 
 done_testing;
