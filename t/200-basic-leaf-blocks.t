@@ -45,5 +45,6 @@ is(run("<pre>\nabc\n</pre>\n"), "<pre>\nabc\n</pre>\n", 'html1');
 is(run("<pre>\nabc\n"), "<pre>\nabc\n", 'html2');
 is(run("<h1>\nabc\n"), "<h1>\nabc\n", 'html3');
 is(run("<h1>\nabc\n\ndef"), "<h1>\nabc\n<p>def</p>\n", 'html4');
+is(run("<SomeTag value = 'abc'>\n*abc*\n\ndef"), "<SomeTag value = 'abc'>\n*abc*\n<p>def</p>\n", 'html5');
 
 done_testing;

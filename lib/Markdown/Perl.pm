@@ -211,6 +211,15 @@ my $indented_code_re = qr/^(?: {0,3}\t| {4})/;
 my $list_item_marker_re = qr/ [-+*] | (?<digits>\d{1,9}) (?<symbol>[.)])/x;
 my $list_item_re = qr/^ (?<indent>\ {0,3}) (?<marker>${list_item_marker_re}) (?<text>.*) $/x;
 my $supported_html_tags = join('|', qw(address article aside base basefont blockquote body caption center col colgroup dd details dialog dir div dl dt fieldset figcaption figure footer form frame frameset h1 h2 h3 h4 h5 h6 head header hr html iframe legend li link main menu menuitem nav noframes ol optgroup option p param search section summary table tbody td tfoot th thead title tr track ul));
+my $html_tag_name_re = qr/[a-zA-Z][-a-zA-Z0-9]*/;
+my $html_attribute_name_re = qr/[a-zA-Z_:][-a-zA-Z0-9_.:]*/;
+# We include new lines in these regex as the spec mentions them, but we can’t
+# match them for now as the regex will see lines one at a time.
+my $html_space_re = qr/[ \t]*\n?[ \t]*/;  # Spaces, tabs, and up to one line ending.
+my $html_attribute_value_re = qr/[^ \t\n"'=<>`]+|'[^']*'|"[^"]*"/;
+my $html_attribute_re = qr/${html_space_re}${html_attribute_name_re}${html_space_re}=${html_space_re}${html_attribute_value_re}/;
+my $html_open_tag_re = qr/<${html_tag_name_re}${html_attribute_re}*${html_space_re}\/?>/;
+my $html_close_tag_re = qr/<\/${html_tag_name_re}${html_space_re}>/;
 
 # Parse at least one line of text to build a new block; and possibly several
 # lines, depending on the block type.
@@ -403,18 +412,23 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
 
   # https://spec.commonmark.org/0.31.2/#html-blocks
   # HTML blockes can interrupt a paragraph.
+  # TODO: PERF: test that $l =~ m/^ {0,3}</ to short circuit all these regex.
   my $html_end_condition;
-  if ($l =~ m/^<(?:pre|script|style|textarea)(?: |\t|>|$)/) {
+  if ($l =~ m/^ {0,3}<(?:pre|script|style|textarea)(?: |\t|>|$)/) {
     $html_end_condition = qr/<\/(?:pre|script|style|textarea)>/;
-  } elsif ($l =~ m/^<!--/) {
+  } elsif ($l =~ m/^ {0,3}<!--/) {
     $html_end_condition = qr/-->/;
-  } elsif ($l =~ m/^<\?/) {
+  } elsif ($l =~ m/^ {0,3}<\?/) {
     $html_end_condition = qr/\?>/;
-  } elsif ($l =~ m/^<![a-zA-Z]/) {
+  } elsif ($l =~ m/^ {0,3}<![a-zA-Z]/) {
     $html_end_condition = qr/=>/;
-  } elsif ($l =~ m/^<!\[CDATA\[/) {
+  } elsif ($l =~ m/^ {0,3}<!\[CDATA\[/) {
     $html_end_condition = qr/]]>/;
-  } elsif ($l =~ m/^<\/?(?:${supported_html_tags})(?: |\t|\/?>|$)/) {
+  } elsif ($l =~ m/^ {0,3}<\/?(?:${supported_html_tags})(?: |\t|\/?>|$)/) {
+    $html_end_condition = qr/^$/;
+  } elsif (!@{$this->{paragraph}} && $l =~ m/^ {0,3}(?:${html_open_tag_re}|${html_close_tag_re})[ \t]*$/) {
+    # TODO: the spec seem to say that the tag can take more than one line, but
+    # this is not tested, so we don’t implement this for now.
     $html_end_condition = qr/^$/;
   }
   # TODO: Implement rule 7 about any possible tag.
