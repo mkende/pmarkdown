@@ -7,6 +7,7 @@ use feature ':5.24';
 
 use Exporter 'import';
 use Hash::Util 'lock_keys';
+use List::MoreUtils 'first_index';
 use List::Util 'pairs';
 use Markdown::Perl::Inlines;
 use Markdown::Perl::Util 'split_while', 'remove_prefix_spaces', 'indented_one_tab', 'indent_size';
@@ -209,6 +210,7 @@ my $block_quotes_re = qr/^ {0,3}>/;
 my $indented_code_re = qr/^(?: {0,3}\t| {4})/;
 my $list_item_marker_re = qr/ [-+*] | (?<digits>\d{1,9}) (?<symbol>[.)])/x;
 my $list_item_re = qr/^ (?<indent>\ {0,3}) (?<marker>${list_item_marker_re}) (?<text>.*) $/x;
+my $supported_html_tags = join('|', qw(address article aside base basefont blockquote body caption center col colgroup dd details dialog dir div dl dt fieldset figcaption figure footer form frame frameset h1 h2 h3 h4 h5 h6 head header hr html iframe legend li link main menu menuitem nav noframes ol optgroup option p param search section summary table tbody td tfoot th thead title tr track ul));
 
 # Parse at least one line of text to build a new block; and possibly several
 # lines, depending on the block type.
@@ -314,7 +316,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
       }
     }
     # @code_lines starts with $hd, so there is one more element than what is removed from our lines.
-    splice @code_lines, ($final + 2);
+    splice @code_lines, ($final + 2);  # TODO: ???
     splice @{$this->{lines}}, 0, ($final + 1);
     my $code = join('', @code_lines);
     $this->_add_block({type => 'code', content => $code, debug => 'indented'});
@@ -396,6 +398,53 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
       return $this->_test_lazy_continuation($_);
     };
     $this->_enter_child_block($hd, {type => 'quotes'}, $cond);
+    return;
+  }
+
+  # https://spec.commonmark.org/0.31.2/#html-blocks
+  # HTML blockes can interrupt a paragraph.
+  my $html_end_condition;
+  if ($l =~ m/^<(?:pre|script|style|textarea)(?: |\t|>|$)/) {
+    $html_end_condition = qr/<\/(?:pre|script|style|textarea)>/;
+  } elsif ($l =~ m/^<!--/) {
+    $html_end_condition = qr/-->/;
+  } elsif ($l =~ m/^<\?/) {
+    $html_end_condition = qr/\?>/;
+  } elsif ($l =~ m/^<![a-zA-Z]/) {
+    $html_end_condition = qr/=>/;
+  } elsif ($l =~ m/^<!\[CDATA\[/) {
+    $html_end_condition = qr/]]>/;
+  } elsif ($l =~ m/^<\/?(?:${supported_html_tags})(?: |\t|\/?>|$)/) {
+    $html_end_condition = qr/^$/;
+  }
+  # TODO: Implement rule 7 about any possible tag.
+  if ($html_end_condition) {
+    # TODO: see if some code could be shared with the code blocks
+    my @html_lines = $l.$hd->[1];
+    my $last_line = $#{$this->{lines}};
+    for my $i (0 .. $#{$this->{lines}}) {
+      my $nl = $this->{lines}[$i]->[0];
+      if ($this->_all_blocks_match(\$nl)) {
+        if ($nl !~ m/${html_end_condition}/) {
+          push @html_lines, $nl.$this->{lines}[$i]->[1];
+        } else {
+          if ($nl eq '') {
+            # This can only happen for rules 6 and 7 where the end condition
+            # line is not part of the HTML block.
+            $last_line = $i - 1;
+          } else {
+            push @html_lines, $nl.$this->{lines}[$i]->[1];
+            $last_line = $i;
+          }
+          last;
+        }
+      } else {
+        $last_line = $i - 1;
+      }
+    }
+    splice @{$this->{lines}}, 0, ($last_line + 1);
+    my $html = join('', @html_lines);
+    $this->_add_block({type => 'html', content => $html});
     return;
   }
 
@@ -493,6 +542,8 @@ sub _emit_html {
         $i = " class=\"language-${l}\"";
       }
       $out .= "<pre><code${i}>$c</code></pre>\n";
+    } elsif ($b->{type} eq 'html') {
+      $out .= $b->{content};
     } elsif ($b->{type} eq 'paragraph') {
       if ($tight_block) {
         $out .= $this->_render_inlines(@{$b->{content}});

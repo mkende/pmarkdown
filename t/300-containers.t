@@ -18,4 +18,6 @@ is(run("> abc\n> - def\n> - ghi\n"), "<blockquote>\n<p>abc</p>\n<ul>\n<li>def</l
 is(run("> abc\n===\n"), "<blockquote>\n<p>abc\n===</p>\n</blockquote>\n", 'no_lazy_setext_heading');
 is(run("> abc\n---\n"), "<blockquote>\n<p>abc</p>\n</blockquote>\n<hr />\n", 'no_lazy_thematic_break');
 
+is(run("> <pre>\n> abc\n\nfoo"), "<blockquote>\n<pre>\nabc\n</blockquote>\n<p>foo</p>\n", 'html_in_block');
+
 done_testing;

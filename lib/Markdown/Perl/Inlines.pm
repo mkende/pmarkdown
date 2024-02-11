@@ -404,7 +404,7 @@ sub apply_delimiters {
   my $styled_node = new_style($styled_tree, tag => delim_to_html_tag($that, $o{delim} x $len));
   my $style_start = $o{index};
   my $style_length = 2;
-  my $close_index = $open_index + 1;
+  $close_index = $open_index + 1;
   if ($len < $o{len}) {
     substr($tree->{children}[$o{index}]{content}, $o{len} - $len) = '';  ## no critic (ProhibitLvalueSubstr)
     $delimiters->[$open_index]{len} -= $len;
