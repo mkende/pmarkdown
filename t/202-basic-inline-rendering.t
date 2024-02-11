@@ -56,6 +56,6 @@ is(run('*foo**bar**baz*'), "<p><em>foo<strong>bar</strong>baz</em></p>\n", 'emph
 is(run('*_*'), "<p><em>_</em></p>\n", 'emphasis2');
 is(run('*foo __bar *baz__ bam*'), "<p><em>foo <strong>bar *baz</strong> bam</em></p>\n", 'emphasis3');
 
-
+is(run('foo<div>bar'), "<p>foo<div>bar</p>\n", 'html1');
 
 done_testing;

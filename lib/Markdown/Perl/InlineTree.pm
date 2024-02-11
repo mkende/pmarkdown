@@ -15,7 +15,7 @@ use Scalar::Util 'blessed';
 
 our $VERSION = 0.01;
 
-our @EXPORT_OK = qw(new_text new_code new_link new_style new_literal is_node is_tree);
+our @EXPORT_OK = qw(new_text new_code new_link new_html new_style new_literal is_node is_tree);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 =pod
@@ -46,27 +46,35 @@ sub new {
 
 package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
 
+  sub hashpush (\%%) {
+    my ($hash, %args) = @_;
+    while (my ($k, $v) = each %args) {
+      $hash->{$k} = $v;
+    }
+  }
+
   sub new {
     my ($class, $type, $content, %options) = @_;
 
-    my $this;
+    my $this = {type => $type};
+    $this->{debug} = delete $options{debug} if exists $options{debug};
     # There is one more node type, not created here, that looks like a text
     # node but that is a 'delimiter' node. These nodes are created manually
     # inside the Inlines module.
-    if ($type eq 'text' || $type eq 'code' || $type eq 'literal') {
+    if ($type eq 'text' || $type eq 'code' || $type eq 'literal' || $type eq 'html') {
       die "Unexpected content for inline ${type} node: ".ref($content)
           if ref $content;
       die "Unexpected parameters for inline ${type} node: ".join(', ', %options)
           if %options;
-      $this = {type => $type, content => $content};
+      hashpush %{$this}, content => $content;
     } elsif ($type eq 'link') {
       die 'Unexpected parameters for inline link node: '.join(', ', %options)
           if keys %options > 1 || !exists $options{target};
       if (Scalar::Util::blessed($content)
         && $content->isa('Markdown::Perl::InlineTree')) {
-        $this = {type => $type, subtree => $content, target => $options{target}};
+        hashpush %{$this}, subtree => $content, target => $options{target};
       } elsif (!ref($content)) {
-        $this = {type => $type, content => $content, target => $options{target}};
+        hashpush %{$this}, content => $content, target => $options{target};
       } else {
         die "Unexpected content for inline ${type} node: ".ref($content);
       }
@@ -75,7 +83,7 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
           if keys %options > 1 || !exists $options{tag};
       die 'The content of a style node must be an InlineTree'
           if !Markdown::Perl::InlineTree::is_tree($content);
-      $this = {type => $type, subtree => $content, tag => $options{tag}};
+      hashpush %{$this}, subtree => $content, tag => $options{tag};
     } else {
       die "Unexpected type for an InlineNode: ${type}";
     }
@@ -106,6 +114,7 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
   my $code_node = new_code('code content');
   my $link_node = new_link('text content', target => 'the target'[, title => 'the title']);
   my $link_node = new_link($subtree_content, target => 'the target'[, title => 'the title']);
+  my $html_node = new_html('<raw html content>');
   my $style_node = new_literal($subtree_content, 'html_tag');
   my $literal_node = new_literal('literal content');
 
@@ -116,6 +125,7 @@ These methods return a text node that can be inserted in an C<InlineTree>.
 sub new_text { return Markdown::Perl::InlineNode->new(text => @_) }
 sub new_code { return Markdown::Perl::InlineNode->new(code => @_) }
 sub new_link { return Markdown::Perl::InlineNode->new(link => @_) }
+sub new_html { return Markdown::Perl::InlineNode->new(html => @_) }
 sub new_style { return Markdown::Perl::InlineNode->new(style => @_) }
 sub new_literal { return Markdown::Perl::InlineNode->new(literal => @_) }
 
@@ -483,6 +493,8 @@ sub render_node_html {
   } elsif ($n->{type} eq 'literal') {
     html_escape($n->{content});
     return $acc.$n->{content};
+  } elsif ($n->{type} eq 'html') {
+    return $acc.$n->{content};
   } elsif ($n->{type} eq 'code') {
     # New lines are treated like spaces in code.
     $n->{content} =~ s/\n/ /g;
@@ -536,9 +548,11 @@ sub node_to_text {
   if ($n->{type} eq 'text') {
     html_escape($n->{content});
     return $acc.$n->{content};
-  } elsif ($n->{type} eq 'literal') {
+  } elsif ($n->{type} eq 'literal' || $n->{type} eq 'html') {
     # TODO: this should be the original string, stored somewhere in the node.
     # (to follow the rules to match link-reference name).
+    # Note: here we do escapethe content, even for raw-html, because this will
+    # not be used in HTML context.
     html_escape($n->{content});
     return $acc.$n->{content};
   } elsif ($n->{type} eq 'code') {

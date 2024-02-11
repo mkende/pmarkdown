@@ -48,6 +48,26 @@ sub render {
   return $out;
 }
 
+# TODO: share these regex with Perl.pm (but note that we are not matching the
+# open and close < > characters here).
+my $html_tag_name_re = qr/[a-zA-Z][-a-zA-Z0-9]*/;
+my $html_attribute_name_re = qr/[a-zA-Z_:][-a-zA-Z0-9_.:]*/;
+my $html_space_re = qr/\n[ \t]*|[ \t][ \t]*\n?[ \t]*/;  # Spaces, tabs, and up to one line ending.
+my $opt_html_space_re = qr/[ \t]*\n?[ \t]*/;  # Optional spaces.
+my $html_attribute_value_re = qr/[^ \t\n"'=<>`]+|'[^']*'|"[^"]*"/;
+my $html_attribute_re = qr/${html_space_re}${html_attribute_name_re}${opt_html_space_re}=${opt_html_space_re}${html_attribute_value_re}/;
+
+my $html_open_tag_re = qr/${html_tag_name_re}${html_attribute_re}*${opt_html_space_re}\/?/;
+my $html_close_tag_re = qr/\/${html_tag_name_re}${opt_html_space_re}/;
+my $html_comment_re = qr/!--|!---|!--.*?--/m;
+my $html_proc_re = qr/\?.*?\?/m;
+my $html_decl_re = qr/!.*?/m;
+my $html_cdata_re = qr/!\[CDATA\[.*?\]\]/m;
+
+my $html_tag_re = qr/${html_open_tag_re}|${html_close_tag_re}|${html_comment_re}|${html_proc_re}|${html_decl_re}|${html_cdata_re}/;
+
+
+
 sub find_code_and_tag_runs {
   my ($that, $text) = @_;
 
@@ -62,7 +82,7 @@ sub find_code_and_tag_runs {
   # We are manually handling the backslash escaping here because they are not
   # interpreted inside code blocks. We will then process all the others
   # afterward.
-  while ($text =~ m/(?<! \\) (?<backslashes> (?:\\\\)*) (?: (?<code>\`+) | \< )/gx) {
+  while ($text =~ m/(?<! \\) (?<backslashes> (?:\\\\)*) (?: (?<code>\`+) | < )/gx) {
     my ($start_before, $start_after) =
         ($LAST_MATCH_START[0] + length($+{backslashes}), $LAST_MATCH_END[0]);
     if ($+{code}) {
@@ -83,16 +103,21 @@ sub find_code_and_tag_runs {
       # We’re not using /gc in these to regex because this confuses the ProhibitUnusedCapture
       # PerlCritic policy. Anyway, as we are always resetting pos() in case of
       # successful match, it’s not important to update it.
-      if ($text =~ m/\G(?<link>${re})\>/) {
+      if ($text =~ m/\G(?<link>${re})>/) {
         $tree->push(new_text(substr($text, 0, $start_before)))
             if $start_before > 0;
-        $tree->push(new_link($+{link}, target => $+{link}));
+        $tree->push(new_link($+{link}, target => $+{link}, debug => 'autolink'));
         substr $text, 0, $+[0], '';  # This resets pos($text) as we want it to.
-      } elsif ($text =~ m/\G(?<link>${email_re})\>/) {
+      } elsif ($text =~ m/\G(?<link>${email_re})>/) {
         $tree->push(new_text(substr($text, 0, $start_before)))
             if $start_before > 0;
-        $tree->push(new_link($+{link}, target => 'mailto:'.$+{link}));
+        $tree->push(new_link($+{link}, target => 'mailto:'.$+{link}, debug => 'autolink'));
         substr $text, 0, $+[0], '';  # This resets pos($text) as we want it to.
+      } elsif ($text =~ m/\G(?:${html_tag_re})>/) {
+        # This resets pos($text) as we want it to.
+        $tree->push(new_text(substr($text, 0, $start_before, '')))
+            if $start_before > 0;
+        $tree->push(new_html(substr($text, 0, $LAST_MATCH_END[0] - $start_before, '')));
       }
     }
   }
@@ -129,6 +154,10 @@ sub process_char_escaping {
     $new_tree->push(new_text(decode_entities($node->{content})))
         if $node->{content};
     return $new_tree;
+  } elsif ($node->{type} eq 'html') {
+    return $node;
+  } else {
+    die 'Unexpected node type in process_char_escaping: '.$node->{type};
   }
 }
 

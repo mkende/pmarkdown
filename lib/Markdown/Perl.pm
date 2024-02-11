@@ -211,15 +211,17 @@ my $indented_code_re = qr/^(?: {0,3}\t| {4})/;
 my $list_item_marker_re = qr/ [-+*] | (?<digits>\d{1,9}) (?<symbol>[.)])/x;
 my $list_item_re = qr/^ (?<indent>\ {0,3}) (?<marker>${list_item_marker_re}) (?<text>.*) $/x;
 my $supported_html_tags = join('|', qw(address article aside base basefont blockquote body caption center col colgroup dd details dialog dir div dl dt fieldset figcaption figure footer form frame frameset h1 h2 h3 h4 h5 h6 head header hr html iframe legend li link main menu menuitem nav noframes ol optgroup option p param search section summary table tbody td tfoot th thead title tr track ul));
+# TODO: Share these regex with the Inlines.pm file that has a copy of them.
 my $html_tag_name_re = qr/[a-zA-Z][-a-zA-Z0-9]*/;
 my $html_attribute_name_re = qr/[a-zA-Z_:][-a-zA-Z0-9_.:]*/;
 # We include new lines in these regex as the spec mentions them, but we can’t
 # match them for now as the regex will see lines one at a time.
-my $html_space_re = qr/[ \t]*\n?[ \t]*/;  # Spaces, tabs, and up to one line ending.
+my $html_space_re = qr/\n[ \t]*|[ \t][ \t]*\n?[ \t]*/;  # Spaces, tabs, and up to one line ending.
+my $opt_html_space_re = qr/[ \t]*\n?[ \t]*/;  # Optional spaces.
 my $html_attribute_value_re = qr/[^ \t\n"'=<>`]+|'[^']*'|"[^"]*"/;
-my $html_attribute_re = qr/${html_space_re}${html_attribute_name_re}${html_space_re}=${html_space_re}${html_attribute_value_re}/;
-my $html_open_tag_re = qr/<${html_tag_name_re}${html_attribute_re}*${html_space_re}\/?>/;
-my $html_close_tag_re = qr/<\/${html_tag_name_re}${html_space_re}>/;
+my $html_attribute_re = qr/${html_space_re}${html_attribute_name_re}${opt_html_space_re}=${opt_html_space_re}${html_attribute_value_re}/;
+my $html_open_tag_re = qr/<${html_tag_name_re}${html_attribute_re}*${opt_html_space_re}\/?>/;
+my $html_close_tag_re = qr/<\/${html_tag_name_re}${opt_html_space_re}>/;
 
 # Parse at least one line of text to build a new block; and possibly several
 # lines, depending on the block type.
