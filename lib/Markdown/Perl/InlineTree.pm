@@ -410,23 +410,8 @@ Returns C<$child_number, $match_start_offset, $match_end_offset> or C<undef>.
 
 sub find_in_text {
   my ($this, $re, $child_start, $text_start, $child_bound, $text_bound) = @_;
-  for my $i ($child_start .. ($child_bound // $#{$this->{children}})) {
-    next unless $this->{children}[$i]{type} eq 'text';
-    my ($match, @pos);
-    if ($i == $child_start && $text_start != 0) {
-      pos($this->{children}[$i]{content}) = $text_start;
-      $match = $this->{children}[$i]{content} =~ m/${re}/g;
-      @pos = ($LAST_MATCH_START[0], $LAST_MATCH_END[0]) if $match;  # @- and @+ are localized to this block
-    } else {
-      $match = $this->{children}[$i]{content} =~ m/${re}/;
-      @pos = ($LAST_MATCH_START[0], $LAST_MATCH_END[0]) if $match;  # @- and @+ are localized to this block
-    }
-    if ($match) {
-      return if $i == ($child_bound // -1) && $pos[0] >= $text_bound;
-      return ($i, @pos);
-    }
-  }
-  return;
+  # qr/^\b$/ is a regex that can’t match anything.
+  return $this->find_balanced_in_text(qr/^\b$/, $re, $child_start, $text_start, $child_bound, $text_bound);
 }
 
 =pod
@@ -443,11 +428,11 @@ already been seen once before the given C<$start_child> and C<$start_offset>.
 =cut
 
 sub find_balanced_in_text {
-  my ($this, $open_re, $close_re, $child_start, $text_start) = @_;
+  my ($this, $open_re, $close_re, $child_start, $text_start, $child_bound, $text_bound) = @_;
 
   my $open = 1;
 
-  for my $i ($child_start .. $#{$this->{children}}) {
+  for my $i ($child_start .. ($child_bound // $#{$this->{children}})) {
     next unless $this->{children}[$i]{type} eq 'text';
     if ($i == $child_start && $text_start != 0) {
       pos($this->{children}[$i]{content}) = $text_start;
@@ -460,6 +445,7 @@ sub find_balanced_in_text {
     while (
       $this->{children}[$i]{content} =~ m/ ${open_re}(?{$open++}) | ${close_re}(?{$open--}) /gx)
     {
+      return if $i == ($child_bound // -1) && $LAST_MATCH_START[0] >= $text_bound;
       return ($i, $LAST_MATCH_START[0], $LAST_MATCH_END[0]) if $open == 0;
     }
   }
