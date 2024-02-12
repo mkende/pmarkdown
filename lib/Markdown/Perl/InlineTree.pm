@@ -418,7 +418,8 @@ sub find_in_text {
 
 =head2 find_balanced_in_text
 
-  $tree->find_balanced_in_text($open_re, $close_re, $start_child, $start_offset);
+  $tree->find_balanced_in_text(
+    $open_re, $close_re, $start_child, $start_offset, $child_bound, $text_bound);
 
 Same as C<find_in_text> except that this method searches for both C<$open_re> and
 C<$close_re> and, each time C<$open_re> is found, it needs to find C<$close_re>
@@ -447,6 +448,51 @@ sub find_balanced_in_text {
     {
       return if $i == ($child_bound // -1) && $LAST_MATCH_START[0] >= $text_bound;
       return ($i, $LAST_MATCH_START[0], $LAST_MATCH_END[0]) if $open == 0;
+    }
+  }
+
+  return;
+}
+
+=pod
+
+=head2 find_in_text_with_balanced_content
+
+  $tree->find_in_text_with_balanced_content(
+    $open_re, $close_re, $end_re, $start_child, $start_offset,
+    $child_bound, $text_bound);
+
+Similar to C<find_balanced_in_text> except that this method ends when C<$end_re>
+is seen, after the C<$open_re> and C<$close_re> regex have been seen a balanced 
+number of time. If the closing one is seen more than the opening one, the search
+fails. The method does B<not> assumes that C<$open_re> has already been seen
+before the given C<$start_child> and C<$start_offset> (as opposed to
+C<find_balanced_in_text>).
+
+=cut
+
+sub find_in_text_with_balanced_content {
+  my ($this, $open_re, $close_re, $end_re, $child_start, $text_start, $child_bound, $text_bound) = @_;
+
+  my $open = 0;
+
+  for my $i ($child_start .. ($child_bound // $#{$this->{children}})) {
+    next unless $this->{children}[$i]{type} eq 'text';
+    if ($i == $child_start && $text_start != 0) {
+      pos($this->{children}[$i]{content}) = $text_start;
+    } else {
+      pos($this->{children}[$i]{content}) = 0;
+    }
+
+    # When the code in this regex is executed, we are sure that the engine
+    # won’t backtrack (as we are at the end of the regex).
+
+    my $done = 0;
+    while ($this->{children}[$i]{content} =~ m/ ${end_re}(?{$done = 1}) | ${open_re}(?{$open++}) | ${close_re}(?{$open--}) /gx) {
+      return if $i == ($child_bound // -1) && $LAST_MATCH_START[0] >= $text_bound;
+      return if $open < 0;
+      return ($i, $LAST_MATCH_START[0], $LAST_MATCH_END[0]) if $open == 0 && $done;
+      $done = 0;
     }
   }
 
