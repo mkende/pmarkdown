@@ -14,7 +14,7 @@ sub text_tree {
   return $t;
 }
 
-my $t = text_tree('a(bc', '123d(e)f', '', 'gh)i');
+my $t = text_tree('a(bc', '123d(e)f', '', 'gh)i3');
 
 is([$t->find_in_text(qr/\(/, 0, 0)], [0, 1, 2], 'find_in_text_from_start');
 is([$t->find_in_text(qr/\(/, 1, 0)], [1, 4, 5], 'find_in_text_from_second_child');
@@ -25,12 +25,16 @@ is($t->find_in_text(qr/\(/, 0, 2, 1, 1), U(), 'find_in_text_with_too_small_bound
 
 is([$t->find_balanced_in_text(qr/\(/, qr/\)/, 0, 2)], [3, 2, 3], 'find_balanced_in_text');
 
+is([$t->find_in_text_with_balanced_content(qr/\(/, qr/\)/, qr/./, 0, 0)], [0, 0, 1], 'find_with_balance_anything');
+is([$t->find_in_text_with_balanced_content(qr/\(/, qr/\)/, qr/\d/, 0, 0)], [3, 4, 5], 'find_with_balance_digit');
+is([$t->find_in_text_with_balanced_content(qr/\(/, qr/\)/, qr/\d/, 0, 2)], [1, 0, 1], 'find_with_balance_digit_easy');
+
 my $nt = $t->extract(1, 3, 3, 2);
 is($nt->fold(sub { $_[1].$_[0]->{content} }, ''), 'd(e)fignored)gh', 'extract_extracted');
-is($t->fold(sub { $_[1].$_[0]->{content} }, ''), 'a(bc123)i', 'extract_rest');
+is($t->fold(sub { $_[1].$_[0]->{content} }, ''), 'a(bc123)i3', 'extract_rest');
 
-$nt = $t->extract(0, 0, 2, 2);
-is($nt->fold(sub { $_[1].$_[0]->{content} }, ''), 'a(bc123)i', 'extract_all');
+$nt = $t->extract(0, 0, 2, 3);
+is($nt->fold(sub { $_[1].$_[0]->{content} }, ''), 'a(bc123)i3', 'extract_all');
 is($t->fold(sub { $_[1].$_[0]->{content} }, ''), '', 'extract_rest_nothing');
 
 {

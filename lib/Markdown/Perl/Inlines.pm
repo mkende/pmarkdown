@@ -8,7 +8,6 @@ use utf8;
 use feature ':5.24';
 
 use English;
-use HTML::Entities 'decode_entities';
 use List::MoreUtils 'first_index', 'last_index';
 use List::Util 'min';
 use Markdown::Perl::InlineTree ':all';
@@ -26,10 +25,10 @@ sub render {
   # At this point, @runs contains only 'text',  'code', or 'link' elements, that
   # can’t have any children (yet).
 
-  $tree->map_shallow(sub { process_char_escaping($that, $_) });
+  $tree->map(sub { process_char_escaping($that, $_) });
 
   # At this point, @runs can also contain 'literal' elements, that don’t have
-  # children either.
+  # children.
 
   process_links($that, $tree, 0, 0);  # We start at the beginning of the first node.
 
@@ -66,7 +65,9 @@ my $html_cdata_re = qr/!\[CDATA\[.*?\]\]/m;
 
 my $html_tag_re = qr/${html_open_tag_re}|${html_close_tag_re}|${html_comment_re}|${html_proc_re}|${html_decl_re}|${html_cdata_re}/;
 
-
+# Bug: there is a bug in that backslash escapes don’t work inside autolinks. But
+# we can turn our autolinks into full-links later (where the escape should
+# work). However, the spec does not test this corner case so we’re fine.
 
 sub find_code_and_tag_runs {
   my ($that, $text) = @_;
@@ -131,8 +132,8 @@ sub process_char_escaping {
 
   # This is executed after
   if ($node->{type} eq 'code' || $node->{type} eq 'link') {
-    # For now, a link can only be an autolink. So we will later escape the
-    # content of the link text. But we don’t want to decode HTML entities in it.
+    # If the node is a link with a sub-tree, the map() method in which we are
+    # will recurse in the content automatically.
     return $node;
   } elsif ($node->{type} eq 'text') {
     # TODO: with the current code for map, this could just be @nodes.
@@ -146,13 +147,16 @@ sub process_char_escaping {
       # Literal parsing is OK because we can always invert it (and it makes the
       # rest of the processing be much simpler because we don’t need to check
       # whether we have escaped text or not).
-      $new_tree->push(new_text(decode_entities(substr $node->{content}, 0, $LAST_MATCH_START[0])))
+      # NOTE: We no longer decode HTML entities here, so the bug above should
+      # not exist.
+      # $new_tree->push(new_text(decode_entities(substr $node->{content}, 0, $LAST_MATCH_START[0])))
+      $new_tree->push(new_text(substr $node->{content}, 0, $LAST_MATCH_START[0]))
           if $LAST_MATCH_START[0] > 0;
       $new_tree->push(new_literal($1));
       substr $node->{content}, 0, $LAST_MATCH_END[0], '';  # This resets pos($node->{content}) as we want it to.
     }
-    $new_tree->push(new_text(decode_entities($node->{content})))
-        if $node->{content};
+    # $new_tree->push(new_text(decode_entities($node->{content})))
+    $new_tree->push($node) if $node->{content};
     return $new_tree;
   } elsif ($node->{type} eq 'html') {
     return $node;
@@ -256,23 +260,103 @@ sub find_link_destination_and_title {
   my $n = $tree->{children}[$child_start];
   die 'Unexpected link destination search in a non-text element: '.$n->{type}
       unless $n->{type} eq 'text';
-  # TODO: use find_in_text bounded (to work across child limit);
+  # TODO: use find_in_text bounded (to work across child limit) (maybe not
+  # really needed as this should never be a different child).
   return unless substr($n->{content}, $text_start, 1) eq '(';
 
+  my @start = ($child_start, $text_start, $child_start, $text_start + 1);
+
   pos($n->{content}) = $text_start + 1;
-  # TODO: use find_in_text (balanced?) to find the end of the potential target
-  # and then try to build the text.
-  if ($n->{content} =~ m/(\G[^ ()[:cntrl:]]*)\)/) {
-    # If we found a target, we know that we will use it, so we can remove it
-    # from the tree.
-    my $target = $tree->extract($child_start, $text_start + 1, $child_start, $+[1]);
-    # We remove the parenthesis. This relies on the fact that we were in one
-    # large text node (that is now two text nodes).
-    # TODO: remove this assumption.
-    $tree->extract($child_start, $text_start, $child_start + 1, 1);
-    return (target => $target->to_text());
+  $n->{content} =~ m/\G[ \t]*\n?[ \t]*/;
+  my $search_start = $LAST_MATCH_END[0];
+  
+  # TODO: first check if we have a destination between <>, that may have already
+  # been matched as an autolink or as a closing HTML tag :-(
+
+  my @target;
+  my $ok_to_have_title = 1;
+  my $title_child = $child_start;
+
+  my $has_bracket = $tree->find_in_text(qr/</, $child_start, $search_start, $child_start, $search_start + 1);
+
+  if ($has_bracket) {
+    if (my @end_target = $tree->find_in_text(qr/>/, $child_start, $search_start + 1)) {
+      @target = ($child_start, $search_start + 1, $end_target[0], $end_target[1]);
+      return if $tree->find_in_text(qr/<|\n/, @target);
+    }
+  } elsif (my @end_target = $tree->find_in_text_with_balanced_content(qr/\(/, qr/\)/, qr/[ [:cntrl:]]/, $child_start, $search_start)) {
+    @target = ($child_start, $search_start, $end_target[0], $end_target[1]);
   }
-  return;
+  if (@target) {
+    # We can’t extract the target just yet, because the parsing can still fail
+    # in which case we must not modify the tree.
+    $title_child = $target[2];
+    $n = $tree->{children}[$title_child];
+    # On the next line, [1] and not [2] because if there was a control character 
+    # we will fail the whole method. So we restart the search before the end
+    # condition of the find... method above.
+    pos($n->{content}) = $target[3] + ($has_bracket ? 1 : 0);
+    $n->{content} =~ m/\G[ \t]*\n?[ \t]*/;
+    $search_start = $LAST_MATCH_END[0];
+    $ok_to_have_title = $LAST_MATCH_END[0] != $LAST_MATCH_START[0];  # target and title must be separated.
+  }
+
+  # The first character of the title must be ", ', or ( and so can’t be another
+  # inline construct. As such, using a normal regex is fine (and not an
+  # InlineTree method).
+  pos($n->{content}) = $search_start;
+  my @end_title;
+  if ($n->{content} =~ m/\G"/gc) {
+    @end_title = $tree->find_in_text(qr/"/, $title_child, $search_start + 1);
+  } elsif ($n->{content} =~ m/\G'/gc) {
+    @end_title = $tree->find_in_text(qr/'/, $title_child, $search_start + 1);
+  } elsif ($n->{content} =~ m/\G\(/gc) {
+    @end_title = $tree->find_balanced_in_text(qr/\(/, qr/\)/, $title_child, $search_start + 1);
+  }
+  my @title;
+  my $end_child = $title_child;
+  if (@end_title) {
+    return unless $ok_to_have_title;
+    @title = ($title_child, $search_start + 1, $end_title[0], $end_title[1]);
+    $end_child = $end_title[0];
+    $n = $tree->{children}[$title_child];
+    pos($n->{content}) = $end_title[2];  # This time, we look after the closing character.
+    $n->{content} =~ m/\G[ \t]*\n?[ \t]*/;
+    $search_start = $LAST_MATCH_END[0];
+  }
+
+  # TODO: call a new InlineTree method to turn (child, offset_at_end) into
+  # (child + 1, 0). This needs to be called also at the beginning of this
+  # method.
+  pos($n->{content}) = $search_start;
+  return unless $n->{content} =~ m/\G\)/;
+
+  # Now we have a valid title, we can start to rewrite the tree (beginning from
+  # the end, to not alter the node index before we touch them).
+  {
+    my @last_item = (@title, @target, @start);
+    # We remove the spaces after the last item and also the closing paren.
+    $tree->extract($last_item[2], $last_item[3], $end_child, $search_start + 1);
+  }
+
+  my $title;
+  if (@title) {
+    my $title_tree = $tree->extract(@title);
+    $title = $title_tree->to_text();
+    my @last_item = (@target, @start);
+    $tree->extract($last_item[2], $last_item[3], $title[0], $title[1]);
+  }
+
+  my $target = '';  # We always want a target in the output.
+  if (@target) {
+    my $target_tree = $tree->extract(@target);
+    $target = $target_tree->to_text();
+    $tree->extract($start[2], $start[3], $target[0], $target[1]);
+  }
+
+  $tree->extract(@start);
+
+  return (target => $target, ( $title ? (title => $title) : ()));
 }
 
 # This methods adds "style", that is it parses the emphasis (* and _) and also

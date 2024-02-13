@@ -45,6 +45,9 @@ is(run('<http:foo&bar>'), "<p><a href=\"http:foo&amp;bar\">http:foo&amp;bar</a><
 is(run('[foo](/bar)'), "<p><a href=\"/bar\">foo</a></p>\n", 'link1');
 is(run('[](/bar)'), "<p><a href=\"/bar\"></a></p>\n", 'link2');
 is(run('[foo]()'), "<p><a href=\"\">foo</a></p>\n", 'link3');
+is(run('[foo](/bar "title")'), "<p><a href=\"/bar\" title=\"title\">foo</a></p>\n", 'link4');
+is(run('[foo](</bar/baz>)'), "<p><a href=\"/bar/baz\">foo</a></p>\n", 'link5');
+is(run('[foo](</bar/baz> "title")'), "<p><a href=\"/bar/baz\" title=\"title\">foo</a></p>\n", 'link6');
 
 is(run('*foo*'), "<p><em>foo</em></p>\n", 'em1');
 is(run('_foo_'), "<p><em>foo</em></p>\n", 'em2');

@@ -10,6 +10,7 @@ use feature ':5.24';
 
 use English;
 use Exporter 'import';
+use HTML::Entities 'decode_entities';
 use Hash::Util ();
 use Scalar::Util 'blessed';
 
@@ -68,16 +69,18 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
           if %options;
       hashpush %{$this}, content => $content;
     } elsif ($type eq 'link') {
-      die 'Unexpected parameters for inline link node: '.join(', ', %options)
-          if keys %options > 1 || !exists $options{target};
       if (Scalar::Util::blessed($content)
         && $content->isa('Markdown::Perl::InlineTree')) {
-        hashpush %{$this}, subtree => $content, target => $options{target};
+        hashpush %{$this}, subtree => $content;
       } elsif (!ref($content)) {
-        hashpush %{$this}, content => $content, target => $options{target};
+        hashpush %{$this}, content => $content;
       } else {
         die "Unexpected content for inline ${type} node: ".ref($content);
       }
+      die 'Missing required option "target" for inline line node' unless exists $options{target};
+      hashpush %{$this}, target => delete $options{target};
+      hashpush %{$this}, title => delete $options{title} if exists $options{title};
+      die 'Unexpected parameters for inline link node: '.join(', ', %options) if keys %options;
     } elsif ($type eq 'style') {
       die 'Unexpected parameters for inline style node: '.join(', ', %options)
           if keys %options > 1 || !exists $options{tag};
@@ -236,15 +239,43 @@ In scalar context, returns only the extracted tree.
 sub extract {
   my ($this, $child_start, $text_start, $child_end, $text_end) = @_;
 
+  # In this method, we should not read $sn and $en when they are not split (that
+  # is if text_start or text_end are 0), so that the method works at the
+  # boundary of non-text nodes.
+
   my $sn = $this->{children}[$child_start];
-  my $en = $this->{children}[$child_end];
   die 'Start node in an extract operation is not of type text: '.$sn->{type}
-      unless $sn->{type} eq 'text';
+      unless $sn->{type} eq 'text' || $text_start == 0;
+  
+  ## I don’t think that this block is useful (I should add tests for this case
+  ## to check if this is needed).
+  ## The code after this block will be invalid if we extract an empty span, but
+  ## I don’t think that this can happen in practice.
+  # if ($child_start == $child_end && $text_start == $text_end) {
+  #   my $offset = 0;
+  #   if ($text_start != 0) {
+  #     if ($text_start != length($sn->{content})) {
+  #       my $nn = new_text(substr $sn->{content}, $text_start, length($sn->{content}), '');
+  #       $this->insert($child_start + 1, $nn);
+  #     }
+  #     $offset = 1;
+  #   }
+  #   return (Markdown::Perl::InlineTree->new(), $child_start + $offset) if wantarray;
+  #   return Markdown::Perl::InlineTree->new();
+  # }
+
+  my $en = $this->{children}[$child_end];
   die 'End node in an extract operation is not of type text: '.$en->{type}
-      unless $en->{type} eq 'text';
+      unless $text_end == 0 || $en->{type} eq 'text';
   die 'Start offset is less than 0 in an extract operation' if $text_start < 0;
   die 'End offset is past the end of the text in an extract operation'
-      if $text_end > length($en->{content});
+      if $text_end != 0 && $text_end > length($en->{content});
+  
+  my $empty_last = 0;
+  if ($text_end == 0) {
+    $empty_last = 1;
+    $child_end--;
+  }
 
   # Clone will not recurse into sub-trees. But the start and end nodes can’t
   # have sub-trees, and the middle ones don’t matter because they are not shared
@@ -252,7 +283,7 @@ sub extract {
   my @nodes =
       map { $_->clone() } @{$this->{children}}[$child_start .. $child_end];
   ## no critic (ProhibitLvalueSubstr)
-  substr($nodes[-1]{content}, $text_end) = '';
+  substr($nodes[-1]{content}, $text_end) = '' unless $empty_last;  ## We have already removed the empty last node.
   substr($nodes[0]{content}, 0, $text_start) = '';  # We must do this after text_end in case they are the same node.
   shift @nodes if length($nodes[0]{content}) == 0;
   pop @nodes if @nodes and length($nodes[-1]{content}) == 0;
@@ -265,18 +296,24 @@ sub extract {
     } else {
       substr($sn->{content}, $text_start) = '';
     }
-    if ($text_end == length($en->{content})) {
+    if ($empty_last || $text_end == length($en->{content})) {
       $child_end++;
     } else {
       substr($en->{content}, 0, $text_end) = '';
     }
     splice @{$this->{children}}, $child_start + 1, $child_end - $child_start - 1;
+  ## This branch is actually implemented by the next one already.
+  # } elsif ($text_start == 0 && $empty_last) {
+  #   # Here we can’t assume that the node is text and we copy it entirely, in
+  #   # the next branch we don’t have this issue as at least one of the sides
+  #   # will have been tested.
+  #   splice @{$this->{children}}, $child_start, 1;
   } else {
     my @new_nodes;
     if ($text_start > 0) {
       CORE::push @new_nodes, new_text(substr $sn->{content}, 0, $text_start);
     }
-    if ($text_end < length($sn->{content})) {
+    if (!$empty_last && $text_end < length($sn->{content})) {
       CORE::push @new_nodes, new_text(substr $sn->{content}, $text_end);
     }
     $this->replace($child_start, @new_nodes);
@@ -404,7 +441,8 @@ starting at or after that bound.
 
 Does not match the regex across multiple nodes.
 
-Returns C<$child_number, $match_start_offset, $match_end_offset> or C<undef>.
+Returns C<$child_number, $match_start_offset, $match_end_offset> (or just a
+I<true> value in scalar context) or C<undef>.
 
 =cut
 
@@ -447,7 +485,10 @@ sub find_balanced_in_text {
       $this->{children}[$i]{content} =~ m/ ${open_re}(?{$open++}) | ${close_re}(?{$open--}) /gx)
     {
       return if $i == ($child_bound // -1) && $LAST_MATCH_START[0] >= $text_bound;
-      return ($i, $LAST_MATCH_START[0], $LAST_MATCH_END[0]) if $open == 0;
+      if ($open == 0) {
+        return ($i, $LAST_MATCH_START[0], $LAST_MATCH_END[0]) if wantarray;
+        return 1;
+      }
     }
   }
 
@@ -465,8 +506,8 @@ sub find_balanced_in_text {
 Similar to C<find_balanced_in_text> except that this method ends when C<$end_re>
 is seen, after the C<$open_re> and C<$close_re> regex have been seen a balanced 
 number of time. If the closing one is seen more than the opening one, the search
-fails. The method does B<not> assumes that C<$open_re> has already been seen
-before the given C<$start_child> and C<$start_offset> (as opposed to
+succeeds too. The method does B<not> assumes that C<$open_re> has already been
+seen before the given C<$start_child> and C<$start_offset> (as opposed to
 C<find_balanced_in_text>).
 
 =cut
@@ -490,8 +531,7 @@ sub find_in_text_with_balanced_content {
     my $done = 0;
     while ($this->{children}[$i]{content} =~ m/ ${end_re}(?{$done = 1}) | ${open_re}(?{$open++}) | ${close_re}(?{$open--}) /gx) {
       return if $i == ($child_bound // -1) && $LAST_MATCH_START[0] >= $text_bound;
-      return if $open < 0;
-      return ($i, $LAST_MATCH_START[0], $LAST_MATCH_END[0]) if $open == 0 && $done;
+      return ($i, $LAST_MATCH_START[0], $LAST_MATCH_END[0]) if ($open == 0 && $done) || $open < 0;
       $done = 0;
     }
   }
@@ -519,6 +559,7 @@ sub render_node_html {
 
   if ($n->{type} eq 'text') {
     # TODO: Maybe we should not do that on the last newline of the string?
+    decode_entities($n->{content});
     html_escape($n->{content});
     $n->{content} =~ s{(?: {2,}|\\)\n}{<br />\n}g;
     return $acc.$n->{content};
@@ -536,9 +577,8 @@ sub render_node_html {
     html_escape($n->{content});
     return $acc.'<code>'.$n->{content}.'</code>';
   } elsif ($n->{type} eq 'link') {
-    # TODO: in the future links can contain sub-node (right?)
-    # For now this is only autolinks.
-    if (exists $n->{content}) {
+    if (exists $n->{content}) {  # This is an autolink
+      decode_entities($n->{content});
       html_escape($n->{content});
       html_escape($n->{target});
       http_escape($n->{target});
