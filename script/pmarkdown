@@ -6,9 +6,17 @@ use warnings;
 use utf8;
 
 use English;
+use Getopt::Long qw(VersionMessage :config no_ignore_case bundling);
 use Markdown::Perl;
+use Pod::Usage;
 
 our $VERSION = $Markdown::Perl::VERSION; ## no critic (ProhibitComplexVersion,RequireConstantVersion)
+
+GetOptions(
+  "help|h" => sub { pod2usage(-verbose => 1, -exitval => 0); },
+  "helpfull|help-full|man" => sub { pod2usage(-verbose => 2, -exitval => 0); },
+  "version|v" => sub { VersionMessage(-exitval => 0) },
+) or pod2usage(-verbose => 0, -exitval => 2);
 
 my $input;
 {
@@ -37,6 +45,18 @@ pmarkdown – Very configurable Markdown processor written in pure Perl
 B<pmarkdown>
 
 =head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Show a short help message about the program.
+
+=item B<--helpfull>
+
+Show the complete man page of the program.
+
+=back
 
 =head1 AUTHOR
 
