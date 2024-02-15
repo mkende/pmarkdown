@@ -257,7 +257,12 @@ sub find_link_destination_and_title {
   # So let’s not care too much...
   # TODO: we are not yet finding the link title, if any.
 
-  my $n = $tree->{children}[$child_start];
+  # $cur_child is advanced through the tree while we parse the link destination
+  # and title, it always point to the node that we are currently looking into
+  # (the one containing the end of the element that was previously found).
+  # $n is the node at index $cur_child.
+  my $cur_child = $child_start;
+  my $n = $tree->{children}[$cur_child];
   die 'Unexpected link destination search in a non-text element: '.$n->{type}
       unless $n->{type} eq 'text';
   # TODO: use find_in_text bounded (to work across child limit) (maybe not
@@ -275,23 +280,22 @@ sub find_link_destination_and_title {
 
   my @target;
   my $ok_to_have_title = 1;
-  my $title_child = $child_start;
 
-  my $has_bracket = $tree->find_in_text(qr/</, $child_start, $search_start, $child_start, $search_start + 1);
+  my $has_bracket = $tree->find_in_text(qr/</, $cur_child, $search_start, $cur_child, $search_start + 1);
 
   if ($has_bracket) {
-    if (my @end_target = $tree->find_in_text(qr/>/, $child_start, $search_start + 1)) {
-      @target = ($child_start, $search_start + 1, $end_target[0], $end_target[1]);
+    if (my @end_target = $tree->find_in_text(qr/>/, $cur_child, $search_start + 1)) {
+      @target = ($cur_child, $search_start + 1, $end_target[0], $end_target[1]);
       return if $tree->find_in_text(qr/<|\n/, @target);
     }
-  } elsif (my @end_target = $tree->find_in_text_with_balanced_content(qr/\(/, qr/\)/, qr/[ [:cntrl:]]/, $child_start, $search_start)) {
-    @target = ($child_start, $search_start, $end_target[0], $end_target[1]);
+  } elsif (my @end_target = $tree->find_in_text_with_balanced_content(qr/\(/, qr/\)/, qr/[ [:cntrl:]]/, $cur_child, $search_start)) {
+    @target = ($cur_child, $search_start, $end_target[0], $end_target[1]);
   }
   if (@target) {
     # We can’t extract the target just yet, because the parsing can still fail
     # in which case we must not modify the tree.
-    $title_child = $target[2];
-    $n = $tree->{children}[$title_child];
+    $cur_child = $target[2];
+    $n = $tree->{children}[$cur_child];
     # On the next line, [1] and not [2] because if there was a control character 
     # we will fail the whole method. So we restart the search before the end
     # condition of the find... method above.
@@ -307,19 +311,18 @@ sub find_link_destination_and_title {
   pos($n->{content}) = $search_start;
   my @end_title;
   if ($n->{content} =~ m/\G"/gc) {
-    @end_title = $tree->find_in_text(qr/"/, $title_child, $search_start + 1);
+    @end_title = $tree->find_in_text(qr/"/, $cur_child, $search_start + 1);
   } elsif ($n->{content} =~ m/\G'/gc) {
-    @end_title = $tree->find_in_text(qr/'/, $title_child, $search_start + 1);
+    @end_title = $tree->find_in_text(qr/'/, $cur_child, $search_start + 1);
   } elsif ($n->{content} =~ m/\G\(/gc) {
-    @end_title = $tree->find_balanced_in_text(qr/\(/, qr/\)/, $title_child, $search_start + 1);
+    @end_title = $tree->find_balanced_in_text(qr/\(/, qr/\)/, $cur_child, $search_start + 1);
   }
   my @title;
-  my $end_child = $title_child;
   if (@end_title) {
     return unless $ok_to_have_title;
-    @title = ($title_child, $search_start + 1, $end_title[0], $end_title[1]);
-    $end_child = $end_title[0];
-    $n = $tree->{children}[$title_child];
+    @title = ($cur_child, $search_start + 1, $end_title[0], $end_title[1]);
+    $cur_child = $end_title[0];
+    $n = $tree->{children}[$cur_child];
     pos($n->{content}) = $end_title[2];  # This time, we look after the closing character.
     $n->{content} =~ m/\G[ \t]*\n?[ \t]*/;
     $search_start = $LAST_MATCH_END[0];
@@ -336,7 +339,7 @@ sub find_link_destination_and_title {
   {
     my @last_item = (@title, @target, @start);
     # We remove the spaces after the last item and also the closing paren.
-    $tree->extract($last_item[2], $last_item[3], $end_child, $search_start + 1);
+    $tree->extract($last_item[2], $last_item[3], $cur_child, $search_start + 1);
   }
 
   my $title;
