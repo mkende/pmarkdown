@@ -15,6 +15,7 @@ our $VERSION = $Markdown::Perl::VERSION; ## no critic (ProhibitComplexVersion,Re
 GetOptions(
   "help|h" => sub { pod2usage(-verbose => 1, -exitval => 0); },
   "helpfull|help-full|man" => sub { pod2usage(-verbose => 2, -exitval => 0); },
+  "help-options" => sub { pod2usage(-verbose => 2, -exitval => 0, -input => $INC{'Markdown/Perl/Options.pm'}); },
   "version|v" => sub { VersionMessage(-exitval => 0) },
 ) or pod2usage(-verbose => 0, -exitval => 2);
 
