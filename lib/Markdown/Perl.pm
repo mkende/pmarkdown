@@ -344,6 +344,9 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
   ) {
     my $fl = length($+{fence});
     my $info = $+{info};
+    # This is one of the few case where we need to process character escaping
+    # outside of the full inlines rendering process.
+    $info =~ s/\\(\p{PosixPunct})/$1/g;
     my $indent = length($+{indent});
     # The spec does not describe what we should do with fenced code blocks inside
     # other containers if we don’t match them.
