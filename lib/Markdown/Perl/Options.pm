@@ -5,10 +5,9 @@ use warnings;
 use utf8;
 use feature ':5.24';
 
-use Scalar::Util 'blessed';
+use List::Util 'any';
 
 our $VERSION = '0.01';
-
 
 =pod
 
@@ -25,6 +24,38 @@ sub _get_option {
   return $this->{local_options}{$option} // $this->{options}{$option};
 }
 
+my %options;
+my %validation;
+
+sub _make_option {
+  my ($opt, $default, $validation, %mode) = @_;
+  die "Options '${opt}' created twice" if exists $options{default}{$opt};
+  while (my ($k, $v) = each %mode) {
+    $options{$k}{$opt} = $v;
+  }
+  $validation{$opt} = $validation;
+
+  {
+    no strict 'refs';
+    *{$opt} = sub { return $_[0]->{local_options}{$opt} // $_[0]->{options}{$opt} // $default };
+  }
+
+  return;
+}
+
+sub _boolean {
+  return sub { $_[0] == 0 || $_[0] == 1 };
+};
+
+sub _enum {
+  my @valid = @_;
+  return sub { any { $_ eq $_[0] } @valid };
+}
+
+sub _regex {
+  return sub { defined eval { qr/$_[0]/ } };
+}
+
 =pod
 
 =item B<fenced_code_blocks_must_be_closed> I<(boolean, default: false)>
@@ -36,10 +67,7 @@ fence.
 
 =cut
 
-sub fenced_code_blocks_must_be_closed {
-  my ($this) = @_;
-  return $this->_get_option('fenced_code_blocks_must_be_closed') // 0;
-}
+_make_option(fenced_code_blocks_must_be_closed => 0, _boolean);
 
 =pod
 
@@ -62,12 +90,11 @@ The info text is ignored.
 
 =cut
 
-sub code_blocks_info {
-  my ($this) = @_;
-  return $this->_get_option('code_blocks_info') // 'language';
-}
+_make_option(code_blocks_info => 'language', _enum(qw(ignored language)));
 
-=pod=item B<multi_lines_setext_headings> I<(enum, default: multi_line)>
+=pod
+
+=item B<multi_lines_setext_headings> I<(enum, default: multi_line)>
 
 The default behavior of setext headings in the CommonMark spec is that they can
 have multiple lines of text preceding them (forming the heading itself).
@@ -118,10 +145,7 @@ breaks too.
 
 =cut
 
-sub multi_lines_setext_headings {
-  my ($this) = @_;
-  return $this->_get_option('multi_lines_setext_headings') // 'multi_line';
-}
+_make_option(multi_lines_setext_headings => 'multi_line', _enum(qw(single_line break multi_line ignore)));
 
 =pod
 
@@ -137,10 +161,7 @@ the bracket symbols (C<\<> and C<\>>) must be escaped.
 
 =cut
 
-sub autolinks_regex {
-  my ($this) = @_;
-  return $this->_get_option('autolinks_regex') // '(?i)[a-z][-+.a-z0-9]{1,31}:[^ <>[:cntrl:]]*';
-}
+_make_option(autolinks_regex => '(?i)[a-z][-+.a-z0-9]{1,31}:[^ <>[:cntrl:]]*', _regex);
 
 =pod
 
@@ -155,11 +176,7 @@ L<spec|https://spec.commonmark.org/0.30/#autolinks>.
 
 =cut
 
-sub autolinks_email_regex {
-  my ($this) = @_;
-  return $this->_get_option('autolinks_email_regex')
-      // q{[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*};
-}
+_make_option(autolinks_email_regex => q{[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*}, _regex);
 
 =pod
 
