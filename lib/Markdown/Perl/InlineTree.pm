@@ -10,8 +10,8 @@ use feature ':5.24';
 
 use English;
 use Exporter 'import';
-use HTML::Entities 'decode_entities';
 use Hash::Util ();
+use Markdown::Perl::HTML 'decode_entities';
 use Scalar::Util 'blessed';
 
 our $VERSION = 0.01;

@@ -25,6 +25,11 @@ my $input;
   $input = <>;
 }
 
+# We have warnings when manually running the tool without this, but this breaks
+# the output in the cmark test suite. Understand what’s happening (setting the
+# value should be the right thing to do in general).
+#binmode STDOUT, ':encoding(UTF-8)';
+
 print Markdown::Perl::convert($input);
 
 __DATA__
