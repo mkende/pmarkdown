@@ -5,6 +5,7 @@ use warnings;
 use utf8;
 use feature ':5.24';
 
+use Carp;
 use List::Util 'any';
 
 our $VERSION = '0.01';
@@ -15,18 +16,29 @@ our $VERSION = '0.01';
 
 =head1 Configuration options for pmarkdown and Markdown::Perl
 
-=over 4
-
 =cut
-
-sub _get_option {
-  my ($this, $option) = @_;
-  return $this->{local_options}{$option} // $this->{options}{$option};
-}
 
 my %options;
 my %validation;
 
+sub set_options {
+  my ($this, $dest, %options) = @_;
+  while (my ($k, $v) = each %options) {
+    carp "Unknown option ignored: ${k}" unless exists $validation{$k};
+    my $error = $validation{$k}($v);
+    croak "Invalid value for option '${k}': ${error}" if $error;
+    $this->{$dest}{$k} = $v;
+  }
+}
+
+sub set_mode {
+  my ($this, $dest, $mode) = @_;
+  croak "Unknown mode '${mode}'" unless !exists $options{$mode};
+  $this->set_options($dest, %{$options{$mode}});
+}
+
+# This method is called below to "create" each option. In particular, it
+# populate an accessor method in this package to reach the option value.
 sub _make_option {
   my ($opt, $default, $validation, %mode) = @_;
   die "Options '${opt}' created twice" if exists $options{default}{$opt};
@@ -44,21 +56,30 @@ sub _make_option {
 }
 
 sub _boolean {
-  return sub { $_[0] == 0 || $_[0] == 1 };
+  return sub { 
+    return if $_[0] == 0 || $_[0] == 1;
+    return 'must be a boolean value (0 or 1)';
+  };
 };
 
 sub _enum {
   my @valid = @_;
-  return sub { any { $_ eq $_[0] } @valid };
+  return sub {
+    return if any { $_ eq $_[0] } @valid;
+    return "must be one of '".join("', '", @valid)."'";
+  };
 }
 
 sub _regex {
-  return sub { defined eval { qr/$_[0]/ } };
+  return sub {
+    return if defined eval { qr/$_[0]/ };
+    return "cannot be parsed as a Perl regex";
+  };
 }
 
 =pod
 
-=item B<fenced_code_blocks_must_be_closed> I<(boolean, default: false)>
+=head2 B<fenced_code_blocks_must_be_closed> I<(boolean, default: false)>
 
 By default, a fenced code block with no closing fence will run until the end of
 the document. With this setting, the opening fence will be treated as normal
@@ -67,11 +88,11 @@ fence.
 
 =cut
 
-_make_option(fenced_code_blocks_must_be_closed => 0, _boolean);
+_make_option(fenced_code_blocks_must_be_closed => 1, _boolean, ( cmark => 0 ));
 
 =pod
 
-=item B<code_blocks_info> I<(enum, default: language)>
+=head2 B<code_blocks_info> I<(enum, default: language)>
 
 Fenced code blocks can have info strings on their opening lines (any text after
 the C<```> or C<~~~> fence). This option controls what is done with that text.
@@ -94,7 +115,7 @@ _make_option(code_blocks_info => 'language', _enum(qw(ignored language)));
 
 =pod
 
-=item B<multi_lines_setext_headings> I<(enum, default: multi_line)>
+=head2 B<multi_lines_setext_headings> I<(enum, default: multi_line)>
 
 The default behavior of setext headings in the CommonMark spec is that they can
 have multiple lines of text preceding them (forming the heading itself).
@@ -149,7 +170,7 @@ _make_option(multi_lines_setext_headings => 'multi_line', _enum(qw(single_line b
 
 =pod
 
-=item B<autolinks_regex> I<(regex string)>
+=head2 B<autolinks_regex> I<(regex string)>
 
 The regex that an autolink must match. This is for CommonMark autolinks, that
 are recognized only if they appear between brackets C<\<I<link>\>>.
@@ -177,11 +198,5 @@ L<spec|https://spec.commonmark.org/0.30/#autolinks>.
 =cut
 
 _make_option(autolinks_email_regex => q{[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*}, _regex);
-
-=pod
-
-=back
-
-=cut
 
 1;

@@ -31,11 +31,10 @@ is(run("\t  test\n\t  next\n"), "<pre><code>  test\n  next\n</code></pre>\n", 'i
 
 is(run("```\ntest\n```"), "<pre><code>test\n</code></pre>\n", 'fenced_code1');
 is(run("  ```\ntest\n   other\n```"), "<pre><code>test\n other\n</code></pre>\n", 'fenced_code2');
-is(run("```\ntest\nother\n"), "<pre><code>test\nother\n</code></pre>\n", 'fenced_code3');
-is(run("~~~~\ntest\n~~~~"), "<pre><code>test\n</code></pre>\n", 'fenced_code4');
-is(run("~~~~\ntest\n~~~"), "<pre><code>test\n~~~</code></pre>\n", 'fenced_code5');
-is(run("```abc\ntest\n```"), "<pre><code class=\"language-abc\">test\n</code></pre>\n", 'fenced_code6');
-is(run("```abc def\ntest\n```"), "<pre><code class=\"language-abc\">test\n</code></pre>\n", 'fenced_code7');
+is(run("~~~~\ntest\n~~~~"), "<pre><code>test\n</code></pre>\n", 'fenced_code3');
+is(run("~~~~\ntest\n~~~\n~~~~"), "<pre><code>test\n~~~\n</code></pre>\n", 'fenced_code4');
+is(run("```abc\ntest\n```"), "<pre><code class=\"language-abc\">test\n</code></pre>\n", 'fenced_code5');
+is(run("```abc def\ntest\n```"), "<pre><code class=\"language-abc\">test\n</code></pre>\n", 'fenced_code6');
 
 is(run("abc"), "<p>abc</p>\n", 'paragraph1');
 is(run("abc\ndef"), "<p>abc\ndef</p>\n", 'paragraph2');

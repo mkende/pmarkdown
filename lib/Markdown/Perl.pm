@@ -30,7 +30,7 @@ sub new {
   my ($class, %options) = @_;
 
   my $this = bless {
-    options => \%options,
+    options => {},
     local_options => {},
     blocks => [],
     blocks_stack => [],
@@ -41,6 +41,7 @@ sub new {
     is_lazy_continuation => 0,
     lines => []
   }, $class;
+  $this->set_options(options => %options);
   lock_keys %{$this};
 
   return $this;
@@ -68,7 +69,7 @@ sub _get_this_and_args {  ## no critic (RequireArgUnpacking)
 # Both the input and output are unicode strings.
 sub convert {
   my ($this, $md, %options) = &_get_this_and_args;  ## no critic (ProhibitAmpersandSigils)
-  $this->{local_options} = \%options;
+  $this->set_options(local_options => %options);
 
   # https://spec.commonmark.org/0.30/#characters-and-lines
   my @lines = split(/(\n|\r|\r\n)/, $md);
@@ -104,6 +105,7 @@ sub convert {
   }
   my $out = $this->_emit_html(0, @{delete $this->{blocks}});
   $this->{blocks} = [];
+  $this->{local_options} = {};
   return $out;
 }
 
@@ -179,7 +181,7 @@ sub _restore_parent_block {
 sub _test_lazy_continuation {
   my ($this, $l) = @_;
   return unless @{$this->{paragraph}};
-  my $tester = new(ref($this), $this->{options}, $this->{local_options});
+  my $tester = new(ref($this), %{$this->{options}}, %{$this->{local_options}});
   $tester->{paragraph} = [@{$this->{paragraph}}];
   # We use this field both in the tester and in the actual object when we
   # matched a lazy continuation.
@@ -369,14 +371,9 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
       }
     }
 
-    # The spec is unclear about what happens if we haven’t seen the end-fence at
-    # the end of the enclosing block. For now, we decide that we don’t have a
-    # fenced code block at all.
-    if (
-      $end_fence_seen >= 0
-      || ( !@{$this->{blocks_stack}}
-        && !$this->fenced_code_blocks_must_be_closed)
-    ) {
+    if ($end_fence_seen == -1 && $this->fenced_code_blocks_must_be_closed) {
+      # pass-through intended
+    } else {
       my $code = join('', @code_lines);
       $this->_add_block({
         type => 'code',
@@ -387,14 +384,9 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
       if ($end_fence_seen >= 0) {
         splice @{$this->{lines}}, 0, ($end_fence_seen + 1);
       } else {
-        # If we ever accept unclosed fenced code blocks inside other blocks we
-        # will need to track the end of the block (instead of assuming that we
-        # reached the end of the document as we do here).
-        @{$this->{lines}} = ();
+        splice @{$this->{lines}}, 0, scalar(@code_lines);
       }
       return;
-    } else {
-      # pass-through intended
     }
   }
 

@@ -34,7 +34,7 @@ sub convert_entity {
   return defined($1) ? chr($1 || 0xfffd) : defined($2) ? chr(hex($2) || 0xfffd) : $html_entities{$3} // "&${3};";
 }
 sub decode_entities {
-  return $_[0] =~ s/${entity_re}/&convert_entity/egr if wantarray;
+  return $_[0] =~ s/${entity_re}/&convert_entity/egr if defined wantarray;
   $_[0] =~ s/${entity_re}/&convert_entity/eg;
   return
 }
