@@ -19,17 +19,14 @@ GetOptions(
   "version|v" => sub { VersionMessage(-exitval => 0) },
 ) or pod2usage(-verbose => 0, -exitval => 2);
 
+binmode STDIN, ':encoding(UTF-8)';
 my $input;
 {
   local $INPUT_RECORD_SEPARATOR = undef;
   $input = <>;
 }
 
-# We have warnings when manually running the tool without this, but this breaks
-# the output in the cmark test suite. Understand what’s happening (setting the
-# value should be the right thing to do in general).
-#binmode STDOUT, ':encoding(UTF-8)';
-
+binmode STDOUT, ':encoding(UTF-8)';
 print Markdown::Perl::convert($input);
 
 __DATA__
