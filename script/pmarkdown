@@ -8,15 +8,20 @@ use utf8;
 use English;
 use Getopt::Long qw(VersionMessage :config no_ignore_case bundling);
 use Markdown::Perl;
+use Markdown::Perl::Options 'validate_options';
 use Pod::Usage;
 
 our $VERSION = $Markdown::Perl::VERSION; ## no critic (ProhibitComplexVersion,RequireConstantVersion)
 
+my $pmark = Markdown::Perl->new();
+
 GetOptions(
   "help|h" => sub { pod2usage(-verbose => 1, -exitval => 0); },
   "helpfull|help-full|man" => sub { pod2usage(-verbose => 2, -exitval => 0); },
-  "help-options" => sub { pod2usage(-verbose => 2, -exitval => 0, -input => $INC{'Markdown/Perl/Options.pm'}); },
+  "list-options|help-options|helpoptions" => sub { pod2usage(-verbose => 2, -exitval => 0, -input => $INC{'Markdown/Perl/Options.pm'}); },
   "version|v" => sub { VersionMessage(-exitval => 0) },
+  "mode|m=s" => sub { $pmark->set_mode($_[1]) },
+  "option|o=s%" => sub { validate_options($_[1], $_[2]); $pmark->set_options($_[1], $_[2]) },
 ) or pod2usage(-verbose => 0, -exitval => 2);
 
 binmode STDIN, ':encoding(UTF-8)';
@@ -27,7 +32,7 @@ my $input;
 }
 
 binmode STDOUT, ':encoding(UTF-8)';
-print Markdown::Perl::convert($input);
+print $pmark->convert($input);
 
 __DATA__
 
@@ -51,7 +56,7 @@ B<pmarkdown>
 
 =over 8
 
-=item B<--help>
+=item B<--help>, B<-h>
 
 Show a short help message about the program.
 
@@ -59,7 +64,42 @@ Show a short help message about the program.
 
 Show the complete man page of the program.
 
+=item B<--list-options>
+
+Show the documentation of all the existing options of the Markdown processor.
+These options can be passed with the C<-o> flag.
+
+=item B<--version>, B<-v>
+
+Show the version of this program.
+
+=item B<--mode> I<mode>, B<-m>
+
+Specify a I<mode> for the Markdown processor. A mode is a set of configuration
+options working together, typically to replicate the semantics of another
+existing Markdown processor. See the L</MODES> section in this page for a list
+of available modes.
+
+When a mode is applied, is set specific values for some options but any value
+for these options set through the C<--option> flag will take precedence.
+
+=item B<--option> I<option=value>, B<-o>
+
+Specify the value for one particular option. The C<--option> flag can be passed
+multiple times. If an option is specified multiple times, the last one takes
+precedence.
+
+The options are described in the L<Markdown::Perl::Options> page. You can see
+it with the C<pmarkdown --list-options> command.
+
+When specifying an option value, boolean options should be passed as either
+C<0>, C<1>, C<false>, or C<true>.
+
 =back
+
+=head1 MODES
+
+TODO
 
 =head1 AUTHOR
 

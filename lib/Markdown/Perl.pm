@@ -27,9 +27,10 @@ our %EXPORT_TAGS = (all => \@EXPORT_OK);
 =cut
 
 sub new {
-  my ($class, %options) = @_;
+  my ($class, @options) = @_;
 
   my $this = bless {
+    mode => undef,
     options => {},
     local_options => {},
     blocks => [],
@@ -41,10 +42,16 @@ sub new {
     is_lazy_continuation => 0,
     lines => []
   }, $class;
-  $this->set_options(options => %options);
+  $this->SUPER::set_options(options => @options);
   lock_keys %{$this};
 
   return $this;
+}
+
+sub set_options {
+  my ($this, @options) = @_;
+  $this->SUPER::set_options(options => @options);
+  return;
 }
 
 # Returns @_, unless the first argument is not blessed as a Markdown::Perl
@@ -68,8 +75,8 @@ sub _get_this_and_args {  ## no critic (RequireArgUnpacking)
 # class constructor.
 # Both the input and output are unicode strings.
 sub convert {
-  my ($this, $md, %options) = &_get_this_and_args;  ## no critic (ProhibitAmpersandSigils)
-  $this->set_options(local_options => %options);
+  my ($this, $md, @options) = &_get_this_and_args;  ## no critic (ProhibitAmpersandSigils)
+  $this->SUPER::set_options(local_options => @options);
 
   # https://spec.commonmark.org/0.30/#characters-and-lines
   my @lines = split(/(\n|\r|\r\n)/, $md);

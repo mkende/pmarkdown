@@ -6,9 +6,13 @@ use utf8;
 use feature ':5.24';
 
 use Carp;
-use List::Util 'any';
+use Exporter 'import';
+use List::Util 'any', 'pairs';
 
 our $VERSION = '0.01';
+
+our @EXPORT_OK = qw(validate_options);
+our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 =pod
 
@@ -18,38 +22,76 @@ our $VERSION = '0.01';
 
 =cut
 
-my %options;
+my %options_modes;
 my %validation;
 
 sub set_options {
-  my ($this, $dest, %options) = @_;
-  while (my ($k, $v) = each %options) {
-    carp "Unknown option ignored: ${k}" unless exists $validation{$k};
-    my $error = $validation{$k}($v);
-    croak "Invalid value for option '${k}': ${error}" if $error;
-    $this->{$dest}{$k} = $v;
+  my ($this, $dest, @options) = @_;
+  # We don’t put the options into a hash, to preserve the order in which they
+  # are passed.
+  for my $p (pairs @options) {
+    my ($k, $v) = @{$p};
+    if ($k eq 'mode') {
+      $this->set_mode($v);
+    } else {
+      carp "Unknown option ignored: ${k}" unless exists $validation{$k};
+      my $error = $validation{$k}($v);
+      croak "Invalid value for option '${k}': ${error}" if $error;
+      $v = 0 if $v eq 'false';
+      $v = 1 if $v eq 'true';
+      $this->{$dest}{$k} = $v;
+    }
   }
 }
 
+# returns nothing but dies if the options are not valid. Useful to call before
+# set_options to get error messages without stack-traces in context where this
+# is not needed (while set_options will use carp/croak).
+sub validate_options {
+  my (%options) = @_;
+  while (my ($k, $v) = each %options) {
+    if ($k eq 'mode') {
+      die "Unknown mode '${v}'\n" unless exists $options_modes{$v};
+    } else {
+      die "Unknown option: ${k}\n" unless exists $validation{$k};
+      my $error = $validation{$k}($v);
+      die "Invalid value for option '${k}': ${error}\n" if $error;
+    }
+  }
+  return;
+}
+
 sub set_mode {
-  my ($this, $dest, $mode) = @_;
-  croak "Unknown mode '${mode}'" unless !exists $options{$mode};
-  $this->set_options($dest, %{$options{$mode}});
+  my ($this, $mode) = @_;
+  carp "Setting mode '${mode}' overriding already set mode '$this->{mode}'" if defined $this->{mode};
+  if ($mode eq 'default' || $mode eq 'pmarkdown') {
+    undef $this->{mode};
+    return;
+  }
+  croak "Unknown mode '${mode}'" unless exists $options_modes{$mode};
+  $this->{mode} = $mode;
 }
 
 # This method is called below to "create" each option. In particular, it
 # populate an accessor method in this package to reach the option value.
 sub _make_option {
   my ($opt, $default, $validation, %mode) = @_;
-  die "Options '${opt}' created twice" if exists $options{default}{$opt};
   while (my ($k, $v) = each %mode) {
-    $options{$k}{$opt} = $v;
+    $options_modes{$k}{$opt} = $v;
   }
   $validation{$opt} = $validation;
 
   {
     no strict 'refs';
-    *{$opt} = sub { return $_[0]->{local_options}{$opt} // $_[0]->{options}{$opt} // $default };
+    *{$opt} = sub {
+        my ($this) = @_;
+        return $this->{local_options}{$opt} if exists $this->{local_options}{$opt};
+        return $this->{options}{$opt} if exists $this->{options}{$opt};
+        if (defined $this->{mode}) {
+          return $options_modes{$this->{mode}}{$opt} if exists $options_modes{$this->{mode}}{$opt};
+        }
+        return $default;
+      };
   }
 
   return;
@@ -57,7 +99,8 @@ sub _make_option {
 
 sub _boolean {
   return sub { 
-    return if $_[0] == 0 || $_[0] == 1;
+    return if $_[0] eq 'false' || $_[0] eq 'true';
+    return if $_[0] eq '0' || $_[0] eq '1';
     return 'must be a boolean value (0 or 1)';
   };
 };

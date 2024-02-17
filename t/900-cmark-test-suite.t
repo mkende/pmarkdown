@@ -21,7 +21,7 @@ skip_all('commonmark-spec must be checked out.') unless -d $test_dir;
 
 my $root_dir = "${FindBin::Bin}/..";
 
-my $test_suite_output = system "python3 ${test_dir}/spec_tests.py --spec ${spec_dir}/spec.txt --track ${root_dir}/commonmark.tests --program '$^X -I${root_dir}/lib ${root_dir}/script/pmarkdown'";
+my $test_suite_output = system "python3 ${test_dir}/spec_tests.py --spec ${spec_dir}/spec.txt --track ${root_dir}/commonmark.tests --program '$^X -I${root_dir}/lib ${root_dir}/script/pmarkdown -m cmark'";
 is($test_suite_output, 0, 'Github test suite');
 
 done_testing;
