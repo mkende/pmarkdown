@@ -13,7 +13,15 @@ our %EXPORT_TAGS = (all => \@EXPORT_OK);
 our $VERSION = 0.01;
 
 our %html_entities;
-{
+
+# Parse the __DATA__ section into the %html_entities hash.
+# This is done lazily to reduce the loading time of the program if the table is
+# not needed.
+#
+# TODO: add a :full_init import option to the main package, to force the early
+# execution of this method.
+sub parse_entities {
+  return if %html_entities;
   local $/ = undef;
   %html_entities = eval <DATA>;
   die $@ if $@;
@@ -26,12 +34,15 @@ our %html_entities;
 # complete list of entities, probably slower, and handling the replacement of
 # 0x0 characters by 0xfffd.
 
-my $entity_re = qr/& (?: (?:\#(?: ([0-9]{1,7}) | [xX] ([a-fA-F0-9]{1,6}) )) | ([a-zA-Z0-9]+) ) ; /x;
+# Currently, CounterClockwiseContourIntegral is the longest entity name, at 31
+# char. We limit our search to 40 char to limit possible backtracking in case of
+# failures (even if the spec does not say anything about it).
+my $entity_re = qr/& (?: (?:\#(?: ([0-9]{1,7}) | [xX] ([a-fA-F0-9]{1,6}) )) | ([a-zA-Z0-9]{2,40}) ) ; /x;
 sub convert_entity {
   # the `|| 0xfffd` part is so that &#0; is correctly replaced by the 0xfffd
   # "replacement" character (as is being done on the whole string at the
   # beginning of its processing).
-  return defined($1) ? chr($1 || 0xfffd) : defined($2) ? chr(hex($2) || 0xfffd) : $html_entities{$3} // "&${3};";
+  return defined($1) ? chr($1 || 0xfffd) : defined($2) ? chr(hex($2) || 0xfffd) : (&parse_entities, $html_entities{$3}) // "&${3};";
 }
 sub decode_entities {
   return $_[0] =~ s/${entity_re}/&convert_entity/egr if defined wantarray;
