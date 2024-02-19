@@ -7,7 +7,7 @@ use feature ':5.24';
 
 use Exporter 'import';
 
-our @EXPORT_OK = qw(decode_entities);
+our @EXPORT_OK = qw(decode_entities html_escape);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 our $VERSION = 0.01;
@@ -48,6 +48,21 @@ sub decode_entities {
   return $_[0] =~ s/${entity_re}/&convert_entity/egr if defined wantarray;
   $_[0] =~ s/${entity_re}/&convert_entity/eg;
   return
+}
+
+# There are four characters that are escaped in the html output (although the
+# spec never really says so because they claim that they care only about parsing).
+my %char_to_html_entity = (
+  '"' => '&quot;',
+  '&' => '&amp;',
+  '<' => '&lt;',
+  '>' => '&gt;'
+);
+
+sub html_escape {
+  # We put the " twice, to not confuse our spell-checker.
+  $_[0] =~ s/([&""<>])/$char_to_html_entity{$1}/eg;
+  return;
 }
 
 # This table of entities is coming from the following command line:

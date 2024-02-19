@@ -23,9 +23,11 @@ is(run("- abc\n  def\n"), "<ul>\n<li>abc\ndef</li>\n</ul>\n", 'ul4');
 is(run("- abc\n\n  def\n"), "<ul>\n<li><p>abc</p>\n<p>def</p>\n</li>\n</ul>\n", 'ul5');
 is(run("- abc\n* def"), "<ul>\n<li>abc</li>\n</ul>\n<ul>\n<li>def</li>\n</ul>\n", 'ul6');
 is(run("- abc\n\n* def"), "<ul>\n<li>abc</li>\n</ul>\n<ul>\n<li>def</li>\n</ul>\n", 'ul7');
+is(run("-abc"), "<p>-abc</p>\n", 'no_ul1');
 
 is(run("1. abc"), "<ol>\n<li>abc</li>\n</ol>\n", 'ol1');
 is(run("2. abc"), "<ol start=\"2\">\n<li>abc</li>\n</ol>\n", 'ol2');
 is(run("1. abc\n3. def"), "<ol>\n<li>abc</li>\n<li>def</li>\n</ol>\n", 'ol3');
+is(run("1.abc"), "<p>1.abc</p>\n", 'no_ol1');
 
 done_testing;

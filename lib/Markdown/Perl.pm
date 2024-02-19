@@ -5,11 +5,16 @@ use warnings;
 use utf8;
 use feature ':5.24';
 
+use feature 'refaliasing';
+no warnings 'experimental::refaliasing';
+
+use Carp;
 use Exporter 'import';
-use Hash::Util 'lock_keys';
+use Hash::Util 'lock_keys_plus';
 use List::MoreUtils 'first_index';
 use List::Util 'pairs';
 use Markdown::Perl::Inlines;
+use Markdown::Perl::HTML 'html_escape';
 use Markdown::Perl::Util 'split_while', 'remove_prefix_spaces', 'indented_one_tab', 'indent_size';
 use Scalar::Util 'blessed';
 
@@ -40,10 +45,12 @@ sub new {
     last_line_was_blank => 0,
     skip_next_block_matching => 0,
     is_lazy_continuation => 0,
-    lines => []
+    md => undef,
+    last_pos => 0,
+    line_ending => '',
   }, $class;
   $this->SUPER::set_options(options => @options);
-  lock_keys %{$this};
+  lock_keys_plus(%{$this}, qw(forced_line));
 
   return $this;
 }
@@ -67,7 +74,50 @@ sub _get_this_and_args {  ## no critic (RequireArgUnpacking)
     unshift @_, $this;
     $this = $default_this;
   }
-  return ($this, @_);
+  unshift @_, $this;
+  return;
+  # return ($this, @_);
+}
+
+sub next_line {
+  my ($this) = @_;
+  # When we are forcing a line, we don’t recompute the line_ending, but it
+  # should already be correct because the forced one is a substring of the last
+  # line.
+  return delete $this->{forced_line} if exists $this->{forced_line};
+  return if pos($this->{md}) == length($this->{md});
+  $this->{last_pos} = pos($this->{md});
+  $this->{md} =~ m/\G([^\n\r]*)(\r\n|\n|\r)?/g;
+  if ($1 =~ /^[ \t]+$/) {
+    $this->{line_ending} = $1.($2 // '');
+    return '';
+  } else {
+    $this->{line_ending} = $2 // '';
+    return $1;
+  }
+}
+
+sub line_ending {
+  my ($this) = @_;
+  return $this->{line_ending};
+}
+
+sub set_pos {
+  my ($this, $pos) = @_;
+  pos($this->{md}) = $pos;
+  return;
+}
+
+sub get_pos {
+  my ($this) = @_;
+  return pos($this->{md});
+}
+
+sub redo_line {
+  my ($this) = @_;
+  confess "Cannot push back more than one line" unless exists $this->{last_pos};
+  $this->set_pos(delete $this->{last_pos});
+  return;
 }
 
 # Takes a string and converts it to HTML. Can be called as a free function or as
@@ -75,20 +125,14 @@ sub _get_this_and_args {  ## no critic (RequireArgUnpacking)
 # class constructor.
 # Both the input and output are unicode strings.
 sub convert {
-  my ($this, $md, @options) = &_get_this_and_args;  ## no critic (ProhibitAmpersandSigils)
-  $this->SUPER::set_options(local_options => @options);
+  &_get_this_and_args;  ## no critic (ProhibitAmpersandSigils)
+  my $this = shift @_;
+  \$this->{md} = \(shift @_);  # aliasing to avoid copying the input, does this work? is it useful?
+  pos($this->{md}) = 0;
+  $this->SUPER::set_options(local_options => @_);
 
   # https://spec.commonmark.org/0.30/#characters-and-lines
-  my @lines = split(/(\n|\r|\r\n)/, $md);
-  push @lines, '' if @lines % 2 != 0;  # Add a missing line ending.
-  @lines = pairs @lines;
-  # We simplify all blank lines (but keep the data around as it does matter in
-  # some cases, so we move the black part to the line separator field).
-  for (@lines) {
-    $_ = ['', $_->[0].$_->[1]] if $_->[0] =~ /^[ \t]+$/;
-    # https://spec.commonmark.org/0.30/#insecure-characters
-    $_->[0] =~ s/\000/\xfffd/g;
-  }
+  $this->{md} =~ s/\000/\xfffd/g;
 
   # https://spec.commonmark.org/0.30/#tabs
   # TODO: nothing to do at this stage.
@@ -98,13 +142,11 @@ sub convert {
   # Done at a later stage, as escaped characters don’t have their Markdown
   # meaning, we need a way to represent that.
 
-  $this->{lines} = \@lines;
-
-  while (my $hd = shift @{$this->{lines}}) {
+  while (defined(my $l = $this->next_line())) {
     # This field might be set to true at the beginning of the processing, while
     # we’re looking at the conditions of the currently open containers.
     $this->{is_lazy_continuation} = 0;
-    $this->_parse_blocks($hd);
+    $this->_parse_blocks($l);
   }
   $this->_finalize_paragraph();
   while (@{$this->{blocks_stack}}) {
@@ -162,9 +204,11 @@ sub _add_block {
 }
 
 sub _enter_child_block {
-  my ($this, $hd, $new_block, $cond) = @_;
+  my ($this, $new_block, $cond, $forced_next_line) = @_;
   $this->_finalize_paragraph();
-  unshift @{$this->{lines}}, $hd if defined $hd;
+  if (defined $forced_next_line) {
+    $this->{forced_line} = $forced_next_line;
+  }
   push @{$this->{blocks_stack}},
       {cond => $cond, block => $new_block, parent_blocks => $this->{blocks}};
   $this->{blocks} = [];
@@ -194,7 +238,7 @@ sub _test_lazy_continuation {
   # matched a lazy continuation.
   $tester->{is_lazy_continuation} = 1;
   # We’re ignoring the eol of the original line as it should not affect parsing.
-  $tester->_parse_blocks([$l, '']);
+  $tester->_parse_blocks($l);
   if (@{$tester->{paragraph}} > @{$this->{paragraph}}) {
     $this->{is_lazy_continuation} = 1;
     return 1;
@@ -220,7 +264,7 @@ my $thematic_break_re = qr/^\ {0,3} (?: (?:-[ \t]*){3,} | (_[ \t]*){3,} | (\*[ \
 my $block_quotes_re = qr/^ {0,3}>/;
 my $indented_code_re = qr/^(?: {0,3}\t| {4})/;
 my $list_item_marker_re = qr/ [-+*] | (?<digits>\d{1,9}) (?<symbol>[.)])/x;
-my $list_item_re = qr/^ (?<indent>\ {0,3}) (?<marker>${list_item_marker_re}) (?<text>.*) $/x;
+my $list_item_re = qr/^ (?<indent>\ {0,3}) (?<marker>${list_item_marker_re}) (?<text>(?:[ \t].*)?) $/x;
 my $supported_html_tags = join('|', qw(address article aside base basefont blockquote body caption center col colgroup dd details dialog dir div dl dt fieldset figcaption figure footer form frame frameset h1 h2 h3 h4 h5 h6 head header hr html iframe legend li link main menu menuitem nav noframes ol optgroup option p param search section summary table tbody td tfoot th thead title tr track ul));
 # TODO: Share these regex with the Inlines.pm file that has a copy of them.
 my $html_tag_name_re = qr/[a-zA-Z][-a-zA-Z0-9]*/;
@@ -238,8 +282,7 @@ my $html_close_tag_re = qr/<\/${html_tag_name_re}${opt_html_space_re}>/;
 # lines, depending on the block type.
 # https://spec.commonmark.org/0.30/#blocks-and-inlines
 sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce complexity
-  my ($this, $hd) = @_;
-  my $l = $hd->[0];
+  my ($this, $l) = @_;
 
   if (!$this->{skip_next_block_matching}) {
     my $matched_block = $this->_count_matching_blocks(\$l);
@@ -322,24 +365,28 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
   # https://spec.commonmark.org/0.30/#indented-code-blocks
   # Indented code blocks cannot interrupt a paragraph.
   if (!@{$this->{paragraph}} && $l =~ m/${indented_code_re}/) {
-    my $final = -1;
-    my @code_lines = remove_prefix_spaces(4, $l.$hd->[1]);
-    for my $i (0 .. $#{$this->{lines}}) {
-      my $nl = $this->{lines}[$i]->[0];
+    my @code_lines = remove_prefix_spaces(4, $l.$this->line_ending());
+    my $count = 1;  # The number of lines we have read
+    my $valid_count = 1;  # The number of lines we know are in the code block.
+    my $valid_pos = $this->get_pos();
+    while (defined(my $nl = $this->next_line())) {
       if ($this->_all_blocks_match(\$nl)) {
-        push @code_lines, remove_prefix_spaces(4, $nl.$this->{lines}[$i]->[1]);
+        $count++;
         if ($nl =~ m/${indented_code_re}/) {
-          $final = $i;
-        } elsif ($this->{lines}[$i]->[0] ne '') {
+          $valid_pos = $this->get_pos();
+          $valid_count = $count;
+          push @code_lines, remove_prefix_spaces(4, $nl.$this->line_ending());
+        } elsif ($nl eq '') {
+          push @code_lines, remove_prefix_spaces(4, $nl.$this->line_ending());
+        } else {
           last;
         }
       } else {
         last;
       }
     }
-    # @code_lines starts with $hd, so there is one more element than what is removed from our lines.
-    splice @code_lines, ($final + 2);  # TODO: ???
-    splice @{$this->{lines}}, 0, ($final + 1);
+    splice @code_lines, $valid_count;
+    $this->set_pos($valid_pos);
     my $code = join('', @code_lines);
     $this->_add_block({type => 'code', content => $code, debug => 'indented'});
     return;
@@ -360,25 +407,28 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     # The spec does not describe what we should do with fenced code blocks inside
     # other containers if we don’t match them.
     my @code_lines;  # The first line is not part of the block.
-    my $end_fence_seen = -1;
-    for my $i (0 .. $#{$this->{lines}}) {
-      my $nl = $this->{lines}[$i]->[0];
+    my $end_fence_seen = 0;
+    my $start_pos = $this->get_pos();
+    while (defined(my $nl = $this->next_line())) {
       if ($this->_all_blocks_match(\$nl)) {
         if ($nl =~ m/^ {0,3}${f}{$fl,}[ \t]*$/) {
-          $end_fence_seen = $i;
+          $end_fence_seen = 1;
           last;
         } else {
           # We’re adding one line to the fenced code block
-          push @code_lines, remove_prefix_spaces($indent, $nl.$this->{lines}[$i]->[1]);
+          push @code_lines, remove_prefix_spaces($indent, $nl.$this->line_ending());
         }
       } else {
         # We’re out of our enclosing block and we haven’t seen the end of the
-        # fence.
+        # fence. If we accept enclosed fence, then that last line must be tried
+        # again (and, otherwise, we will start again from start_pos).
+        $this->redo_line() if !$this->fenced_code_blocks_must_be_closed;
         last;
       }
     }
 
-    if ($end_fence_seen == -1 && $this->fenced_code_blocks_must_be_closed) {
+    if (!$end_fence_seen && $this->fenced_code_blocks_must_be_closed) {
+      $this->set_pos($start_pos);
       # pass-through intended
     } else {
       my $code = join('', @code_lines);
@@ -388,11 +438,6 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
         info => $info,
         debug => 'fenced'
       });
-      if ($end_fence_seen >= 0) {
-        splice @{$this->{lines}}, 0, ($end_fence_seen + 1);
-      } else {
-        splice @{$this->{lines}}, 0, scalar(@code_lines);
-      }
       return;
     }
   }
@@ -412,7 +457,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
       }
       return $this->_test_lazy_continuation($_);
     };
-    $this->_enter_child_block($hd, {type => 'quotes'}, $cond);
+    $this->_enter_child_block({type => 'quotes'}, $cond, $l);
     return;
   }
 
@@ -440,29 +485,28 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
   # TODO: Implement rule 7 about any possible tag.
   if ($html_end_condition) {
     # TODO: see if some code could be shared with the code blocks
-    my @html_lines = $l.$hd->[1];
-    my $last_line = $#{$this->{lines}};
-    for my $i (0 .. $#{$this->{lines}}) {
-      my $nl = $this->{lines}[$i]->[0];
+    my @html_lines = $l.$this->line_ending();
+    # TODO: add an option to not parse a tag if it’s closing condition is never
+    # seen.
+    while (defined (my $nl = $this->next_line())) {
       if ($this->_all_blocks_match(\$nl)) {
         if ($nl !~ m/${html_end_condition}/) {
-          push @html_lines, $nl.$this->{lines}[$i]->[1];
+          push @html_lines, $nl.$this->line_ending();
         } else {
           if ($nl eq '') {
             # This can only happen for rules 6 and 7 where the end condition
             # line is not part of the HTML block.
-            $last_line = $i - 1;
+            $this->redo_line();
           } else {
-            push @html_lines, $nl.$this->{lines}[$i]->[1];
-            $last_line = $i;
+            push @html_lines, $nl.$this->line_ending();
           }
           last;
         }
       } else {
-        $last_line = $i - 1;
+        $this->redo_line();
+        last;
       }
     }
-    splice @{$this->{lines}}, 0, ($last_line + 1);
     my $html = join('', @html_lines);
     $this->_add_block({type => 'html', content => $html});
     return;
@@ -485,9 +529,11 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     } else {
       # in the current implementation, $text_indent is enough to know if $text
       # is matching $indented_code_re, but let’s not depend on that.
-      my $indent_inside = ($text eq '' || $text =~ m/${indented_code_re}/) ? 1 : $text_indent;
+      my $discard_text_indent = $text eq '' || $text =~ m/${indented_code_re}/;
+      my $indent_inside = $discard_text_indent ? 1 : $text_indent;
       my $indent_marker = length($indent_outside) + length($marker);
       my $indent = $indent_inside + $indent_marker;
+      my $cur_pos = $this->get_pos();
       my $cond = sub {
         if (indent_size($_) >= $indent) {
           $_ = remove_prefix_spaces($indent, $_);
@@ -496,12 +542,12 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
         return ($l !~ m/${list_item_re}/ && $this->_test_lazy_continuation($_))
             || $_ eq '';
       };
-      my $new_hd;
+      my $forced_next_line = undef;
       if ($text ne '') {
         # We are doing a weird compensation for the fact that we are not
         # processing the condition and to correctly handle the case where the
-        # list marker was following by tabs.
-        $new_hd = [remove_prefix_spaces($indent, (' ' x $indent_marker).$text), $hd->[1]];
+        # list marker was followed by tabs.
+        $forced_next_line = remove_prefix_spaces($indent, (' ' x $indent_marker).$text);
         $this->{skip_next_block_matching} = 1;
       }
       # Note that we are handling the creation of the lists themselves in the
@@ -516,7 +562,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
       };
       $item->{loose} =
           $this->_list_match($item) && $this->{last_line_was_blank};
-      $this->_enter_child_block($new_hd, $item, $cond);
+      $this->_enter_child_block($item, $cond, $forced_next_line);
       return;
     }
   }
@@ -556,6 +602,7 @@ sub _emit_html {
       $out .= "<h${l}>$c</h${l}>\n";
     } elsif ($b->{type} eq 'code') {
       my $c = $b->{content};
+      html_escape($c);
       my $i = '';
       if ($this->code_blocks_info eq 'language' && $b->{info}) {
         my $l = $b->{info} =~ s/\s.*//r;  # The spec does not really cover this behavior so we’re using Perl notion of whitespace here.

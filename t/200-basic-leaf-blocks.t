@@ -39,6 +39,7 @@ is(run("```abc def\ntest\n```"), "<pre><code class=\"language-abc\">test\n</code
 is(run("abc"), "<p>abc</p>\n", 'paragraph1');
 is(run("abc\ndef"), "<p>abc\ndef</p>\n", 'paragraph2');
 is(run("abc\n\ndef"), "<p>abc</p>\n<p>def</p>\n", 'paragraph3');
+is(run("foo\r\nbar"), "<p>foo\nbar</p>\n", 'paragraph4');
 
 is(run("<pre>\nabc\n</pre>\n"), "<pre>\nabc\n</pre>\n", 'html1');
 is(run("<pre>\nabc\n"), "<pre>\nabc\n", 'html2');

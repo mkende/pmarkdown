@@ -11,7 +11,7 @@ use feature ':5.24';
 use English;
 use Exporter 'import';
 use Hash::Util ();
-use Markdown::Perl::HTML 'decode_entities';
+use Markdown::Perl::HTML 'decode_entities', 'html_escape';
 use Scalar::Util 'blessed';
 
 our $VERSION = 0.01;
@@ -633,23 +633,6 @@ sub node_to_text {
   } else {
     die 'Unsupported node type for to_text: '.$n->{type};
   }
-}
-
-# There are four characters that are escaped in the html output (although the
-# spec never really says so because they claim that they care only about parsing).
-# TODO: move to the Util module.
-
-my %char_to_html_entity = (
-  '"' => '&quot;',
-  '&' => '&amp;',
-  '<' => '&lt;',
-  '>' => '&gt;'
-);
-
-sub html_escape {
-  # We put the " twice, to not confuse our spell-checker.
-  $_[0] =~ s/([&""<>])/$char_to_html_entity{$1}/eg;
-  return;
 }
 
 # TODO: move to the Util module.
