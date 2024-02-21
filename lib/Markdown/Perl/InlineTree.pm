@@ -11,7 +11,7 @@ use feature ':5.24';
 use English;
 use Exporter 'import';
 use Hash::Util ();
-use Markdown::Perl::HTML 'decode_entities', 'html_escape';
+use Markdown::Perl::HTML 'decode_entities', 'html_escape', 'http_escape';
 use Scalar::Util 'blessed';
 
 our $VERSION = 0.01;
@@ -577,15 +577,23 @@ sub render_node_html {
     html_escape($n->{content});
     return $acc.'<code>'.$n->{content}.'</code>';
   } elsif ($n->{type} eq 'link') {
-    if (exists $n->{content}) {  # This is an autolink
-      decode_entities($n->{content});
+    if (exists $n->{content}) {
+      # This is an autolink, we don’t decode entities as these are treated like
+      # html construct.
       html_escape($n->{content});
       html_escape($n->{target});
       http_escape($n->{target});
       return $acc.'<a href="'.($n->{target}).'">'.($n->{content}).'</a>';
     } else {
-      my $title = exists $n->{title} ? " title=\"$n->{title}\"" : '';
+      # This is a real MD link definition. The target and title have been
+      # generated through the to_text() method, so they are already decoded and
+      # html_escaped
+      my $title = '';
+      if (exists $n->{title}) {
+        $title = " title=\"$n->{title}\"";
+      }
       my $content = $n->{subtree}->render_html();
+      http_escape($n->{target});
       return $acc."<a href=\"$n->{target}\"${title}>${content}</a>";
     }
   } elsif ($n->{type} eq 'style') {
@@ -616,8 +624,11 @@ sub to_text {
 
 sub node_to_text {
   my ($n, $acc) = @_;
-
+  # TODO: consider if html_escaping should not be done here (and instead be done
+  # when we render link target and title, which are the main place where this
+  # is used).
   if ($n->{type} eq 'text') {
+    decode_entities($n->{content});
     html_escape($n->{content});
     return $acc.$n->{content};
   } elsif ($n->{type} eq 'literal' || $n->{type} eq 'html') {
@@ -628,17 +639,12 @@ sub node_to_text {
     html_escape($n->{content});
     return $acc.$n->{content};
   } elsif ($n->{type} eq 'code') {
+    # TODO: Do we really need this branch? If so, is the treatment correct?
     html_escape($n->{content});
     return $acc.'<code>'.$n->{content}.'</code>';
   } else {
     die 'Unsupported node type for to_text: '.$n->{type};
   }
-}
-
-# TODO: move to the Util module.
-sub http_escape {
-  $_[0] =~ s/([\\\[\]])/sprintf('%%%02X', ord($1))/ge;
-  return;
 }
 
 1;

@@ -7,7 +7,7 @@ use feature ':5.24';
 
 use Exporter 'import';
 
-our @EXPORT_OK = qw(decode_entities html_escape);
+our @EXPORT_OK = qw(decode_entities html_escape http_escape);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 our $VERSION = 0.01;
@@ -62,6 +62,12 @@ my %char_to_html_entity = (
 sub html_escape {
   # We put the " twice, to not confuse our spell-checker.
   $_[0] =~ s/([&""<>])/$char_to_html_entity{$1}/eg;
+  return;
+}
+
+sub http_escape {
+  utf8::encode($_[0]);
+  $_[0] =~ s/([\\\[\]\x80-\xff])/sprintf('%%%02X', ord($1))/ge;
   return;
 }
 
