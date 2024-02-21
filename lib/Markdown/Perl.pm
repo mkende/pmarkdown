@@ -576,7 +576,12 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
   # - https://spec.commonmark.org/0.30/#link-reference-definitions
 
   # https://spec.commonmark.org/0.30/#paragraphs
-  if ($l ne '') {
+  # We need to test for blank lines here (not just emptiness) because after we
+  # have removed the markers of container blocks our line can become empty. The
+  # fact that we need to do this, seems to imply that we don’t really need to
+  # check fo emptiness when initially building $l.
+  # TOOD: check if the blank-line detection in next_line() is needed or not.
+  if ($l !~ m/^[ \t]*$/) {
     push @{$this->{paragraph}}, $l;
     return;
   }
