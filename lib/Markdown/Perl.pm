@@ -489,23 +489,26 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     my @html_lines = $l.$this->line_ending();
     # TODO: add an option to not parse a tag if it’s closing condition is never
     # seen.
-    while (defined (my $nl = $this->next_line())) {
-      if ($this->_all_blocks_match(\$nl)) {
-        if ($nl !~ m/${html_end_condition}/) {
-          push @html_lines, $nl.$this->line_ending();
-        } else {
-          if ($nl eq '') {
-            # This can only happen for rules 6 and 7 where the end condition
-            # line is not part of the HTML block.
-            $this->redo_line();
-          } else {
+    if ($l !~ m/${html_end_condition}/) {
+      # The end condition can occur on the opening line.
+      while (defined (my $nl = $this->next_line())) {
+        if ($this->_all_blocks_match(\$nl)) {
+          if ($nl !~ m/${html_end_condition}/) {
             push @html_lines, $nl.$this->line_ending();
+          } else {
+            if ($nl eq '') {
+              # This can only happen for rules 6 and 7 where the end condition
+              # line is not part of the HTML block.
+              $this->redo_line();
+            } else {
+              push @html_lines, $nl.$this->line_ending();
+            }
+            last;
           }
+        } else {
+          $this->redo_line();
           last;
         }
-      } else {
-        $this->redo_line();
-        last;
       }
     }
     my $html = join('', @html_lines);
