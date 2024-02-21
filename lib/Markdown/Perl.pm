@@ -88,12 +88,13 @@ sub next_line {
   return if pos($this->{md}) == length($this->{md});
   $this->{last_pos} = pos($this->{md});
   $this->{md} =~ m/\G([^\n\r]*)(\r\n|\n|\r)?/g;
+  my ($t, $e) = ($1, $2);
   if ($1 =~ /^[ \t]+$/) {
-    $this->{line_ending} = $1.($2 // '');
+    $this->{line_ending} = $t.($e // '');
     return '';
   } else {
-    $this->{line_ending} = $2 // '';
-    return $1;
+    $this->{line_ending} = $e // '';
+    return $t;
   }
 }
 
