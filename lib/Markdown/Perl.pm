@@ -571,9 +571,54 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     }
   }
 
-  # TODO:
-  # - https://spec.commonmark.org/0.30/#html-blocks
-  # - https://spec.commonmark.org/0.30/#link-reference-definitions
+  # - https://spec.commonmark.org/0.31.2/#link-reference-definitions
+  # Link reference definitions cannot interrupt paragraphs
+  #
+  # This construct needs to be parsed across multiple lines, so we are directly
+  # using the {md} string rather than our parsed $l line
+  # TODO: another maybe much simpler approach would be to parse the block as a
+  # normal paragraph but immediately try to parse the content as a link
+  # reference definition (and otherwise to keep it as a normal paragraph).
+  # That would allow to use the higher lever InlineTree parsing constructs.
+  if (!@{$this->{paragraph}} && $l =~ m/^ {0,3}\[/) {
+    my $init_pos = $this->get_pos();
+    $this->redo_line();
+    my $start_pos = $this->get_pos();
+    # TODO:
+    # - Support for escaped or balanced parenthesis in naked destination
+    if ($this->{md} =~ m/\G
+        [ ]{0,3}                                              # initial optional spaces
+        \[ (?>(?<LABEL>                                       # The link label (in square brackets), matched as an atomic group
+          (?:
+            [^\\\]]{0,100} (?:(?:\\\\)* \\ .)?                # The label cannot contain unescaped ]
+            # With 5.38 this could be (?(*{ ...}) (*FAIL))  which will be more efficient.
+            (*COMMIT) (?(?{ pos() > $start_pos + 1004 }) (*FAIL) )  # As our block can be repeated, we prune the search when we are far enough.
+          )+ 
+        )) \]:
+        [ \t]*\n?[ \t]*                                       # optional spaces and tabs with up to one line ending
+        (?>(?<DEST>                                           # the destination can be either:
+          < (?: [^\n>]* (?<! \\) (?:\\\\)* )+ >               # - enclosed in <> and containing no unescaped >
+          | [^< [:cntrl:]] [^ [:cntrl:]]*                     # - not enclosed but cannot contains spaces, new lines, etc. and only balanced or escaped parenthesis
+        ))
+        (?:
+          (?> [ \t]+\n?[ \t]* | [ \t]*\n?[ \t]+ | [ \t]*\n[ \t]* )  # The spec says that spaces must be present here, but it seems that a new line is fine too.
+          (?<TITLE>  # The title can be betwen ", ' or (). The matching characters can’t appear unescaped in the title
+            "  (:?[^\n"]* (?: (?<! \n) \n (?>! \n) | (?<! \\) (?:\\\\)* \\ " )? )* "
+          |  '  (:?[^\n']* (?: (?<! \n) \n (?>! \n) | (?<! \\) (?:\\\\)* \\ ' )? )* '
+          |  \( (:?[^\n"()]* (?: (?<! \n) \n (?>! \n) | (?<! \\) (?:\\\\)* \\ [()] )? )* \)
+          )
+        )
+        [ \t]*(:?\r\n|\n|\r|$)                                # The spec says that no characters can occur after the title, but it seems that whitespace is tolerated.
+        /gx) {
+      # TODO: fail if the label does not contain non-whitespace character.
+      use Data::Dumper; print STDERR Dumper(\%+);
+      return;
+    } else {
+      print STDERR "failed\n";
+      $this->set_pos($init_pos);
+    }
+  }
+  
 
   # https://spec.commonmark.org/0.30/#paragraphs
   # We need to test for blank lines here (not just emptiness) because after we
