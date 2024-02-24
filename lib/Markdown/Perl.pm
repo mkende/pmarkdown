@@ -612,9 +612,9 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
         (?:
           (?> [ \t]+\n?[ \t]* | [ \t]*\n?[ \t]+ | [ \t]*\n[ \t]* )  # The spec says that spaces must be present here, but it seems that a new line is fine too.
           (?<TITLE>  # The title can be betwen ", ' or (). The matching characters can’t appear unescaped in the title
-            "  (:?[^\n"]* (?: (?<! \n) \n (?>! \n) | (?<! \\) (?:\\\\)* \\ " )? )* "
-          |  '  (:?[^\n']* (?: (?<! \n) \n (?>! \n) | (?<! \\) (?:\\\\)* \\ ' )? )* '
-          |  \( (:?[^\n"()]* (?: (?<! \n) \n (?>! \n) | (?<! \\) (?:\\\\)* \\ [()] )? )* \)
+            "  (:?[^\n"]* (?: (?<! \n) \n (?! \n) | (?<! \\) (?:\\\\)* \\ " )? )* "
+          |  '  (:?[^\n']* (?: (?<! \n) \n (?! \n) | (?<! \\) (?:\\\\)* \\ ' )? )* '
+          |  \( (:?[^\n"()]* (?: (?<! \n) \n (?! \n) | (?<! \\) (?:\\\\)* \\ [()] )? )* \)
           )
         )?
         [ \t]*(:?\r\n|\n|\r|$)                                # The spec says that no characters can occur after the title, but it seems that whitespace is tolerated.
@@ -622,7 +622,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
       # TODO: fail if the label does not contain non-whitespace character.
       my %link_ref = %+;
       if ($link_ref{LABEL} =~ m/[^ \t\n]/) {
-        $link_ref{TITLE} =~ s/^.(.*).$/$1/ if exists $link_ref{TITLE};
+        $link_ref{TITLE} =~ s/^.(.*).$/$1/s if exists $link_ref{TITLE};
         # TODO: normalize the label
         # TODO: option to keep the last appearance istead of the first one.
         $this->{linkrefs}{$link_ref{LABEL}} = { target => $link_ref{TARGET}, (exists $link_ref{TITLE} ? ('title', $link_ref{TITLE}) : ())};
