@@ -219,7 +219,7 @@ sub process_links {
         $tree->insert($dest_node_index, $link);
         # If we are not a top-level call, we return the coordinate where to
         # start looking again for a link.
-        return ($dest_node_index + 1, 0) unless defined $start_child_bound;
+        return ($dest_node_index + 1, 0) if defined $start_child_bound;
         # If we are a top-level call, we directly start the search at these
         # coordinates.
         process_links($that, $tree, $dest_node_index + 1, 0);
@@ -265,13 +265,28 @@ sub find_link_destination_and_title {
   my $n = $tree->{children}[$cur_child];
   die 'Unexpected link destination search in a non-text element: '.$n->{type}
       unless $n->{type} eq 'text';
+  my @start = ($child_start, $text_start, $child_start, $text_start + 1);
   # TODO: use find_in_text bounded (to work across child limit) (maybe not
   # really needed as this should never be a different child).
-  return unless substr($n->{content}, $text_start, 1) eq '(';
+  if (substr($n->{content}, $text_start, 1) eq '(') {
+    my @target = parse_inline_link($tree, @start);
+    return @target if @target;
+  } elsif (substr($n->{content}, $text_start, 1) eq '[') {
+    my @target = parse_reference_link($that, $tree, @start);
+    return @target if @target;
+  }
 
-  my @start = ($child_start, $text_start, $child_start, $text_start + 1);
+  return;
+}
 
-  pos($n->{content}) = $text_start + 1;
+sub parse_inline_link {
+  my ($tree, @start) = @_;  # ($child_start, $text_start, $child_start, $text_start + 1);
+  # @start points to before and after the '(' character opening the link.
+
+  my $cur_child = $start[0];
+  my $n = $tree->{children}[$cur_child];
+
+  pos($n->{content}) = $start[3];
   $n->{content} =~ m/\G[ \t]*\n?[ \t]*/;
   my $search_start = $LAST_MATCH_END[0];
   
@@ -360,6 +375,25 @@ sub find_link_destination_and_title {
   $tree->extract(@start);
 
   return (target => $target, ( $title ? (title => $title) : ()));
+}
+
+sub parse_reference_link {
+  my ($that, $tree, @start) = @_;  # ($child_start, $text_start, $child_start, $text_start + 1);
+
+  my $cur_child = $start[0];
+  my $n = $tree->{children}[$cur_child];
+
+  my $ref_start = $start[3];
+
+  if (my @end_ref = $tree->find_in_text(qr/]/, $cur_child, $start[3])) {
+    my $ref = $tree->span_to_text(@start[2,3], @end_ref[0,1]);
+    # TODO: normalize the ref
+    if (exists $that->{linkrefs}{$ref}) {
+      $tree->extract(@start[0,1], @end_ref[0,2]);
+      return %{$that->{linkrefs}{$ref}};
+    }
+  }
+  return;
 }
 
 # This methods adds "style", that is it parses the emphasis (* and _) and also

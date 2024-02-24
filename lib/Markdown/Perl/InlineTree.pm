@@ -371,13 +371,15 @@ are visited.
 =cut
 
 sub map {  ## no critic (ProhibitBuiltinHomonyms)
-  my ($this, $sub) = @_;
+  my ($this, $sub, $start, $stop) = @_;
+  # $start and $stop are not documented for this function, they are used by
+  # clone().
 
   my $new_tree = Markdown::Perl::InlineTree->new();
 
-  for (@{$this->{children}}) {
+  for (@{$this->{children}}[$start // 0 .. $stop // $#{$this->{children}}]) {
     if ($_->has_subtree()) {
-      if (wantarray) {
+      if (defined wantarray) {
         my $new_node = $_->clone();
         $new_node->{subtree}->map($sub);
         local *_ = \$new_node;
@@ -388,7 +390,13 @@ sub map {  ## no critic (ProhibitBuiltinHomonyms)
         $new_tree->push($sub->());
       }
     } else {
-      $new_tree->push($sub->());
+      if (defined wantarray) {
+        my $new_node = $_->clone();
+        local *_ = \$new_node;
+        $new_tree->push($sub->());
+      } else {
+        $new_tree->push($sub->());
+      }
     }
   }
 
@@ -398,6 +406,19 @@ sub map {  ## no critic (ProhibitBuiltinHomonyms)
 }
 
 =pod
+
+=head2 clone
+
+  my $new_tree = $tree->clone([$child_start, $child_end]);
+
+Clone (deep copy) the entire tree or a portion of it.
+
+=cut
+
+sub clone {
+  my ($this, $start, $stop) = @_;
+  return $this->map(sub { $_ }, $start, $stop);
+}
 
 =head2 fold
 
@@ -645,6 +666,21 @@ sub node_to_text {
   } else {
     die 'Unsupported node type for to_text: '.$n->{type};
   }
+}
+
+=head2 span_to_text
+
+  $tree->span_to_text($child_start, $text_start, $child_end, $text_end);
+
+Same as C<to_text()> but only renders the specified span of the C<InlineTree>.
+
+=cut
+
+sub span_to_text {
+  my ($tree, $child_start, $text_start, $child_end, $text_end) = @_;
+  my $copy = $tree->clone($child_start, $child_end);
+  my $extract = $copy->extract(0, $text_start, $child_end - $child_start, $text_end);
+  return $extract->to_text();
 }
 
 1;

@@ -45,9 +45,11 @@ sub new {
     last_line_was_blank => 0,
     skip_next_block_matching => 0,
     is_lazy_continuation => 0,
+    # TODO: split this object between the parser and the parsing_state
     md => undef,
     last_pos => 0,
     line_ending => '',
+    linkrefs => {},
   }, $class;
   $this->SUPER::set_options(options => @options);
   lock_keys_plus(%{$this}, qw(forced_line));
@@ -156,6 +158,8 @@ sub convert {
   my $out = $this->_emit_html(0, @{delete $this->{blocks}});
   $this->{blocks} = [];
   $this->{local_options} = {};
+  $this->{linkrefs} = {};
+  \$this->{md} = \'';
   return $out;
 }
 
@@ -443,25 +447,6 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     }
   }
 
-  # https://spec.commonmark.org/0.30/#block-quotes
-  if ($l =~ /${block_quotes_re}/) {
-    # TODO: handle laziness (block quotes where the > prefix is missing)
-    my $cond = sub {
-      if (s/(${block_quotes_re})/' ' x length($1)/e) {
-        # We remove the '>' character that we replaced by a space, and the
-        # optional space after it. We’re using this approach to correctly handle
-        # the case of a line like '>\t\tfoo' where we need to retain the 6
-        # spaces of indentation, to produce a code block starting with two
-        # spaces.
-        $_ = remove_prefix_spaces(length($1) + 1, $_);
-        return 1;
-      }
-      return $this->_test_lazy_continuation($_);
-    };
-    $this->_enter_child_block({type => 'quotes'}, $cond, $l);
-    return;
-  }
-
   # https://spec.commonmark.org/0.31.2/#html-blocks
   # HTML blockes can interrupt a paragraph.
   # TODO: PERF: test that $l =~ m/^ {0,3}</ to short circuit all these regex.
@@ -516,6 +501,30 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     return;
   }
 
+  # https://spec.commonmark.org/0.30/#block-quotes
+  if ($l =~ /${block_quotes_re}/) {
+    # TODO: handle laziness (block quotes where the > prefix is missing)
+    my $cond = sub {
+      if (s/(${block_quotes_re})/' ' x length($1)/e) {
+        # We remove the '>' character that we replaced by a space, and the
+        # optional space after it. We’re using this approach to correctly handle
+        # the case of a line like '>\t\tfoo' where we need to retain the 6
+        # spaces of indentation, to produce a code block starting with two
+        # spaces.
+        $_ = remove_prefix_spaces(length($1) + 1, $_);
+        return 1;
+      }
+      return $this->_test_lazy_continuation($_);
+    };
+    {
+      local *::_ = \$l;
+      $cond->();
+    }
+    $this->{skip_next_block_matching} = 1;
+    $this->_enter_child_block({type => 'quotes'}, $cond, $l);
+    return;
+  }
+
   # https://spec.commonmark.org/0.30/#list-items
   if ($l =~ m/${list_item_re}/) {
     # There is a note in the spec on thematic breaks that are not list items,
@@ -537,7 +546,6 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
       my $indent_inside = $discard_text_indent ? 1 : $text_indent;
       my $indent_marker = length($indent_outside) + length($marker);
       my $indent = $indent_inside + $indent_marker;
-      my $cur_pos = $this->get_pos();
       my $cond = sub {
         if (indent_size($_) >= $indent) {
           $_ = remove_prefix_spaces($indent, $_);
@@ -586,6 +594,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     my $start_pos = $this->get_pos();
     # TODO:
     # - Support for escaped or balanced parenthesis in naked destination
+    # - break this up in smaller pieces and test them independantly.
     if ($this->{md} =~ m/\G
         [ ]{0,3}                                              # initial optional spaces
         \[ (?>(?<LABEL>                                       # The link label (in square brackets), matched as an atomic group
@@ -596,7 +605,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
           )+ 
         )) \]:
         [ \t]*\n?[ \t]*                                       # optional spaces and tabs with up to one line ending
-        (?>(?<DEST>                                           # the destination can be either:
+        (?>(?<TARGET>                                         # the destination can be either:
           < (?: [^\n>]* (?<! \\) (?:\\\\)* )+ >               # - enclosed in <> and containing no unescaped >
           | [^< [:cntrl:]] [^ [:cntrl:]]*                     # - not enclosed but cannot contains spaces, new lines, etc. and only balanced or escaped parenthesis
         ))
@@ -607,16 +616,22 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
           |  '  (:?[^\n']* (?: (?<! \n) \n (?>! \n) | (?<! \\) (?:\\\\)* \\ ' )? )* '
           |  \( (:?[^\n"()]* (?: (?<! \n) \n (?>! \n) | (?<! \\) (?:\\\\)* \\ [()] )? )* \)
           )
-        )
+        )?
         [ \t]*(:?\r\n|\n|\r|$)                                # The spec says that no characters can occur after the title, but it seems that whitespace is tolerated.
         /gx) {
       # TODO: fail if the label does not contain non-whitespace character.
-      use Data::Dumper; print STDERR Dumper(\%+);
-      return;
-    } else {
-      print STDERR "failed\n";
-      $this->set_pos($init_pos);
+      my %link_ref = %+;
+      if ($link_ref{LABEL} =~ m/[^ \t\n]/) {
+        $link_ref{TITLE} =~ s/^.(.*).$/$1/ if exists $link_ref{TITLE};
+        # TODO: normalize the label
+        # TODO: option to keep the last appearance istead of the first one.
+        $this->{linkrefs}{$link_ref{LABEL}} = { target => $link_ref{TARGET}, (exists $link_ref{TITLE} ? ('title', $link_ref{TITLE}) : ())};
+        return;
+      }
+      # Pass-through intended.
     }
+    $this->set_pos($init_pos);
+    # Pass-through intended.
   }
   
 
