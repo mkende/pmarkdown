@@ -217,8 +217,8 @@ sub process_links {
           # collapsed reference link. We check if we have a matching label.
           my $ref = $tree->span_to_text($open[0], $open[2], $close[0], $close[1]);
           if (exists $that->{linkrefs}{$ref}) {
-            %target = %{$that->{linkrefs}{$ref}};
             $closure_length += $target{collapsed_ref};
+            %target = %{$that->{linkrefs}{$ref}};
             # pass-through intended.
           } else {
             # TODO: have more functions, to share this block with the else of
@@ -234,7 +234,7 @@ sub process_links {
         my $text_tree =
             $tree->extract($open[0], $open[2], $close[0], $close[1]);
         my (undef, $dest_node_index) =
-            $tree->extract($open[0], $open[1], $open[0] + $closure_length, 1);
+            $tree->extract($open[0], $open[1], $open[0] + 1, $closure_length);
         my $link = new_link($text_tree, %target);
         $tree->insert($dest_node_index, $link);
         # If we are not a top-level call, we return the coordinate where to
