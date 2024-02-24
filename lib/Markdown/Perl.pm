@@ -623,6 +623,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
       my %link_ref = %+;
       if ($link_ref{LABEL} =~ m/[^ \t\n]/) {
         $link_ref{TITLE} =~ s/^.(.*).$/$1/s if exists $link_ref{TITLE};
+        $link_ref{TARGET} =~ s/^<(.*)>$/$1/;
         # TODO: normalize the label
         # TODO: option to keep the last appearance istead of the first one.
         $this->{linkrefs}{$link_ref{LABEL}} = { target => $link_ref{TARGET}, (exists $link_ref{TITLE} ? ('title', $link_ref{TITLE}) : ())};
