@@ -67,7 +67,7 @@ sub html_escape {
 
 sub http_escape {
   utf8::encode($_[0]);
-  $_[0] =~ s/([\\\[\]\x80-\xff])/sprintf('%%%02X', ord($1))/ge;
+  $_[0] =~ s/([ \\\[\]\x80-\xff])/sprintf('%%%02X', ord($1))/ge;
   return;
 }
 
