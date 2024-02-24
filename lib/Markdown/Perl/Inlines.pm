@@ -211,10 +211,30 @@ sub process_links {
 
       my %target = find_link_destination_and_title($that, $tree, $close[0], $close[2]);
       if (%target) {
+        my $closure_length = 1;
+        if (exists $target{collapsed_ref}) {
+          # We have a syntax that might be a shortcut reference link or a
+          # collapsed reference link. We check if we have a matching label.
+          my $ref = $tree->span_to_text($open[0], $open[2], $close[0], $close[1]);
+          if (exists $that->{linkrefs}{$ref}) {
+            %target = %{$that->{linkrefs}{$ref}};
+            $closure_length += $target{collapsed_ref};
+            # pass-through intended.
+          } else {
+            # TODO: have more functions, to share this block with the else of
+            # the `if (%target)` alternation.
+            #
+            # We could not match a link target, so this is not a link at all.
+            # We continue the search just after our initial opening bracket.
+            # We do the same call whether or not we are a top-level call.
+            return process_links($that, $tree, $open[0], $open[2],
+              $start_child_bound, $start_text_bound);
+          }
+        }
         my $text_tree =
             $tree->extract($open[0], $open[2], $close[0], $close[1]);
         my (undef, $dest_node_index) =
-            $tree->extract($open[0], $open[1], $open[0] + 1, 1);
+            $tree->extract($open[0], $open[1], $open[0] + $closure_length, 1);
         my $link = new_link($text_tree, %target);
         $tree->insert($dest_node_index, $link);
         # If we are not a top-level call, we return the coordinate where to
@@ -271,9 +291,15 @@ sub find_link_destination_and_title {
   if (substr($n->{content}, $text_start, 1) eq '(') {
     my @target = parse_inline_link($tree, @start);
     return @target if @target;
+  } elsif (substr($n->{content}, $text_start, 2) eq '[]') {
+    # https://spec.commonmark.org/0.31.2/#collapsed-reference-link
+    return ( collapsed_ref => 2);
   } elsif (substr($n->{content}, $text_start, 1) eq '[') {
     my @target = parse_reference_link($that, $tree, @start);
     return @target if @target;
+  } else {
+    # https://spec.commonmark.org/0.31.2/#shortcut-reference-link
+    return ( collapsed_ref => 0);
   }
 
   return;
