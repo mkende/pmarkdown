@@ -15,7 +15,7 @@ use List::MoreUtils 'first_index';
 use List::Util 'pairs';
 use Markdown::Perl::Inlines;
 use Markdown::Perl::HTML 'html_escape';
-use Markdown::Perl::Util 'split_while', 'remove_prefix_spaces', 'indented_one_tab', 'indent_size', 'normalize_label';
+use Markdown::Perl::Util ':all';
 use Scalar::Util 'blessed';
 
 use parent 'Markdown::Perl::Options';
@@ -542,7 +542,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     } else {
       # in the current implementation, $text_indent is enough to know if $text
       # is matching $indented_code_re, but let’s not depend on that.
-      my $discard_text_indent = $text eq '' || $text =~ m/${indented_code_re}/;
+      my $discard_text_indent = $text eq '' || indented(4 + 1, $text);  # 4 + 1 is an indented code block, plus the required space after marker.
       my $indent_inside = $discard_text_indent ? 1 : $text_indent;
       my $indent_marker = length($indent_outside) + length($marker);
       my $indent = $indent_inside + $indent_marker;

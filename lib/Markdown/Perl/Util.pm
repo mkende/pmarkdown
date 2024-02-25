@@ -11,7 +11,7 @@ use Unicode::CaseFold 'fc';
 
 our $VERSION = 0.01;
 
-our @EXPORT_OK = qw(split_while remove_prefix_spaces indent_size indented_one_tab horizontal_size normalize_label);
+our @EXPORT_OK = qw(split_while remove_prefix_spaces indent_size indented_one_tab horizontal_size normalize_label indented);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 # Partition a list into a continuous chunk for which the given code evaluates to
@@ -74,8 +74,18 @@ sub horizontal_size {
 
 # Returns true if the text is indented by at least one tab-stop.
 sub indented_one_tab {
-  my ($text) = @_;
-  return $text =~ m/^(?: {0,3}\t| {4})/;
+  return indented(4, $_[0]);
+}
+
+sub indented {
+  my ($n, $text) = @_;
+  my $t = int($n / 4);
+  my $s = $n % 4;
+  for my $i (1 .. $t) {
+    return unless $text =~ m/\G(?: {0,3}\t| {4})/g;
+  }
+  return 1 if $text =~ m/\G(?: {$s}| *\t)/;
+  return;
 }
 
 # Performs the normalization described in:

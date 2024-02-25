@@ -56,4 +56,15 @@ is(indented_one_tab("xxx    abc"), F(), 'indented_one_tab3');
 is(indented_one_tab("\tabc"), T(), 'indented_one_tab4');
 is(indented_one_tab("  \tabc"), T(), 'indented_one_tab5');
 
+is(indented(2, 'foo'), F(), 'indented1');
+is(indented(2, ' foo'), F(), 'indented2');
+is(indented(2, '  foo'), T(), 'indented3');
+is(indented(2, '    foo'), T(), 'indented4');
+is(indented(2, "\tfoo"), T(), 'indented5');
+is(indented(0, "\tfoo"), T(), 'indented6');
+is(indented(0, "foo"), T(), 'indented7');
+is(indented(5, "\t\tfoo"), T(), 'indented8');
+is(indented(5, "     foo"), T(), 'indented9');
+is(indented(5, "    foo"), F(), 'indented10');
+
 done_testing;
