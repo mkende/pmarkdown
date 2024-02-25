@@ -11,6 +11,7 @@ use English;
 use List::MoreUtils 'first_index', 'last_index';
 use List::Util 'min';
 use Markdown::Perl::InlineTree ':all';
+use Markdown::Perl::Util 'normalize_label';
 
 our $VERSION = 0.01;
 
@@ -54,7 +55,7 @@ my $html_attribute_name_re = qr/[a-zA-Z_:][-a-zA-Z0-9_.:]*/;
 my $html_space_re = qr/\n[ \t]*|[ \t][ \t]*\n?[ \t]*/;  # Spaces, tabs, and up to one line ending.
 my $opt_html_space_re = qr/[ \t]*\n?[ \t]*/;  # Optional spaces.
 my $html_attribute_value_re = qr/[^ \t\n"'=<>`]+|'[^']*'|"[^"]*"/;
-my $html_attribute_re = qr/${html_space_re}${html_attribute_name_re}${opt_html_space_re}=${opt_html_space_re}${html_attribute_value_re}/;
+my $html_attribute_re = qr/${html_space_re}${html_attribute_name_re}(?:${opt_html_space_re}=${opt_html_space_re}${html_attribute_value_re})?/;
 
 my $html_open_tag_re = qr/${html_tag_name_re}${html_attribute_re}*${opt_html_space_re}\/?/;
 my $html_close_tag_re = qr/\/${html_tag_name_re}${opt_html_space_re}/;
@@ -215,7 +216,7 @@ sub process_links {
         if (exists $target{collapsed_ref}) {
           # We have a syntax that might be a shortcut reference link or a
           # collapsed reference link. We check if we have a matching label.
-          my $ref = $tree->span_to_text($open[0], $open[2], $close[0], $close[1]);
+          my $ref = normalize_label($tree->span_to_text($open[0], $open[2], $close[0], $close[1]));
           if (exists $that->{linkrefs}{$ref}) {
             $closure_length += $target{collapsed_ref};
             %target = %{$that->{linkrefs}{$ref}};
@@ -412,7 +413,7 @@ sub parse_reference_link {
   my $ref_start = $start[3];
 
   if (my @end_ref = $tree->find_in_text(qr/]/, $cur_child, $start[3])) {
-    my $ref = $tree->span_to_text(@start[2,3], @end_ref[0,1]);
+    my $ref = normalize_label($tree->span_to_text(@start[2,3], @end_ref[0,1]));
     # TODO: normalize the ref
     if (exists $that->{linkrefs}{$ref}) {
       $tree->extract(@start[0,1], @end_ref[0,2]);

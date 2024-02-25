@@ -15,7 +15,7 @@ use List::MoreUtils 'first_index';
 use List::Util 'pairs';
 use Markdown::Perl::Inlines;
 use Markdown::Perl::HTML 'html_escape';
-use Markdown::Perl::Util 'split_while', 'remove_prefix_spaces', 'indented_one_tab', 'indent_size';
+use Markdown::Perl::Util 'split_while', 'remove_prefix_spaces', 'indented_one_tab', 'indent_size', 'normalize_label';
 use Scalar::Util 'blessed';
 
 use parent 'Markdown::Perl::Options';
@@ -279,7 +279,7 @@ my $html_attribute_name_re = qr/[a-zA-Z_:][-a-zA-Z0-9_.:]*/;
 my $html_space_re = qr/\n[ \t]*|[ \t][ \t]*\n?[ \t]*/;  # Spaces, tabs, and up to one line ending.
 my $opt_html_space_re = qr/[ \t]*\n?[ \t]*/;  # Optional spaces.
 my $html_attribute_value_re = qr/[^ \t\n"'=<>`]+|'[^']*'|"[^"]*"/;
-my $html_attribute_re = qr/${html_space_re}${html_attribute_name_re}${opt_html_space_re}=${opt_html_space_re}${html_attribute_value_re}/;
+my $html_attribute_re = qr/${html_space_re}${html_attribute_name_re}(?:${opt_html_space_re}=${opt_html_space_re}${html_attribute_value_re})?/;
 my $html_open_tag_re = qr/<${html_tag_name_re}${html_attribute_re}*${opt_html_space_re}\/?>/;
 my $html_close_tag_re = qr/<\/${html_tag_name_re}${opt_html_space_re}>/;
 
@@ -626,7 +626,8 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
         $link_ref{TARGET} =~ s/^<(.*)>$/$1/;
         # TODO: normalize the label
         # TODO: option to keep the last appearance istead of the first one.
-        $this->{linkrefs}{$link_ref{LABEL}} = { target => $link_ref{TARGET}, (exists $link_ref{TITLE} ? ('title', $link_ref{TITLE}) : ())};
+        $this->{linkrefs}{normalize_label($link_ref{LABEL})} = 
+          { target => $link_ref{TARGET}, (exists $link_ref{TITLE} ? ('title', $link_ref{TITLE}) : ())};
         return;
       }
       # Pass-through intended.

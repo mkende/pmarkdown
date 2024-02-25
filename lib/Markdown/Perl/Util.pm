@@ -7,10 +7,11 @@ use feature ':5.24';
 
 use Exporter 'import';
 use List::MoreUtils 'first_index';
+use Unicode::CaseFold 'fc';
 
 our $VERSION = 0.01;
 
-our @EXPORT_OK = qw(split_while remove_prefix_spaces indent_size indented_one_tab horizontal_size);
+our @EXPORT_OK = qw(split_while remove_prefix_spaces indent_size indented_one_tab horizontal_size normalize_label);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 # Partition a list into a continuous chunk for which the given code evaluates to
@@ -75,6 +76,16 @@ sub horizontal_size {
 sub indented_one_tab {
   my ($text) = @_;
   return $text =~ m/^(?: {0,3}\t| {4})/;
+}
+
+# Performs the normalization described in:
+# https://spec.commonmark.org/0.31.2/#matches
+sub normalize_label {
+  my ($label) = @_;
+  $label = fc($label);
+  $label =~ s/^[ \t\n]+|[ \t\n]+$//g;
+  $label =~ s/[ \t\n]+|[\t\n]/ /g;
+  return $label;
 }
 
 1;
