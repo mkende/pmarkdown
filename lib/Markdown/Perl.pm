@@ -592,12 +592,20 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     my $init_pos = $this->get_pos();
     $this->redo_line();
     my $start_pos = $this->get_pos();
+
+    # We consume the prefix of enclosing blocks until we find the marker that we
+    # know is there. This won’t work if we accept task list markers in the
+    # future.
+    # This also won’t work to consume markers of subsequent lines of the link
+    # reference definition.
+    # TOOD: fix these two bugs above (hard!).
+    $this->{md} =~ m/\G.*?\[/g;
+
     # TODO:
     # - Support for escaped or balanced parenthesis in naked destination
     # - break this up in smaller pieces and test them independantly.
     if ($this->{md} =~ m/\G
-        [ ]{0,3}                                              # initial optional spaces
-        \[ (?>(?<LABEL>                                       # The link label (in square brackets), matched as an atomic group
+        (?>(?<LABEL>                                       # The link label (in square brackets), matched as an atomic group
           (?:
             [^\\\]]{0,100} (?:(?:\\\\)* \\ .)?                # The label cannot contain unescaped ]
             # With 5.38 this could be (?(*{ ...}) (*FAIL))  which will be more efficient.

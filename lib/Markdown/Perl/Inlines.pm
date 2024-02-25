@@ -216,7 +216,8 @@ sub process_links {
         if (exists $target{collapsed_ref}) {
           # We have a syntax that might be a shortcut reference link or a
           # collapsed reference link. We check if we have a matching label.
-          my $ref = normalize_label($tree->span_to_text($open[0], $open[2], $close[0], $close[1]));
+          my $ref = $tree->span_to_text($open[0], $open[2], $close[0], $close[1]);
+          $ref = normalize_label($ref) if $ref;
           if (exists $that->{linkrefs}{$ref}) {
             $closure_length += $target{collapsed_ref};
             %target = %{$that->{linkrefs}{$ref}};
