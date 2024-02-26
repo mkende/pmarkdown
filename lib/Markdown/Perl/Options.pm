@@ -122,7 +122,7 @@ sub _regex {
 
 =pod
 
-=head2 B<fenced_code_blocks_must_be_closed> I<(boolean, default: false)>
+=head2 B<fenced_code_blocks_must_be_closed> I<(boolean, default: true)>
 
 By default, a fenced code block with no closing fence will run until the end of
 the document. With this setting, the opening fence will be treated as normal

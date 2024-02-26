@@ -237,14 +237,20 @@ sub _restore_parent_block {
 sub _test_lazy_continuation {
   my ($this, $l) = @_;
   return unless @{$this->{paragraph}};
-  my $tester = new(ref($this), %{$this->{options}}, %{$this->{local_options}});
-  $tester->{paragraph} = [@{$this->{paragraph}}];
+  my $tester = new(ref($this), ($this->{mode} ? (mode => $this->{mode}) : ()), %{$this->{options}}, %{$this->{local_options}});
+  $tester->{md} = '';
+  pos($tester->{md}) = 0;
+  # What is a paragraph depends on whether we already have a paragraph or not.
+  $tester->{paragraph} = [@{$this->{paragraph}} ? ('foo') : ()];
   # We use this field both in the tester and in the actual object when we
   # matched a lazy continuation.
   $tester->{is_lazy_continuation} = 1;
   # We’re ignoring the eol of the original line as it should not affect parsing.
   $tester->_parse_blocks($l);
-  if (@{$tester->{paragraph}} > @{$this->{paragraph}}) {
+  # BUG: there is a bug here which is that a construct like a fenced code block
+  # or a link ref definition, whose validity depends on more than one line,
+  # might be mis-classified. The probability of that is low.
+  if (@{$tester->{paragraph}}) {
     $this->{is_lazy_continuation} = 1;
     return 1;
   }

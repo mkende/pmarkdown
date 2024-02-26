@@ -29,4 +29,11 @@ todo 'Container block markers are not processed in subsequent lines of link refe
   is(run("[foo]\n\n> [foo]:\n> /url\n"), "<p><a href=\"/url\">foo</a></p>\n<blockquote>\n<blockquote>\n", 'multi-line link reference definition in container block');
 };
 
+todo 'Multi-line constructs mis-categorized as lazy paragraph continuation' => sub {
+  is(run("> foo\n[ref]:\n/url\n"), "<blockquote>\n<p>foo\n</p></blockquote>\n<pre><code>bar\n</code></pre>\n", 'link reference definition is not lazy');
+  # Note that this fails only when the fenced_code_blocks_must_be_closed option
+  # is set to true (our default, but not the cmark default).
+  is(run("> foo\n```\nbar\n```"), "<blockquote>\n<p>foo</p>\n</blockquote>\n<pre><code>bar\n</code></pre>\n", 'fenced code is not lazy');  
+};
+
 done_testing;
