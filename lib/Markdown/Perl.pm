@@ -558,7 +558,9 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
           $_ = remove_prefix_spaces($indent, $_);
           return 1;
         }
-        return ($l !~ m/${list_item_re}/ && $this->_test_lazy_continuation($_))
+        # TODO: we probably don’t need to test the list_item_re case here, just
+        # the lazy continuation and the emptiness is enough.
+        return ($_ !~ m/${list_item_re}/ && $this->_test_lazy_continuation($_))
             || $_ eq '';
       };
       my $forced_next_line = undef;
