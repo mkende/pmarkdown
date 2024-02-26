@@ -515,7 +515,7 @@ sub classify_flank {
   return 'punct' if $node->{type} ne 'text' && $node->{type} ne 'literal';
   my $space_re = $side eq 'left' ? qr/\s$/u : qr/^\s/u;
   return 'space' if $node->{content} =~ m/${space_re}/;
-  my $punct_re = $side eq 'left' ? qr/\p{Punct}$/u : qr/^\p{Punct}/u;
+  my $punct_re = $side eq 'left' ? qr/[\p{Punct}\p{Symbol}]$/u : qr/^[\p{Punct}\p{Symbol}]/u;
   return 'punct' if $node->{content} =~ m/${punct_re}/;
   return 'none';
 }

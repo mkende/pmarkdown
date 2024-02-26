@@ -67,7 +67,11 @@ sub html_escape {
 
 sub http_escape {
   utf8::encode($_[0]);
-  $_[0] =~ s/([ \\\[\]\x80-\xff])/sprintf('%%%02X', ord($1))/ge;
+  # TODO: there are more characters that need to be escaped here, but it’s not
+  # extremely clear which ones (the spec does a show of pretending to care only
+  # only about parsing, but the conformance test suite expect something quite
+  # specific. See: https://spec.commonmark.org/0.31.2/#example-502
+  $_[0] =~ s/([ \\\[\]\x80-\xff`])/sprintf('%%%02X', ord($1))/ge;
   return;
 }
 
