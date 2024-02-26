@@ -668,7 +668,9 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
   # https://spec.commonmark.org/0.30/#blank-lines
   # if ($l eq '')
   $this->_finalize_paragraph();
-  $this->{last_line_is_blank} = 1;  # Needed to detect loose lists.
+  # Needed to detect loose lists. But ignore blank lines when they are inside
+  # block quotes
+  $this->{last_line_is_blank} =  !@{$this->{blocks_stack}} || $this->{blocks_stack}[-1]{block}{type} ne 'quotes';
   return;
 }
 
