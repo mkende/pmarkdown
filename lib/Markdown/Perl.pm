@@ -542,11 +542,18 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     } else {
       # in the current implementation, $text_indent is enough to know if $text
       # is matching $indented_code_re, but let’s not depend on that.
-      my $discard_text_indent = $text =~ m/^[ \t]*$/ || indented(4 + 1, $text);  # 4 + 1 is an indented code block, plus the required space after marker.
+      my $first_line_blank = $text =~ m/^[ \t]*$/;
+      my $discard_text_indent = $first_line_blank || indented(4 + 1, $text);  # 4 + 1 is an indented code block, plus the required space after marker.
       my $indent_inside = $discard_text_indent ? 1 : $text_indent;
       my $indent_marker = length($indent_outside) + length($marker);
       my $indent = $indent_inside + $indent_marker;
       my $cond = sub {
+        if ($first_line_blank && $_ =~ m/^[ \t]*$/) {
+          # A list item can start with at most one blank line
+          return 0;
+        } else {
+          $first_line_blank = 0;
+        }
         if (indent_size($_) >= $indent) {
           $_ = remove_prefix_spaces($indent, $_);
           return 1;
@@ -555,7 +562,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
             || $_ eq '';
       };
       my $forced_next_line = undef;
-      if ($text !~ m/^[ \t]*$/) {
+      if (!$first_line_blank) {
         # We are doing a weird compensation for the fact that we are not
         # processing the condition and to correctly handle the case where the
         # list marker was followed by tabs.
