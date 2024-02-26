@@ -570,7 +570,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
         type => 'list_item',
         style => $type,
         marker => $symbol // $marker,
-        num => $digits
+        num => int($digits)
       };
       $item->{loose} =
           $this->_list_match($item) && $this->{last_line_was_blank};
