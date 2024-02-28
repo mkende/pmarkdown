@@ -58,7 +58,7 @@ my $html_open_tag_re = qr/${html_tag_name_re}${html_attribute_re}*${opt_html_spa
 my $html_close_tag_re = qr/\/${html_tag_name_re}${opt_html_space_re}/;
 my $html_comment_re = qr/!--|!---|!--.*?--/m;
 my $html_proc_re = qr/\?.*?\?/m;
-my $html_decl_re = qr/!.*?/m;
+my $html_decl_re = qr/![a-zA-Z].*?/m;
 my $html_cdata_re = qr/!\[CDATA\[.*?\]\]/m;
 
 my $html_tag_re = qr/${html_open_tag_re}|${html_close_tag_re}|${html_comment_re}|${html_proc_re}|${html_decl_re}|${html_cdata_re}/;

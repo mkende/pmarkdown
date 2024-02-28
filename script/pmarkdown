@@ -32,7 +32,6 @@ my $input;
 }
 
 binmode STDOUT, ':encoding(UTF-8)';
-my $out = $pmark->convert($input);
 print $pmark->convert($input);
 
 __DATA__
