@@ -42,9 +42,6 @@ sub render {
 
   my $out = $tree->render_html();
 
-  # We remove white-space at the beginning and end of the lines.
-  # TODO: maybe this could be done more efficiently earlier in the processing?
-  $out =~ s/(?:^[ \t]+)|(?:[ \t]+$)//gm;
   return $out;
 }
 

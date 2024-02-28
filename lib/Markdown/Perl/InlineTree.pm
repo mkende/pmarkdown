@@ -579,10 +579,18 @@ sub render_node_html {
   my ($n, $acc) = @_;
 
   if ($n->{type} eq 'text') {
-    # TODO: Maybe we should not do that on the last newline of the string?
     decode_entities($n->{content});
     html_escape($n->{content});
+    # TODO: Maybe we should not do that on the last newline of the string?
+    # BUG: indeed the reference implementation won’t do it at the end of a
+    # paragraph but the test suite does not test that. The problem is that here
+    # we don’t know if we’re at the end of a paragraph or not.
     $n->{content} =~ s{(?: {2,}|\\)\n}{<br />\n}g;
+    # BUG: similarly, We should also remove the spaces at the beginning of the
+    # paragraph, but the beginning of the string is maybe not the beginning of
+    # the paragraph (I guess this could be solved by some markers in the node
+    # specifying that they are the first or last in the tree).
+    $n->{content} =~ s/(\n|\r) +/$1/g;
     return $acc.$n->{content};
   } elsif ($n->{type} eq 'literal') {
     html_escape($n->{content});
