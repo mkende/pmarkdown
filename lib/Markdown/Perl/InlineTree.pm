@@ -77,7 +77,9 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
       } else {
         die "Unexpected content for inline ${type} node: ".ref($content);
       }
-      die 'Missing required option "target" for inline line node' unless exists $options{target};
+      die 'Missing required option "type" for inline link node' unless exists $options{type};
+      hashpush %{$this}, linktype => delete $options{type};
+      die 'Missing required option "target" for inline link node' unless exists $options{target};
       hashpush %{$this}, target => delete $options{target};
       hashpush %{$this}, title => delete $options{title} if exists $options{title};
       die 'Unexpected parameters for inline link node: '.join(', ', %options) if keys %options;
@@ -115,8 +117,8 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
 
   my $text_node = new_text('text content');
   my $code_node = new_code('code content');
-  my $link_node = new_link('text content', target => 'the target'[, title => 'the title']);
-  my $link_node = new_link($subtree_content, target => 'the target'[, title => 'the title']);
+  my $link_node = new_link('text content', type=> 'type', target => 'the target'[, title => 'the title']);
+  my $link_node = new_link($subtree_content, type=> 'type', target => 'the target'[, title => 'the title']);
   my $html_node = new_html('<raw html content>');
   my $style_node = new_literal($subtree_content, 'html_tag');
   my $literal_node = new_literal('literal content');
@@ -578,6 +580,9 @@ sub render_html {
 sub render_node_html {
   my ($n, $acc) = @_;
 
+  # TODO: all the decoding and escaping should be moved to class methods of the
+  # node, to be done once at a clear point.
+
   if ($n->{type} eq 'text') {
     decode_entities($n->{content});
     html_escape($n->{content});
@@ -606,17 +611,17 @@ sub render_node_html {
     html_escape($n->{content});
     return $acc.'<code>'.$n->{content}.'</code>';
   } elsif ($n->{type} eq 'link') {
-    if (exists $n->{content}) {
-      # This is an autolink, we don’t decode entities as these are treated like
-      # html construct.
+    if ($n->{linktype} eq 'autolink') {
+      # For autolinks we don’t decode entities as these are treated like html
+      # construct.
       html_escape($n->{content});
       http_escape($n->{target});
       html_escape($n->{target});
       return $acc.'<a href="'.($n->{target}).'">'.($n->{content}).'</a>';
-    } else {
+    } elsif ($n->{linktype} eq 'link') {
       # This is a real MD link definition. The target and title have been
-      # generated through the to_text() method, so they are already decoded and
-      # html_escaped
+      # generated through the to_source_text() method, so they need to be
+      # decoded and html_escaped
       my $title = '';
       if (exists $n->{title}) {
         decode_entities($n->{title});
@@ -628,6 +633,21 @@ sub render_node_html {
       http_escape($n->{target});
       html_escape($n->{target});
       return $acc."<a href=\"$n->{target}\"${title}>${content}</a>";
+    } elsif ($n->{linktype} eq 'img') {
+      # TODO: share code with the normal links.
+      my $title = '';
+      if (exists $n->{title}) {
+        decode_entities($n->{title});
+        html_escape($n->{title});
+        $title = " title=\"$n->{title}\"";
+      }
+      my $content = $n->{subtree}->to_text();
+      decode_entities($n->{target});
+      http_escape($n->{target});
+      html_escape($n->{target});
+      return $acc."<img src=\"$n->{target}\"${title} alt=\"${content}\" />";
+    } else {
+      die 'Unexpected link type in render_node_html: '.$n->{linktype};
     }
   } elsif ($n->{type} eq 'style') {
     my $content = $n->{subtree}->render_html();
@@ -649,6 +669,31 @@ This is used mainly to produce the C<alt> text of image nodes (which can contain
 any Markdown construct in the source).
 
 =cut
+
+sub to_text {
+  my ($tree) = @_;
+  return $tree->fold(\&node_to_text, '');
+}
+
+sub node_to_text {
+  my ($n, $acc) = @_;
+  if ($n->{type} eq 'text') {
+    decode_entities($n->{content});
+    html_escape($n->{content});
+    return $acc.$n->{content};
+  } elsif ($n->{type} eq 'style') {
+    return $acc.$n->{subtree}->to_text();
+  } elsif ($n->{type} eq 'literal' || $n->{type} eq 'html') {
+    # This is somehow buggy as the content inline html is not escaped at all.
+    # But this matches what cmark does...
+    return $acc.$n->{content};
+  } elsif ($n->{type} eq 'code') {
+    html_escape($n->{content});
+    return $acc.'<code>'.$n->{content}.'</code>';
+  } else {
+    die 'Unsupported node type for to_text: '.$n->{type};
+  }
+}
 
 =pod
 
@@ -683,9 +728,6 @@ sub node_to_source_text {
   my ($unescape_literal) = @_;
   return sub {
     my ($n, $acc) = @_;
-    # TODO: consider if html_escaping should not be done here (and instead be done
-    # when we render link target and title, which are the main place where this
-    # is used).
     if ($n->{type} eq 'text') {
       return $acc.$n->{content};
     } elsif ($n->{type} eq 'literal' && $unescape_literal) {

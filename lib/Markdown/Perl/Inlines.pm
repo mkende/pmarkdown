@@ -107,12 +107,12 @@ sub find_code_and_tag_runs {
       if ($text =~ m/\G(?<link>${re})>/) {
         $tree->push(new_text(substr($text, 0, $start_before)))
             if $start_before > 0;
-        $tree->push(new_link($+{link}, target => $+{link}, debug => 'autolink'));
+        $tree->push(new_link($+{link}, type=> 'autolink', target => $+{link}));
         substr $text, 0, $+[0], '';  # This resets pos($text) as we want it to.
       } elsif ($text =~ m/\G(?<link>${email_re})>/) {
         $tree->push(new_text(substr($text, 0, $start_before)))
             if $start_before > 0;
-        $tree->push(new_link($+{link}, target => 'mailto:'.$+{link}, debug => 'autolink'));
+        $tree->push(new_link($+{link}, type => 'autolink', target => 'mailto:'.$+{link}));
         substr $text, 0, $+[0], '';  # This resets pos($text) as we want it to.
       } elsif ($text =~ m/\G(?:${html_tag_re})>/) {
         # This resets pos($text) as we want it to.
@@ -173,8 +173,9 @@ sub process_links {
   my ($that, $tree, $child_start, $text_start, $start_child_bound, $start_text_bound) = @_;
 
   my @open =
-      $tree->find_in_text(qr/\[/, $child_start, $text_start, $start_child_bound, $start_text_bound);
+      $tree->find_in_text(qr/!?\[/, $child_start, $text_start, $start_child_bound, $start_text_bound);
   return unless @open;
+  my $type = (($open[2] - $open[1]) > 1) ? 'img' : 'link';
   # TODO: add an argument here that recurse into sub-trees and returns false if
   # we cross a link element. However, at this stage, the only links that we
   # could find would be autolinks. Although it would make sense that the spec
@@ -191,6 +192,11 @@ sub process_links {
       # it. If we are a top-level call we try again after the end of the
       # inner-most link found (which was necessarily the left-most valid link.
       # If we are not the top-level call, we just propagate that bound.
+      # TODO: for images we should not abort the processing here, but instead
+      # still parse the link, this requires re-computing the coordinate of the
+      # closing bracket
+      # However, if we process the images inside the link and this image contain
+      # another link, we should still abort.
       return @ret if defined $start_child_bound;
       process_links($that, $tree, @ret);
       return;  # For top-level calls, we don’t care about the return value.
@@ -229,7 +235,7 @@ sub process_links {
             $tree->extract($open[0], $open[2], $close[0], $close[1]);
         my (undef, $dest_node_index) =
             $tree->extract($open[0], $open[1], $open[0] + 1, $closure_length);
-        my $link = new_link($text_tree, %target);
+        my $link = new_link($text_tree, type => $type, %target);
         $tree->insert($dest_node_index, $link);
         # If we are not a top-level call, we return the coordinate where to
         # start looking again for a link.
