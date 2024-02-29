@@ -71,7 +71,7 @@ sub http_escape {
   # extremely clear which ones (the spec does a show of pretending to care only
   # only about parsing, but the conformance test suite expect something quite
   # specific. See: https://spec.commonmark.org/0.31.2/#example-502
-  $_[0] =~ s/([ \\\[\]\x80-\xff`])/sprintf('%%%02X', ord($1))/ge;
+  $_[0] =~ s/([ \\\[\]\x80-\xff`""])/sprintf('%%%02X', ord($1))/ge;
   return;
 }
 

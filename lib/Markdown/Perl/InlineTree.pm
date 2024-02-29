@@ -610,8 +610,8 @@ sub render_node_html {
       # This is an autolink, we don’t decode entities as these are treated like
       # html construct.
       html_escape($n->{content});
-      html_escape($n->{target});
       http_escape($n->{target});
+      html_escape($n->{target});
       return $acc.'<a href="'.($n->{target}).'">'.($n->{content}).'</a>';
     } else {
       # This is a real MD link definition. The target and title have been
@@ -619,10 +619,14 @@ sub render_node_html {
       # html_escaped
       my $title = '';
       if (exists $n->{title}) {
+        decode_entities($n->{title});
+        html_escape($n->{title});
         $title = " title=\"$n->{title}\"";
       }
       my $content = $n->{subtree}->render_html();
+      decode_entities($n->{target});
       http_escape($n->{target});
+      html_escape($n->{target});
       return $acc."<a href=\"$n->{target}\"${title}>${content}</a>";
     }
   } elsif ($n->{type} eq 'style') {
@@ -683,21 +687,13 @@ sub node_to_source_text {
     # when we render link target and title, which are the main place where this
     # is used).
     if ($n->{type} eq 'text') {
-      decode_entities($n->{content});
-      html_escape($n->{content});
       return $acc.$n->{content};
     } elsif ($n->{type} eq 'literal' && $unescape_literal) {
       return $acc.'\\'.$n->{content};
     } elsif ($n->{type} eq 'literal' || $n->{type} eq 'html') {
-      # TODO: this should be the original string, stored somewhere in the node.
-      # (to follow the rules to match link-reference name).
-      # Note: here we do escapethe content, even for raw-html, because this will
-      # not be used in HTML context.
-      html_escape($n->{content});
       return $acc.$n->{content};
     } elsif ($n->{type} eq 'code') {
-      # TODO: Do we really need this branch? If so, is the treatment correct?
-      html_escape($n->{content});
+      # TODO: This also need to be the source string with the right delimiters.
       return $acc.'<code>'.$n->{content}.'</code>';
     } else {
       die 'Unsupported node type for to_source_text: '.$n->{type};

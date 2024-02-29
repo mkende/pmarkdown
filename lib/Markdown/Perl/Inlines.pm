@@ -132,8 +132,8 @@ sub process_char_escaping {
 
   # This is executed after
   if ($node->{type} eq 'code' || $node->{type} eq 'link') {
-    # If the node is a link with a sub-tree, the map() method in which we are
-    # will recurse in the content automatically.
+    # At this stage, link nodes are only autolinks, in which back-slash escaping
+    # is not processed.
     return $node;
   } elsif ($node->{type} eq 'text') {
     # TODO: with the current code for map, this could just be @nodes.
