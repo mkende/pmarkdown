@@ -15,6 +15,8 @@ use Markdown::Perl::Util 'normalize_label';
 
 our $VERSION = 0.01;
 
+
+
 # Everywhere here, $that is a Markdown::Perl instance that we carry everywhere
 # because it contains the options that we are using.
 sub render {
@@ -137,23 +139,16 @@ sub process_char_escaping {
     # TODO: with the current code for map, this could just be @nodes.
     my $new_tree = Markdown::Perl::InlineTree->new();
     while ($node->{content} =~ m/\\(\p{PosixPunct})/g) {
-      # TODO, BUG: We are introducing a bug here, due to the fact that when we parse
-      # reference links, we should compare the exact string and not the decoded
-      # ones. See: https://spec.commonmark.org/dingus/?text=%5Bb%60ar%60%3C%5D%0A%0A%5Bb%60ar%60%26lt%3B%5D%3Afoo%0A
-      # So we should still parse the literals here, but only decode the HTML
-      # entities later, after we have parsed the links.
-      # Literal parsing is OK because we can always invert it (and it makes the
-      # rest of the processing be much simpler because we don’t need to check
-      # whether we have escaped text or not).
-      # NOTE: We no longer decode HTML entities here, so the bug above should
-      # not exist.
-      # $new_tree->push(new_text(decode_entities(substr $node->{content}, 0, $LAST_MATCH_START[0])))
+      # Literal parsing is OK here (even if we will later create laber reference
+      # which distinguish between escaped and non-escaped literals) because we
+      # can always invert it (and it makes the rest of the processing be much
+      # simpler because we don’t need to check whether we have escaped text or
+      # not).
       $new_tree->push(new_text(substr $node->{content}, 0, $LAST_MATCH_START[0]))
           if $LAST_MATCH_START[0] > 0;
       $new_tree->push(new_literal($1));
       substr $node->{content}, 0, $LAST_MATCH_END[0], '';  # This resets pos($node->{content}) as we want it to.
     }
-    # $new_tree->push(new_text(decode_entities($node->{content})))
     $new_tree->push($node) if $node->{content};
     return $new_tree;
   } elsif ($node->{type} eq 'html') {
@@ -213,7 +208,7 @@ sub process_links {
         if (exists $target{collapsed_ref}) {
           # We have a syntax that might be a shortcut reference link or a
           # collapsed reference link. We check if we have a matching label.
-          my $ref = $tree->span_to_text($open[0], $open[2], $close[0], $close[1]);
+          my $ref = $tree->span_to_source_text($open[0], $open[2], $close[0], $close[1], UNESCAPE_LITERAL);
           $ref = normalize_label($ref) if $ref;
           if (exists $that->{linkrefs}{$ref}) {
             $closure_length += $target{collapsed_ref};
@@ -385,7 +380,7 @@ sub parse_inline_link {
   my $title;
   if (@title) {
     my $title_tree = $tree->extract(@title);
-    $title = $title_tree->to_text();
+    $title = $title_tree->to_source_text();
     my @last_item = (@target, @start);
     $tree->extract($last_item[2], $last_item[3], $title[0], $title[1]);
   }
@@ -393,7 +388,7 @@ sub parse_inline_link {
   my $target = '';  # We always want a target in the output.
   if (@target) {
     my $target_tree = $tree->extract(@target);
-    $target = $target_tree->to_text();
+    $target = $target_tree->to_source_text();
     $tree->extract($start[2], $start[3], $target[0], $target[1]);
   }
 
@@ -411,7 +406,7 @@ sub parse_reference_link {
   my $ref_start = $start[3];
 
   if (my @end_ref = $tree->find_in_text(qr/]/, $cur_child, $start[3])) {
-    my $ref = normalize_label($tree->span_to_text(@start[2,3], @end_ref[0,1]));
+    my $ref = normalize_label($tree->span_to_source_text(@start[2,3], @end_ref[0,1], UNESCAPE_LITERAL));
     # TODO: normalize the ref
     if (exists $that->{linkrefs}{$ref}) {
       $tree->extract(@start[0,1], @end_ref[0,2]);

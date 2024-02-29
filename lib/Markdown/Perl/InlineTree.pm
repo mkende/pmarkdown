@@ -16,7 +16,7 @@ use Scalar::Util 'blessed';
 
 our $VERSION = 0.01;
 
-our @EXPORT_OK = qw(new_text new_code new_link new_html new_style new_literal is_node is_tree);
+our @EXPORT_OK = qw(new_text new_code new_link new_html new_style new_literal is_node is_tree UNESCAPE_LITERAL);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 =pod
@@ -640,55 +640,85 @@ sub render_node_html {
 
   $tree->to_text();
 
-Returns the text content of this C<InlineTree>. Not all node types are supported
-and their handling is not specified here. This method is meant to be called
-during the creation of an C<InlineTree>, before all the processing as been done.
+Returns the text content of this C<InlineTree> discarding all HTML formatting.
+This is used mainly to produce the C<alt> text of image nodes (which can contain
+any Markdown construct in the source).
 
 =cut
 
-sub to_text {
-  my ($tree) = @_;
-  return $tree->fold(\&node_to_text, '');
-}
+=pod
 
-sub node_to_text {
-  my ($n, $acc) = @_;
-  # TODO: consider if html_escaping should not be done here (and instead be done
-  # when we render link target and title, which are the main place where this
-  # is used).
-  if ($n->{type} eq 'text') {
-    decode_entities($n->{content});
-    html_escape($n->{content});
-    return $acc.$n->{content};
-  } elsif ($n->{type} eq 'literal' || $n->{type} eq 'html') {
-    # TODO: this should be the original string, stored somewhere in the node.
-    # (to follow the rules to match link-reference name).
-    # Note: here we do escapethe content, even for raw-html, because this will
-    # not be used in HTML context.
-    html_escape($n->{content});
-    return $acc.$n->{content};
-  } elsif ($n->{type} eq 'code') {
-    # TODO: Do we really need this branch? If so, is the treatment correct?
-    html_escape($n->{content});
-    return $acc.'<code>'.$n->{content}.'</code>';
-  } else {
-    die 'Unsupported node type for to_text: '.$n->{type};
-  }
-}
+=head2 to_source_text
 
-=head2 span_to_text
+  $tree->to_source_text($unescape_literal);
 
-  $tree->span_to_text($child_start, $text_start, $child_end, $text_end);
+Returns the original Markdown source corresponding to this C<InlineTree>. This
+is used to produce the reference label, target and title of link elements and so
+can support only node types that have a higher priority than links (nodes that
+may have been built already when this is called).
 
-Same as C<to_text()> but only renders the specified span of the C<InlineTree>.
+The source is returned as-is, the HTML entities are neither decoded nor escaped.
+
+If C<$unescape_literal> is true, then literal values that were escaped in the
+source are unescaped (e.g. C<\;>  will appear again as C<\;>). Otherwise they
+will just appear as their literal value (e.g. C<;>).
+
+As a readability facility, the C<UNESCAPE_LITERAL> symbol can be used to pass
+this option (with a value of C<1>).
 
 =cut
 
-sub span_to_text {
-  my ($tree, $child_start, $text_start, $child_end, $text_end) = @_;
+use constant UNESCAPE_LITERAL => 1;
+
+sub to_source_text {
+  my ($tree, $unescape_literal) = @_;
+  return $tree->fold(node_to_source_text($unescape_literal), '');
+}
+
+sub node_to_source_text {
+  my ($unescape_literal) = @_;
+  return sub {
+    my ($n, $acc) = @_;
+    # TODO: consider if html_escaping should not be done here (and instead be done
+    # when we render link target and title, which are the main place where this
+    # is used).
+    if ($n->{type} eq 'text') {
+      decode_entities($n->{content});
+      html_escape($n->{content});
+      return $acc.$n->{content};
+    } elsif ($n->{type} eq 'literal' && $unescape_literal) {
+      return $acc.'\\'.$n->{content};
+    } elsif ($n->{type} eq 'literal' || $n->{type} eq 'html') {
+      # TODO: this should be the original string, stored somewhere in the node.
+      # (to follow the rules to match link-reference name).
+      # Note: here we do escapethe content, even for raw-html, because this will
+      # not be used in HTML context.
+      html_escape($n->{content});
+      return $acc.$n->{content};
+    } elsif ($n->{type} eq 'code') {
+      # TODO: Do we really need this branch? If so, is the treatment correct?
+      html_escape($n->{content});
+      return $acc.'<code>'.$n->{content}.'</code>';
+    } else {
+      die 'Unsupported node type for to_source_text: '.$n->{type};
+    }
+  };
+}
+
+=head2 span_to_source_text
+
+  $tree->span_to_source_text($child_start, $text_start, $child_end, $text_end[, $unescape_literal]);
+
+Same as C<to_source_text()> but only renders the specified span of the
+C<InlineTree>.
+
+=cut
+
+sub span_to_source_text {
+  my ($tree, $child_start, $text_start, $child_end, $text_end, $unescape_literal) = @_;
   my $copy = $tree->clone($child_start, $child_end);
   my $extract = $copy->extract(0, $text_start, $child_end - $child_start, $text_end);
-  return $extract->to_text();
+  return $extract->to_source_text($unescape_literal);
 }
 
 1;
