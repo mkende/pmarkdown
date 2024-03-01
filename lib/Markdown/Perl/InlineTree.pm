@@ -687,6 +687,8 @@ sub node_to_text {
     # This is somehow buggy as the content inline html is not escaped at all.
     # But this matches what cmark does...
     return $acc.$n->{content};
+  } elsif ($n->{type} eq 'link' && $n->{linktype} ne 'autolink') {
+    return $acc.$n->{subtree}->to_text();
   } elsif ($n->{type} eq 'code') {
     html_escape($n->{content});
     return $acc.'<code>'.$n->{content}.'</code>';

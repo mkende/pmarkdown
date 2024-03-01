@@ -34,6 +34,7 @@ sub render {
   # children.
 
   process_links($that, $tree, 0, 0);  # We start at the beginning of the first node.
+  process_images($that, $tree);
 
   # Now, there are more link elements and they can have children instead of
   # content.
@@ -176,8 +177,9 @@ sub process_links {
   my ($that, $tree, $child_start, $text_start, $start_child_bound, $start_text_bound) = @_;
 
   my @open =
-      $tree->find_in_text(qr/!?\[/, $child_start, $text_start, $start_child_bound, $start_text_bound);
+      $tree->find_in_text(qr/(?<!!)\[/, $child_start, $text_start, $start_child_bound, $start_text_bound);
   return unless @open;
+  # TODO: here type is always link, remove this object.
   my $type = (($open[2] - $open[1]) > 1) ? 'img' : 'link';
   # TODO: add an argument here that recurse into sub-trees and returns false if
   # we cross a link element. However, at this stage, the only links that we
@@ -192,14 +194,16 @@ sub process_links {
     # link (if so, we won’t process the current one).
     if (my @ret = process_links($that, $tree, $open[0], $open[2], $close[0], $close[1])) {
       # We found a link within our bounds, so we don’t create a new link around
-      # it. If we are a top-level call we try again after the end of the
+      # it. But we do create an image. To do so, we restart our current
+      # processing as we need to recompute the coordinate of the closing
+      # brackets (and also, there might be other links to process within these
+      # bounds).
+      if ($type eq  'img') {
+        return process_links($that, $tree, @open[0, 1], $start_child_bound, $start_text_bound);
+      }
+      # If we are a top-level call we try again after the end of the
       # inner-most link found (which was necessarily the left-most valid link.
       # If we are not the top-level call, we just propagate that bound.
-      # TODO: for images we should not abort the processing here, but instead
-      # still parse the link, this requires re-computing the coordinate of the
-      # closing bracket
-      # However, if we process the images inside the link and this image contain
-      # another link, we should still abort.
       return @ret if defined $start_child_bound;
       process_links($that, $tree, @ret);
       return;  # For top-level calls, we don’t care about the return value.
@@ -211,33 +215,12 @@ sub process_links {
       # assume that the inner one is defined by the link text and not by the
       # destination.
 
-      my %target = find_link_destination_and_title($that, $tree, $close[0], $close[2]);
+      my @text_span = ($open[0], $open[2], $close[0], $close[1]);
+      my %target = find_link_destination_and_title($that, $tree, $close[0], $close[2], @text_span);
       if (%target) {
-        my $closure_length = 1;
-        if (exists $target{collapsed_ref}) {
-          # We have a syntax that might be a shortcut reference link or a
-          # collapsed reference link. We check if we have a matching label.
-          my $ref = $tree->span_to_source_text($open[0], $open[2], $close[0], $close[1], UNESCAPE_LITERAL);
-          $ref = normalize_label($ref) if $ref;
-          if (exists $that->{linkrefs}{$ref}) {
-            $closure_length += $target{collapsed_ref};
-            %target = %{$that->{linkrefs}{$ref}};
-            # pass-through intended.
-          } else {
-            # TODO: have more functions, to share this block with the else of
-            # the `if (%target)` alternation.
-            #
-            # We could not match a link target, so this is not a link at all.
-            # We continue the search just after our initial opening bracket.
-            # We do the same call whether or not we are a top-level call.
-            return process_links($that, $tree, $open[0], $open[2],
-              $start_child_bound, $start_text_bound);
-          }
-        }
-        my $text_tree =
-            $tree->extract($open[0], $open[2], $close[0], $close[1]);
+        my $text_tree = $tree->extract(@text_span);
         my (undef, $dest_node_index) =
-            $tree->extract($open[0], $open[1], $open[0] + 1, $closure_length);
+            $tree->extract($open[0], $open[1], $open[0] + 1, 1);
         my $link = new_link($text_tree, type => $type, %target);
         $tree->insert($dest_node_index, $link);
         # If we are not a top-level call, we return the coordinate where to
@@ -266,8 +249,37 @@ sub process_links {
   }
 }
 
+sub process_images {
+  my ($that, $tree) = @_;
+
+  my @pos = (0, 0);
+  while (my @open = $tree->find_in_text(qr/!\[/, @pos)) {
+    my @close = $tree->find_balanced_in_text(qr/\[/, qr/\]/, $open[0], $open[2]);
+    my @text_span = ($open[0], $open[2], $close[0], $close[1]);
+    my %target = find_link_destination_and_title($that, $tree, $close[0], $close[2], @text_span);
+    if (%target) {
+      my $text_tree = $tree->extract(@text_span);
+      my (undef, $dest_node_index) =
+          $tree->extract($open[0], $open[1], $open[0] + 1, 1);
+      my $link = new_link($text_tree, type => 'img', %target);
+      $tree->insert($dest_node_index, $link);
+      @pos = ($dest_node_index + 1, 0);
+    } else {
+      @pos = ($open[0], $open[2]);
+    }
+  }
+
+  for my $n (@{$tree->{children}}) {
+    if ($n->{type} eq 'link' && $n->{linktype} ne 'autolink') {
+      process_images($that, $n->{subtree});
+    }
+  }
+}
+
+# @text_span is the span of the link definition text, used in case we have a
+# collapsed link reference call.
 sub find_link_destination_and_title {
-  my ($that, $tree, $child_start, $text_start) = @_;
+  my ($that, $tree, $child_start, $text_start, @text_span) = @_;
   # We assume that the beginning of the link destination must be just after the
   # link text and in the same child, as there can be no other constructs
   # in-between.
@@ -291,20 +303,33 @@ sub find_link_destination_and_title {
   my @start = ($child_start, $text_start, $child_start, $text_start + 1);
   # TODO: use find_in_text bounded (to work across child limit) (maybe not
   # really needed as this should never be a different child).
+  my $collapsed;
   if (substr($n->{content}, $text_start, 1) eq '(') {
     my @target = parse_inline_link($tree, @start);
     return @target if @target;
   } elsif (substr($n->{content}, $text_start, 2) eq '[]') {
     # https://spec.commonmark.org/0.31.2/#collapsed-reference-link
-    return ( collapsed_ref => 2);
+    $collapsed = 2;
+    # passthrough intended.
   } elsif (substr($n->{content}, $text_start, 1) eq '[') {
     my @target = parse_reference_link($that, $tree, @start);
     return @target if @target;
+    return;
   } else {
     # https://spec.commonmark.org/0.31.2/#shortcut-reference-link
-    return ( collapsed_ref => 0);
+    $collapsed = 0;
+    # passthrough intended.
   }
 
+  # TODO: assert defined(collapsed).
+  # We have a syntax that might be a shortcut reference link or a
+  # collapsed reference link. We check if we have a matching label.
+  my $ref = $tree->span_to_source_text(@text_span, UNESCAPE_LITERAL);
+  $ref = normalize_label($ref) if $ref;
+  if (exists $that->{linkrefs}{$ref}) {
+    $tree->extract($child_start, $text_start, $child_start, $text_start + $collapsed) if $collapsed;
+    return %{$that->{linkrefs}{$ref}};
+  }
   return;
 }
 
