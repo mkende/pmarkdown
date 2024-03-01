@@ -138,6 +138,9 @@ sub process_char_escaping {
   } elsif ($node->{type} eq 'text') {
     # TODO: with the current code for map, this could just be @nodes.
     my $new_tree = Markdown::Perl::InlineTree->new();
+    # TODO: make this regex configurable (the set of characters that can be
+    # escaped). Note that the regex has to be updated in Perl.pm unescape_char
+    # method too.
     while ($node->{content} =~ m/\\(\p{PosixPunct})/g) {
       # Literal parsing is OK here (even if we will later create laber reference
       # which distinguish between escaped and non-escaped literals) because we

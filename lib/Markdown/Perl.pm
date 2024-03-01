@@ -642,14 +642,18 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
         )?
         [ \t]*(:?\r\n|\n|\r|$)                                # The spec says that no characters can occur after the title, but it seems that whitespace is tolerated.
         /gx) {
-      # TODO: fail if the label does not contain non-whitespace character.
       my %link_ref = %+;
-      if ($link_ref{LABEL} =~ m/[^ \t\n]/) {
-        $link_ref{TITLE} =~ s/^.(.*).$/$1/s if exists $link_ref{TITLE};
-        $link_ref{TARGET} =~ s/^<(.*)>$/$1/;
-        # TODO: normalize the label
+      my $ref = normalize_label($link_ref{LABEL});
+      if ($ref ne '') {
         # TODO: option to keep the last appearance istead of the first one.
-        $this->{linkrefs}{normalize_label($link_ref{LABEL})} = 
+        return if exists $this->{linkrefs}{$ref};  # We keep the firts appearance of a label.
+        if (exists $link_ref{TITLE}) {
+          $link_ref{TITLE} =~ s/^.(.*).$/$1/s;
+          _unescape_char($link_ref{TITLE});
+        }
+        $link_ref{TARGET} =~ s/^<(.*)>$/$1/;
+        _unescape_char($link_ref{TARGET});
+        $this->{linkrefs}{$ref} = 
           { target => $link_ref{TARGET}, (exists $link_ref{TITLE} ? ('title', $link_ref{TITLE}) : ())};
         return;
       }
@@ -678,6 +682,12 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
   # block quotes
   $this->{last_line_is_blank} =  !@{$this->{blocks_stack}} || $this->{blocks_stack}[-1]{block}{type} ne 'quotes';
   return;
+}
+
+sub _unescape_char {
+  # TODO: configure the set of escapable character. Note that this regex is
+  # shared with Inlines.pm process_char_escaping.
+  $_[0] =~ s/\\(\p{PosixPunct})/$1/g;
 }
 
 sub _render_inlines {
