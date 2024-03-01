@@ -76,6 +76,11 @@ spelling:
 
 alltest: export EXTENDED_TESTING = 1
 alltest: test
+
+clean:: clean_coverdb
+
+clean_coverdb:
+\trm -fr cover_db
 MAKE_FRAGMENT
 
   return join "\n", @postamble;
@@ -85,3 +90,17 @@ MAKE_FRAGMENT
 # add to the generated Makefile.
 
 # End of the template. You can add custom content below this line.
+
+sub postamble {
+  return <<"EOF";
+profile:
+\t-perl -Ilib -d:NYTProf t/900-cmark-test-suite.t --fast
+\tnytprofhtml
+\t\@echo Profile is at `pwd`/nytprof/index.html
+
+clean:: clean_nytprof
+
+clean_nytprof:
+\trm -fr nytprof nytprof.out
+EOF
+}

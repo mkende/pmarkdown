@@ -22,7 +22,7 @@ on 'test' => sub {
 # Develop phase dependencies are usually not installed, this is what we want as
 # Devel::Cover has many dependencies.
 on 'develop' => sub {
-  requires 'Devel::Cover';
+  recommends 'Devel::Cover';
 };
 
 # End of the template. You can add custom content below this line.
@@ -35,4 +35,8 @@ on 'test' => sub {
   requires 'HTML::TreeBuilder';
   requires 'JSON';
   requires 'Test2::V0';
-}
+};
+
+on 'develop' => sub {
+  recommends 'Devel::NYTProf';
+};

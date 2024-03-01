@@ -22,3 +22,5 @@
 /TODO
 /*.tests
 __pycache__
+/nytprof.out
+/nytprof/
