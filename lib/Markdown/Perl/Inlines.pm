@@ -327,11 +327,28 @@ sub parse_inline_link {
 
   my $has_bracket = $tree->find_in_text(qr/</, $cur_child, $search_start, $cur_child, $search_start + 1);
 
+  # We have this variable early because we may be filling it soon if the link
+  # destination was already parsed as an autolink or an html element.
+  my $target = '';
+
   if ($has_bracket) {
     if (my @end_target = $tree->find_in_text(qr/>/, $cur_child, $search_start + 1)) {
       @target = ($cur_child, $search_start + 1, $end_target[0], $end_target[1]);
       return if $tree->find_in_text(qr/<|\n/, @target);
     }
+  } elsif (length($n->{content}) <= $search_start && @{$tree->{children}} > $cur_child && 
+           ($tree->{children}[$cur_child + 1]{type} eq 'html' || $tree->{children}[$cur_child + 1]{type} eq 'link')) {
+    # The element inside was already parsed as an autolink or an html element,
+    # we use it as-is for the link destination.
+    @target = ($cur_child + 1, 0, $cur_child + 2, 0);
+    my $link_node = $tree->{children}[$cur_child + 1];
+    if ($link_node->{type} eq 'html') {
+      $target = $link_node->{content};
+      $target =~ s/^<|>$//g;
+    } else {
+      $target = $link_node->{target};
+    }
+    return if $target =~ m/\n/;  # No new lines in link targets are allowed.
   } elsif (my @end_target = $tree->find_in_text_with_balanced_content(qr/\(/, qr/\)/, qr/[ [:cntrl:]]/, $cur_child, $search_start)) {
     @target = ($cur_child, $search_start, $end_target[0], $end_target[1]);
   }
@@ -394,10 +411,9 @@ sub parse_inline_link {
     $tree->extract($last_item[2], $last_item[3], $title[0], $title[1]);
   }
 
-  my $target = '';  # We always want a target in the output.
   if (@target) {
     my $target_tree = $tree->extract(@target);
-    $target = $target_tree->to_source_text();
+    $target = $target_tree->to_source_text() unless $target;
     $tree->extract($start[2], $start[3], $target[0], $target[1]);
   }
 
