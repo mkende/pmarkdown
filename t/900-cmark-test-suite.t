@@ -16,10 +16,11 @@ BEGIN {
 }
 
 my %filter;
-my $use_full_spec = 0;
+my $use_full_spec = 1;
 
-while (shift @ARGV) {
+while ($_ = shift) {
   %filter = (test_num => shift @ARGV) if /^-n$/;
+  $use_full_spec = 0 if /^--fast/;
   $use_full_spec = 1 if /^--full/;
 }
 
@@ -44,7 +45,7 @@ sub full_test {
   my $root_dir = "${FindBin::Bin}/..";
 
   my $mode;
-  if (exist $filter{test_num}) {
+  if (exists $filter{test_num}) {
     $mode = "-n ".$filter{test_num};
   } else {
     $mode = "--track ${root_dir}/commonmark.tests";

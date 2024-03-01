@@ -32,6 +32,7 @@ requires 'Readonly';
 requires 'Unicode::CaseFold';
 
 on 'test' => sub {
+  requires 'HTML::TreeBuilder';
   requires 'JSON';
   requires 'Test2::V0';
 }

@@ -585,7 +585,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
         type => 'list_item',
         style => $type,
         marker => $symbol // $marker,
-        num => int($digits)
+        num => int($digits // 1),
       };
       $item->{loose} =
           $this->_list_match($item) && $this->{last_line_was_blank};
@@ -732,8 +732,8 @@ sub _emit_html {
       my $num = $b->{start_num};
       my $loose = $b->{loose};
       $start = " start=\"${num}\"" if $type eq 'ol' && $num != 1;
-      $out .= "<${type}${start}>\n<li>"
-          .join("</li>\n<li>",
+      $out .= "<${type}${start}>\n<li>".($loose ? "\n" : '')
+          .join("</li>\n<li>".($loose ? "\n" : ''),
         map { $this->_emit_html(!$loose, @{$_->{content}}) } @{$b->{items}})
           ."</li>\n</${type}>\n";
     }
