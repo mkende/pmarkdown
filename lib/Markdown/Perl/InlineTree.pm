@@ -288,7 +288,7 @@ sub extract {
   substr($nodes[-1]{content}, $text_end) = '' unless $empty_last;  ## We have already removed the empty last node.
   substr($nodes[0]{content}, 0, $text_start) = '';  # We must do this after text_end in case they are the same node.
   shift @nodes if length($nodes[0]{content}) == 0;
-  pop @nodes if @nodes and length($nodes[-1]{content}) == 0;
+  pop @nodes if !$empty_last && @nodes && length($nodes[-1]{content}) == 0;
   my $new_tree = Markdown::Perl::InlineTree->new();
   $new_tree->push(@nodes);
 

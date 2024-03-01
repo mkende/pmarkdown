@@ -622,7 +622,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     if ($this->{md} =~ m/\G
         (?>(?<LABEL>                                       # The link label (in square brackets), matched as an atomic group
           (?:
-            [^\\\]]{0,100} (?:(?:\\\\)* \\ .)?                # The label cannot contain unescaped ]
+            [^\\\[\]]{0,100} (?:(?:\\\\)* \\ .)?                # The label cannot contain unescaped ]
             # With 5.38 this could be (?(*{ ...}) (*FAIL))  which will be more efficient.
             (*COMMIT) (?(?{ pos() > $start_pos + 1004 }) (*FAIL) )  # As our block can be repeated, we prune the search when we are far enough.
           )+ 

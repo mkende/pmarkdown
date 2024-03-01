@@ -33,8 +33,7 @@ sub render {
   # At this point, @runs can also contain 'literal' elements, that don’t have
   # children.
 
-  process_links($that, $tree, 0, 0);  # We start at the beginning of the first node.
-  process_images($that, $tree);
+  process_links($that, $tree);
 
   # Now, there are more link elements and they can have children instead of
   # content.
@@ -166,112 +165,46 @@ sub process_char_escaping {
 # offset $text_start. If the bounds are set, then we don’t investigate links
 # that starts further than this bound.
 #
-# We are not implementing the recommended parsing strategy from the spec:
-# https://spec.commonmark.org/0.30/#phase-2-inline-structure
-# Instead, we are doing a more straight-forward algorithm, that is probably
-# slower but easier to extend.
+# We are mostly implementing the recommended algorithm from
+# https://spec.commonmark.org/0.31.2/#phase-2-inline-structure
+# Except that we don’t do the inline parsing at this stage.
 #
 # Overall, this methods implement this whole section of the spec:
 # https://spec.commonmark.org/0.30/#links
 sub process_links {
   my ($that, $tree, $child_start, $text_start, $start_child_bound, $start_text_bound) = @_;
 
-  my @open =
-      $tree->find_in_text(qr/(?<!!)\[/, $child_start, $text_start, $start_child_bound, $start_text_bound);
-  return unless @open;
-  # TODO: here type is always link, remove this object.
-  my $type = (($open[2] - $open[1]) > 1) ? 'img' : 'link';
-  # TODO: add an argument here that recurse into sub-trees and returns false if
-  # we cross a link element. However, at this stage, the only links that we
-  # could find would be autolinks. Although it would make sense that the spec
-  # disallow such elements (because it does not make sense in the resulting
-  # HTML), the current CommonMark implementation accepts that:
-  # https://spec.commonmark.org/dingus/?text=%5Bbar%3Chttp%3A%2F%2Ftest.fr%3Ebaz%5D(%2Fbaz)%0A%0A
-  # Maybe we want to fix this bug in our implementation.
-  my @close = $tree->find_balanced_in_text(qr/\[/, qr/\]/, $open[0], $open[2]);
-  if (@close) {
-    # We found something that could be a link, now let’s see if it contains a
-    # link (if so, we won’t process the current one).
-    if (my @ret = process_links($that, $tree, $open[0], $open[2], $close[0], $close[1])) {
-      # We found a link within our bounds, so we don’t create a new link around
-      # it. But we do create an image. To do so, we restart our current
-      # processing as we need to recompute the coordinate of the closing
-      # brackets (and also, there might be other links to process within these
-      # bounds).
-      if ($type eq  'img') {
-        return process_links($that, $tree, @open[0, 1], $start_child_bound, $start_text_bound);
-      }
-      # If we are a top-level call we try again after the end of the
-      # inner-most link found (which was necessarily the left-most valid link.
-      # If we are not the top-level call, we just propagate that bound.
-      return @ret if defined $start_child_bound;
-      process_links($that, $tree, @ret);
-      return;  # For top-level calls, we don’t care about the return value.
-    } else {
-      # We have a candidate link and no internal links, so we try to look at its
-      # destination.
-      # It’s unclear in the spec what happens in the case when a link
-      # destination crosses the boundary of an enclosing candidate link. We
-      # assume that the inner one is defined by the link text and not by the
-      # destination.
-
-      my @text_span = ($open[0], $open[2], $close[0], $close[1]);
-      my %target = find_link_destination_and_title($that, $tree, $close[0], $close[2], @text_span);
-      if (%target) {
+  my @open_link;
+  for (my $i = 0; $i < @{$tree->{children}}; $i++) {
+    my $n = $tree->{children}[$i];
+    next if $n->{type} ne 'text';
+    while ($n->{content} =~ m/(?<open>!?\[)|\]/g) {
+      my @pos = ($i, $LAST_MATCH_START[0], $LAST_MATCH_END[0]);
+      if ($+{open}) {
+        my $type = $pos[2] - $pos[1] > 1 ? 'img' : 'link';
+        push @open_link, { type => $type, active => 1, pos => \@pos };
+      } else {
+        next unless @open_link;
+        my %open = %{pop @open_link};
+        next unless $open{active};
+        my @text_span = ($open{pos}[0], $open{pos}[2], $pos[0], $pos[1]);
+        my $cur_pos = pos($n->{content});
+        my %target = find_link_destination_and_title($that, $tree, $pos[0], $pos[2], @text_span);
+        pos($n->{content}) = $cur_pos;
+        next unless %target;
         my $text_tree = $tree->extract(@text_span);
         my (undef, $dest_node_index) =
-            $tree->extract($open[0], $open[1], $open[0] + 1, 1);
-        my $link = new_link($text_tree, type => $type, %target);
+            $tree->extract($open{pos}[0], $open{pos}[1], $open{pos}[0] + 1, 1);
+        my $link = new_link($text_tree, type => $open{type}, %target);
         $tree->insert($dest_node_index, $link);
-        # If we are not a top-level call, we return the coordinate where to
-        # start looking again for a link.
-        return ($dest_node_index + 1, 0) if defined $start_child_bound;
-        # If we are a top-level call, we directly start the search at these
-        # coordinates.
-        process_links($that, $tree, $dest_node_index + 1, 0);
-        return;  # For top-level calls, we don’t care about the return value.
-      } else {
-        # We could not match a link target, so this is not a link at all.
-        # We continue the search just after our initial opening bracket.
-        # We do the same call whether or not we are a top-level call.
-        return process_links($that, $tree, $open[0], $open[2],
-          $start_child_bound, $start_text_bound);
+        if ($open{type} eq 'link') {
+          for (@open_link) {
+            $_->{active} = 0 if $_->{type} eq 'link';
+          }
+        }
+        $i = $dest_node_index;
+        last; # same as a next OUTER, but without the need to define the OUTER label.
       }
-    }
-  } else {
-    # Our open bracket was unmatched. This necessarily means that we are in the
-    # unbounded case (as, otherwise we are within a balanced pair of brackets).
-    die 'Unexpected bounded call to process_links with unbalanced brackets'
-        if defined $start_child_bound;
-    # We continue to search starting just after the open bracket that we found.
-    process_links($that, $tree, $open[0], $open[2]);
-    return;  # For top-level calls, we don’t care about the return value.
-  }
-}
-
-sub process_images {
-  my ($that, $tree) = @_;
-
-  my @pos = (0, 0);
-  while (my @open = $tree->find_in_text(qr/!\[/, @pos)) {
-    my @close = $tree->find_balanced_in_text(qr/\[/, qr/\]/, $open[0], $open[2]);
-    my @text_span = ($open[0], $open[2], $close[0], $close[1]);
-    my %target = find_link_destination_and_title($that, $tree, $close[0], $close[2], @text_span);
-    if (%target) {
-      my $text_tree = $tree->extract(@text_span);
-      my (undef, $dest_node_index) =
-          $tree->extract($open[0], $open[1], $open[0] + 1, 1);
-      my $link = new_link($text_tree, type => 'img', %target);
-      $tree->insert($dest_node_index, $link);
-      @pos = ($dest_node_index + 1, 0);
-    } else {
-      @pos = ($open[0], $open[2]);
-    }
-  }
-
-  for my $n (@{$tree->{children}}) {
-    if ($n->{type} eq 'link' && $n->{linktype} ne 'autolink') {
-      process_images($that, $n->{subtree});
     }
   }
 }
