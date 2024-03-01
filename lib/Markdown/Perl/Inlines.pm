@@ -35,6 +35,10 @@ sub render {
 
   process_links($that, $tree);
 
+  # This removes the spurious white-space at the beginning and end of lines and
+  # also inserts hard line break as required.
+  process_whitespaces($that, $tree);
+
   # Now, there are more link elements and they can have children instead of
   # content.
 
@@ -397,6 +401,37 @@ sub parse_reference_link {
     }
   }
   return;
+}
+
+# This methods remove line break at the beginning and end of lines (inside text
+# nodes only), and add hard line breaks as required.
+# 
+# $not_root is set when we recurse inside sub-tree, to indicate that the first
+# and last node of the the tree are not, in fact, the beginning and and of the
+# paragraph.
+sub process_whitespaces {
+  my ($that, $tree, $not_root) = @_;
+
+  for (my $i = 0; $i < @{$tree->{children}}; $i++) {
+    my $n = $tree->{children}[$i];
+    process_whitespaces($that, $n->{subtree}, 1) if exists $n->{subtree};
+    next unless $n->{type} eq 'text';
+    # TODO: add tests for the fact that we don’t want hard break at the end of a
+    # paragraph.
+    my @hard_breaks = split(/(?: {2,}|\\)\n(?=.) */s, $n->{content}, -1);
+    for (my $j = 0; $j < @hard_breaks; $j++) {
+      # $hard_breaks[$j] = '' unless defined($hard_breaks[$j]);
+      $hard_breaks[$j] =~ s/^ +// if !$not_root && $i == 0 && $j == 0;
+      $hard_breaks[$j] =~ s/(\n|\r) +/$1/g;
+      $hard_breaks[$j] =~ s/ +$//gm if !$not_root && $i == $#{$tree->{children}} && $j == $#hard_breaks;
+      if ($j == 0) {
+        $n->{content} = $hard_breaks[0];
+      } else {
+        $tree->insert($i + 1, new_html('<br />'), new_text("\n".$hard_breaks[$j]));
+        $i += 2;
+      }
+    }
+  }
 }
 
 # This methods adds "style", that is it parses the emphasis (* and _) and also
