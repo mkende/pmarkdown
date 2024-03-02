@@ -11,7 +11,8 @@ use Unicode::CaseFold 'fc';
 
 our $VERSION = 0.01;
 
-our @EXPORT_OK = qw(split_while remove_prefix_spaces indent_size indented_one_tab horizontal_size normalize_label indented);
+our @EXPORT_OK =
+    qw(split_while remove_prefix_spaces indent_size indented_one_tab horizontal_size normalize_label indented);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 # Partition a list into a continuous chunk for which the given code evaluates to

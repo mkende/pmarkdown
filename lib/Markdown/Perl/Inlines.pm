@@ -15,8 +15,6 @@ use Markdown::Perl::Util 'normalize_label';
 
 our $VERSION = 0.01;
 
-
-
 # Everywhere here, $that is a Markdown::Perl instance that we carry everywhere
 # because it contains the options that we are using.
 sub render {
@@ -57,17 +55,19 @@ my $html_tag_name_re = qr/[a-zA-Z][-a-zA-Z0-9]*/;
 my $html_attribute_name_re = qr/[a-zA-Z_:][-a-zA-Z0-9_.:]*/;
 my $html_space_re = qr/\n[ \t]*|[ \t][ \t]*\n?[ \t]*/;  # Spaces, tabs, and up to one line ending.
 my $opt_html_space_re = qr/[ \t]*\n?[ \t]*/;  # Optional spaces.
-my $html_attribute_value_re = qr/[^ \t\n"'=<>`]+|'[^']*'|"[^"]*"/;
-my $html_attribute_re = qr/${html_space_re}${html_attribute_name_re}(?:${opt_html_space_re}=${opt_html_space_re}${html_attribute_value_re})?/;
+my $html_attribute_value_re = qr/ [^ \t\n"'=<>`]+ | '[^']*' | "[^"]*" /x;
+my $html_attribute_re =
+    qr/ ${html_space_re} ${html_attribute_name_re} (?: ${opt_html_space_re} = ${opt_html_space_re} ${html_attribute_value_re} )? /x;
 
-my $html_open_tag_re = qr/${html_tag_name_re}${html_attribute_re}*${opt_html_space_re}\/?/;
-my $html_close_tag_re = qr/\/${html_tag_name_re}${opt_html_space_re}/;
+my $html_open_tag_re = qr/ ${html_tag_name_re} ${html_attribute_re}* ${opt_html_space_re} \/? /x;
+my $html_close_tag_re = qr/ \/ ${html_tag_name_re} ${opt_html_space_re} /x;
 my $html_comment_re = qr/!--|!---|!--.*?--/s;
 my $html_proc_re = qr/\?.*?\?/s;
 my $html_decl_re = qr/![a-zA-Z].*?/s;
 my $html_cdata_re = qr/!\[CDATA\[.*?\]\]/s;
 
-my $html_tag_re = qr/${html_open_tag_re}|${html_close_tag_re}|${html_comment_re}|${html_proc_re}|${html_decl_re}|${html_cdata_re}/;
+my $html_tag_re =
+    qr/ ${html_open_tag_re} | ${html_close_tag_re} | ${html_comment_re} | ${html_proc_re} | ${html_decl_re} | ${html_cdata_re}/x;
 
 # Bug: there is a bug in that backslash escapes don’t work inside autolinks. But
 # we can turn our autolinks into full-links later (where the escape should
@@ -111,7 +111,7 @@ sub find_code_and_tag_runs {
       if ($text =~ m/\G(?<link>${re})>/) {
         $tree->push(new_text(substr($text, 0, $start_before)))
             if $start_before > 0;
-        $tree->push(new_link($+{link}, type=> 'autolink', target => $+{link}));
+        $tree->push(new_link($+{link}, type => 'autolink', target => $+{link}));
         substr $text, 0, $+[0], '';  # This resets pos($text) as we want it to.
       } elsif ($text =~ m/\G(?<link>${email_re})>/) {
         $tree->push(new_text(substr($text, 0, $start_before)))
@@ -146,7 +146,7 @@ sub process_char_escaping {
     # escaped). Note that the regex has to be updated in Perl.pm unescape_char
     # method too.
     while ($node->{content} =~ m/\\(\p{PosixPunct})/g) {
-      # Literal parsing is OK here (even if we will later create laber reference
+      # Literal parsing is OK here (even if we will later create label reference
       # which distinguish between escaped and non-escaped literals) because we
       # can always invert it (and it makes the rest of the processing be much
       # simpler because we don’t need to check whether we have escaped text or
@@ -186,7 +186,7 @@ sub process_links {
       my @pos = ($i, $LAST_MATCH_START[0], $LAST_MATCH_END[0]);
       if ($+{open}) {
         my $type = $pos[2] - $pos[1] > 1 ? 'img' : 'link';
-        push @open_link, { type => $type, active => 1, pos => \@pos };
+        push @open_link, {type => $type, active => 1, pos => \@pos};
       } else {
         next unless @open_link;
         my %open = %{pop @open_link};
@@ -201,16 +201,18 @@ sub process_links {
             $tree->extract($open{pos}[0], $open{pos}[1], $open{pos}[0] + 1, 1);
         my $link = new_link($text_tree, type => $open{type}, %target);
         $tree->insert($dest_node_index, $link);
+
         if ($open{type} eq 'link') {
           for (@open_link) {
             $_->{active} = 0 if $_->{type} eq 'link';
           }
         }
         $i = $dest_node_index;
-        last; # same as a next OUTER, but without the need to define the OUTER label.
+        last;  # same as a next OUTER, but without the need to define the OUTER label.
       }
     }
   }
+  return;
 }
 
 # @text_span is the span of the link definition text, used in case we have a
@@ -247,7 +249,7 @@ sub find_link_destination_and_title {
   } elsif (substr($n->{content}, $text_start, 2) eq '[]') {
     # https://spec.commonmark.org/0.31.2/#collapsed-reference-link
     $collapsed = 2;
-    # passthrough intended.
+    # Pass-through intended.
   } elsif (substr($n->{content}, $text_start, 1) eq '[') {
     my @target = parse_reference_link($that, $tree, @start);
     return @target if @target;
@@ -255,7 +257,7 @@ sub find_link_destination_and_title {
   } else {
     # https://spec.commonmark.org/0.31.2/#shortcut-reference-link
     $collapsed = 0;
-    # passthrough intended.
+    # Pass-through intended.
   }
 
   # TODO: assert defined(collapsed).
@@ -272,7 +274,7 @@ sub find_link_destination_and_title {
 
 sub parse_inline_link {
   my ($tree, @start) = @_;  # ($child_start, $text_start, $child_start, $text_start + 1);
-  # @start points to before and after the '(' character opening the link.
+                            # @start points to before and after the '(' character opening the link.
 
   my $cur_child = $start[0];
   my $n = $tree->{children}[$cur_child];
@@ -280,14 +282,15 @@ sub parse_inline_link {
   pos($n->{content}) = $start[3];
   $n->{content} =~ m/\G[ \t]*\n?[ \t]*/;
   my $search_start = $LAST_MATCH_END[0];
-  
+
   # TODO: first check if we have a destination between <>, that may have already
   # been matched as an autolink or as a closing HTML tag :-(
 
   my @target;
   my $ok_to_have_title = 1;
 
-  my $has_bracket = $tree->find_in_text(qr/</, $cur_child, $search_start, $cur_child, $search_start + 1);
+  my $has_bracket =
+      $tree->find_in_text(qr/</, $cur_child, $search_start, $cur_child, $search_start + 1);
 
   # We have this variable early because we may be filling it soon if the link
   # destination was already parsed as an autolink or an html element.
@@ -298,8 +301,12 @@ sub parse_inline_link {
       @target = ($cur_child, $search_start + 1, $end_target[0], $end_target[1]);
       return if $tree->find_in_text(qr/<|\n/, @target);
     }
-  } elsif (length($n->{content}) <= $search_start && @{$tree->{children}} > $cur_child && 
-           ($tree->{children}[$cur_child + 1]{type} eq 'html' || $tree->{children}[$cur_child + 1]{type} eq 'link')) {
+  } elsif (
+    length($n->{content}) <= $search_start
+    && @{$tree->{children}} > $cur_child
+    && ( $tree->{children}[$cur_child + 1]{type} eq 'html'
+      || $tree->{children}[$cur_child + 1]{type} eq 'link')
+  ) {
     # The element inside was already parsed as an autolink or an html element,
     # we use it as-is for the link destination.
     @target = ($cur_child + 1, 0, $cur_child + 2, 0);
@@ -311,7 +318,11 @@ sub parse_inline_link {
       $target = $link_node->{target};
     }
     return if $target =~ m/\n/;  # No new lines in link targets are allowed.
-  } elsif (my @end_target = $tree->find_in_text_with_balanced_content(qr/\(/, qr/\)/, qr/[ [:cntrl:]]/, $cur_child, $search_start)) {
+  } elsif (
+    my @end_target = $tree->find_in_text_with_balanced_content(
+      qr/\(/, qr/\)/, qr/[ [:cntrl:]]/,
+      $cur_child, $search_start)
+  ) {
     @target = ($cur_child, $search_start, $end_target[0], $end_target[1]);
   }
   if (@target) {
@@ -319,7 +330,7 @@ sub parse_inline_link {
     # in which case we must not modify the tree.
     $cur_child = $target[2];
     $n = $tree->{children}[$cur_child];
-    # On the next line, [1] and not [2] because if there was a control character 
+    # On the next line, [1] and not [2] because if there was a control character
     # we will fail the whole method. So we restart the search before the end
     # condition of the find... method above.
     pos($n->{content}) = $target[3] + ($has_bracket ? 1 : 0);
@@ -381,7 +392,7 @@ sub parse_inline_link {
 
   $tree->extract(@start);
 
-  return (target => $target, ( $title ? (title => $title) : ()));
+  return (target => $target, ($title ? (title => $title) : ()));
 }
 
 sub parse_reference_link {
@@ -393,10 +404,11 @@ sub parse_reference_link {
   my $ref_start = $start[3];
 
   if (my @end_ref = $tree->find_in_text(qr/]/, $cur_child, $start[3])) {
-    my $ref = normalize_label($tree->span_to_source_text(@start[2,3], @end_ref[0,1], UNESCAPE_LITERAL));
+    my $ref =
+        normalize_label($tree->span_to_source_text(@start[2, 3], @end_ref[0, 1], UNESCAPE_LITERAL));
     # TODO: normalize the ref
     if (exists $that->{linkrefs}{$ref}) {
-      $tree->extract(@start[0,1], @end_ref[0,2]);
+      $tree->extract(@start[0, 1], @end_ref[0, 2]);
       return %{$that->{linkrefs}{$ref}};
     }
   }
@@ -405,7 +417,7 @@ sub parse_reference_link {
 
 # This methods remove line break at the beginning and end of lines (inside text
 # nodes only), and add hard line breaks as required.
-# 
+#
 # $not_root is set when we recurse inside sub-tree, to indicate that the first
 # and last node of the the tree are not, in fact, the beginning and and of the
 # paragraph.
@@ -423,7 +435,8 @@ sub process_whitespaces {
       # $hard_breaks[$j] = '' unless defined($hard_breaks[$j]);
       $hard_breaks[$j] =~ s/^ +// if !$not_root && $i == 0 && $j == 0;
       $hard_breaks[$j] =~ s/(\n|\r) +/$1/g;
-      $hard_breaks[$j] =~ s/ +$//gm if !$not_root && $i == $#{$tree->{children}} && $j == $#hard_breaks;
+      $hard_breaks[$j] =~ s/ +$//gm
+          if !$not_root && $i == $#{$tree->{children}} && $j == $#hard_breaks;
       if ($j == 0) {
         $n->{content} = $hard_breaks[0];
       } else {
@@ -432,6 +445,7 @@ sub process_whitespaces {
       }
     }
   }
+  return;
 }
 
 # This methods adds "style", that is it parses the emphasis (* and _) and also
@@ -535,7 +549,7 @@ sub classify_flank {
 sub match_delimiters {
   my ($that, $tree, @delimiters) = @_;
 
-  for (my $close_index = 1; $close_index < @delimiters; $close_index++) {  ## no critic (ProhibitCStyleForLoops)
+  for (my $close_index = 1; $close_index < @delimiters; $close_index++) {
     my %c = %{$delimiters[$close_index]};
     next if !$c{can_close};
     # We have a closing delimiter, now we backtrack and find the tighter match

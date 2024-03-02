@@ -16,7 +16,8 @@ use Scalar::Util 'blessed';
 
 our $VERSION = 0.01;
 
-our @EXPORT_OK = qw(new_text new_code new_link new_html new_style new_literal is_node is_tree UNESCAPE_LITERAL);
+our @EXPORT_OK =
+    qw(new_text new_code new_link new_html new_style new_literal is_node is_tree UNESCAPE_LITERAL);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 =pod
@@ -52,6 +53,7 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
     while (my ($k, $v) = each %args) {
       $hash->{$k} = $v;
     }
+    return;
   }
 
   sub new {
@@ -59,24 +61,23 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
 
     my $this = {type => $type};
     $this->{debug} = delete $options{debug} if exists $options{debug};
+    my $content_ref = ref $content;
+    if (Scalar::Util::blessed($content)
+      && $content->isa('Markdown::Perl::InlineTree')) {
+      hashpush %{$this}, subtree => $content;
+    } elsif (!ref($content)) {
+      hashpush %{$this}, content => $content;
+    } else {
+      die "Unexpected content for inline ${type} node: ".ref($content);
+    }
     # There is one more node type, not created here, that looks like a text
     # node but that is a 'delimiter' node. These nodes are created manually
     # inside the Inlines module.
     if ($type eq 'text' || $type eq 'code' || $type eq 'literal' || $type eq 'html') {
-      die "Unexpected content for inline ${type} node: ".ref($content)
-          if ref $content;
+      die "Unexpected content for inline ${type} node: ${content_ref}" if $content_ref;
       die "Unexpected parameters for inline ${type} node: ".join(', ', %options)
           if %options;
-      hashpush %{$this}, content => $content;
     } elsif ($type eq 'link') {
-      if (Scalar::Util::blessed($content)
-        && $content->isa('Markdown::Perl::InlineTree')) {
-        hashpush %{$this}, subtree => $content;
-      } elsif (!ref($content)) {
-        hashpush %{$this}, content => $content;
-      } else {
-        die "Unexpected content for inline ${type} node: ".ref($content);
-      }
       die 'Missing required option "type" for inline link node' unless exists $options{type};
       hashpush %{$this}, linktype => delete $options{type};
       die 'Missing required option "target" for inline link node' unless exists $options{target};
@@ -86,9 +87,8 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
     } elsif ($type eq 'style') {
       die 'Unexpected parameters for inline style node: '.join(', ', %options)
           if keys %options > 1 || !exists $options{tag};
-      die 'The content of a style node must be an InlineTree'
-          if !Markdown::Perl::InlineTree::is_tree($content);
-      hashpush %{$this}, subtree => $content, tag => $options{tag};
+      die 'The content of a style node must be an InlineTree' unless $content_ref;
+      hashpush %{$this}, tag => $options{tag};
     } else {
       die "Unexpected type for an InlineNode: ${type}";
     }
@@ -248,7 +248,7 @@ sub extract {
   my $sn = $this->{children}[$child_start];
   die 'Start node in an extract operation is not of type text: '.$sn->{type}
       unless $sn->{type} eq 'text' || $text_start == 0;
-  
+
   ## I don’t think that this block is useful (I should add tests for this case
   ## to check if this is needed).
   ## The code after this block will be invalid if we extract an empty span, but
@@ -272,7 +272,7 @@ sub extract {
   die 'Start offset is less than 0 in an extract operation' if $text_start < 0;
   die 'End offset is past the end of the text in an extract operation'
       if $text_end != 0 && $text_end > length($en->{content});
-  
+
   my $empty_last = 0;
   if ($text_end == 0) {
     $empty_last = 1;
@@ -304,12 +304,6 @@ sub extract {
       substr($en->{content}, 0, $text_end) = '';
     }
     splice @{$this->{children}}, $child_start + 1, $child_end - $child_start - 1;
-  ## This branch is actually implemented by the next one already.
-  # } elsif ($text_start == 0 && $empty_last) {
-  #   # Here we can’t assume that the node is text and we copy it entirely, in
-  #   # the next branch we don’t have this issue as at least one of the sides
-  #   # will have been tested.
-  #   splice @{$this->{children}}, $child_start, 1;
   } else {
     my @new_nodes;
     if ($text_start > 0) {
@@ -472,7 +466,8 @@ I<true> value in scalar context) or C<undef>.
 sub find_in_text {
   my ($this, $re, $child_start, $text_start, $child_bound, $text_bound) = @_;
   # qr/^\b$/ is a regex that can’t match anything.
-  return $this->find_balanced_in_text(qr/^\b$/, $re, $child_start, $text_start, $child_bound, $text_bound);
+  return $this->find_balanced_in_text(qr/^\b$/, $re, $child_start, $text_start, $child_bound,
+    $text_bound);
 }
 
 =pod
@@ -527,7 +522,7 @@ sub find_balanced_in_text {
     $child_bound, $text_bound);
 
 Similar to C<find_balanced_in_text> except that this method ends when C<$end_re>
-is seen, after the C<$open_re> and C<$close_re> regex have been seen a balanced 
+is seen, after the C<$open_re> and C<$close_re> regex have been seen a balanced
 number of time. If the closing one is seen more than the opening one, the search
 succeeds too. The method does B<not> assumes that C<$open_re> has already been
 seen before the given C<$start_child> and C<$start_offset> (as opposed to
@@ -536,7 +531,8 @@ C<find_balanced_in_text>).
 =cut
 
 sub find_in_text_with_balanced_content {
-  my ($this, $open_re, $close_re, $end_re, $child_start, $text_start, $child_bound, $text_bound) = @_;
+  my ($this, $open_re, $close_re, $end_re, $child_start, $text_start, $child_bound, $text_bound) =
+      @_;
 
   my $open = 0;
 
@@ -552,7 +548,8 @@ sub find_in_text_with_balanced_content {
     # won’t backtrack (as we are at the end of the regex).
 
     my $done = 0;
-    while ($this->{children}[$i]{content} =~ m/ ${end_re}(?{$done = 1}) | ${open_re}(?{$open++}) | ${close_re}(?{$open--}) /gx) {
+    while ($this->{children}[$i]{content} =~
+      m/ ${end_re}(?{$done = 1}) | ${open_re}(?{$open++}) | ${close_re}(?{$open--}) /gx) {
       return if $i == ($child_bound // -1) && $LAST_MATCH_START[0] >= $text_bound;
       return ($i, $LAST_MATCH_START[0], $LAST_MATCH_END[0]) if ($open == 0 && $done) || $open < 0;
       $done = 0;
@@ -709,7 +706,8 @@ this option (with a value of C<1>).
 
 =cut
 
-use constant UNESCAPE_LITERAL => 1;
+# It’s a feature that this does not interpolate.
+use constant UNESCAPE_LITERAL => 1;  ## no critic (ProhibitConstantPragma)
 
 sub to_source_text {
   my ($tree, $unescape_literal) = @_;

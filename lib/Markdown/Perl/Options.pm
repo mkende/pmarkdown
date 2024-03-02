@@ -42,6 +42,7 @@ sub set_options {
       $this->{$dest}{$k} = $v;
     }
   }
+  return;
 }
 
 # returns nothing but dies if the options are not valid. Useful to call before
@@ -63,13 +64,15 @@ sub validate_options {
 
 sub set_mode {
   my ($this, $mode) = @_;
-  carp "Setting mode '${mode}' overriding already set mode '$this->{mode}'" if defined $this->{mode};
+  carp "Setting mode '${mode}' overriding already set mode '$this->{mode}'"
+      if defined $this->{mode};
   if ($mode eq 'default' || $mode eq 'pmarkdown') {
     undef $this->{mode};
     return;
   }
   croak "Unknown mode '${mode}'" unless exists $options_modes{$mode};
   $this->{mode} = $mode;
+  return;
 }
 
 # This method is called below to "create" each option. In particular, it
@@ -84,26 +87,27 @@ sub _make_option {
   {
     no strict 'refs';
     *{$opt} = sub {
-        my ($this) = @_;
-        return $this->{local_options}{$opt} if exists $this->{local_options}{$opt};
-        return $this->{options}{$opt} if exists $this->{options}{$opt};
-        if (defined $this->{mode}) {
-          return $options_modes{$this->{mode}}{$opt} if exists $options_modes{$this->{mode}}{$opt};
-        }
-        return $default;
-      };
+      my ($this) = @_;
+      return $this->{local_options}{$opt} if exists $this->{local_options}{$opt};
+      return $this->{options}{$opt} if exists $this->{options}{$opt};
+      if (defined $this->{mode}) {
+        return $options_modes{$this->{mode}}{$opt}
+            if exists $options_modes{$this->{mode}}{$opt};
+      }
+      return $default;
+    };
   }
 
   return;
 }
 
 sub _boolean {
-  return sub { 
+  return sub {
     return if $_[0] eq 'false' || $_[0] eq 'true';
     return if $_[0] eq '0' || $_[0] eq '1';
     return 'must be a boolean value (0 or 1)';
   };
-};
+}
 
 sub _enum {
   my @valid = @_;
@@ -116,7 +120,7 @@ sub _enum {
 sub _regex {
   return sub {
     return if defined eval { qr/$_[0]/ };
-    return "cannot be parsed as a Perl regex";
+    return 'cannot be parsed as a Perl regex';
   };
 }
 
@@ -131,7 +135,7 @@ fence.
 
 =cut
 
-_make_option(fenced_code_blocks_must_be_closed => 1, _boolean, ( cmark => 0 ));
+_make_option(fenced_code_blocks_must_be_closed => 1, _boolean, (cmark => 0));
 
 =pod
 
@@ -209,7 +213,9 @@ breaks too.
 
 =cut
 
-_make_option(multi_lines_setext_headings => 'multi_line', _enum(qw(single_line break multi_line ignore)));
+_make_option(
+  multi_lines_setext_headings => 'multi_line',
+  _enum(qw(single_line break multi_line ignore)));
 
 =pod
 
@@ -229,7 +235,7 @@ _make_option(autolinks_regex => '(?i)[a-z][-+.a-z0-9]{1,31}:[^ <>[:cntrl:]]*', _
 
 =pod
 
-=item B<autolinks_email_regex> I<(regex string)>
+=head2 B<autolinks_email_regex> I<(regex string)>
 
 The regex that an autolink must match to be recognised as an email address. This
 allows to omit the C<mailto:> scheme that would be needed to be recognised as
@@ -240,6 +246,9 @@ L<spec|https://spec.commonmark.org/0.30/#autolinks>.
 
 =cut
 
-_make_option(autolinks_email_regex => q{[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*}, _regex);
+_make_option(
+  autolinks_email_regex =>
+      q{[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*},
+  _regex);
 
 1;

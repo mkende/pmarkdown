@@ -5,6 +5,7 @@ use warnings;
 use utf8;
 use feature ':5.24';
 
+use English;
 use Exporter 'import';
 
 our @EXPORT_OK = qw(decode_entities html_escape http_escape);
@@ -22,10 +23,11 @@ our %html_entities;
 # execution of this method.
 sub parse_entities {
   return if %html_entities;
-  local $/ = undef;
-  %html_entities = eval <DATA>;
-  die $@ if $@;
-  close DATA;
+  local $INPUT_RECORD_SEPARATOR = undef;
+  %html_entities = eval <DATA>;  ## no critic (ProhibitStringyEval);
+  die $EVAL_ERROR if $EVAL_ERROR;
+  close DATA or warn 'Can’t close DATA file handle in lazy parsing of HTML entities mapping';
+  return;
 }
 
 # Decode HTML entities like &amp; in the given string. Do it in-place if called
@@ -37,17 +39,23 @@ sub parse_entities {
 # Currently, CounterClockwiseContourIntegral is the longest entity name, at 31
 # char. We limit our search to 40 char to limit possible backtracking in case of
 # failures (even if the spec does not say anything about it).
-my $entity_re = qr/& (?: (?:\#(?: ([0-9]{1,7}) | [xX] ([a-fA-F0-9]{1,6}) )) | ([a-zA-Z0-9]{2,40}) ) ; /x;
+my $numeric_entity_re = qr/(?:\#(?: (?<dec> [0-9]{1,7} ) | [xX] (?<hex> [a-fA-F0-9]{1,6} ) ))/x;
+my $entity_re = qr/& (?: ${numeric_entity_re} | (?<named> [a-zA-Z0-9]{2,40} ) ) ; /x;
+
 sub convert_entity {
   # the `|| 0xfffd` part is so that &#0; is correctly replaced by the 0xfffd
   # "replacement" character (as is being done on the whole string at the
   # beginning of its processing).
-  return defined($1) ? chr($1 || 0xfffd) : defined($2) ? chr(hex($2) || 0xfffd) : (&parse_entities, $html_entities{$3}) // "&${3};";
+  return
+        exists $+{dec} ? chr($+{dec} || 0xfffd)
+      : exists $+{hex} ? chr(hex($+{hex}) || 0xfffd)
+      : (parse_entities(), $html_entities{$+{named}}) // "&$+{named};";
 }
+
 sub decode_entities {
   return $_[0] =~ s/${entity_re}/&convert_entity/egr if defined wantarray;
   $_[0] =~ s/${entity_re}/&convert_entity/eg;
-  return
+  return;
 }
 
 # There are four characters that are escaped in the html output (although the
@@ -75,6 +83,9 @@ sub http_escape {
   return;
 }
 
+1;
+
+__DATA__
 # This table of entities is coming from the following command line:
 #
 # wget https://html.spec.whatwg.org/entities.json -O - | ptp -g '^\s*"&\w+;"' --sq '#' -p 'm/^.*"&(\w+);".*codepoints": \[([\d, ]+)\].*$/; $s = ""; $s .= chr() for split(/,\s*/, $2); if ($s eq "#") { $s = "\"$s\"" } else { $s = "#$s#"} $_ = "$1 => $s,"; ' -V --grep bsol.
@@ -82,8 +93,6 @@ sub http_escape {
 # It was last executed on 2024-02-15.
 #
 # TODO: a couple of characters are empty, understand why.
-
-__DATA__
 AElig => 'Æ',
 AMP => '&',
 Aacute => 'Á',

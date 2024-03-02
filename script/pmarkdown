@@ -16,12 +16,13 @@ our $VERSION = $Markdown::Perl::VERSION; ## no critic (ProhibitComplexVersion,Re
 my $pmark = Markdown::Perl->new();
 
 GetOptions(
-  "help|h" => sub { pod2usage(-verbose => 1, -exitval => 0); },
-  "helpfull|help-full|man" => sub { pod2usage(-verbose => 2, -exitval => 0); },
-  "list-options|help-options|helpoptions" => sub { pod2usage(-verbose => 2, -exitval => 0, -input => $INC{'Markdown/Perl/Options.pm'}); },
-  "version|v" => sub { VersionMessage(-exitval => 0) },
-  "mode|m=s" => sub { $pmark->set_mode($_[1]) },
-  "option|o=s%" => sub { validate_options($_[1], $_[2]); $pmark->set_options($_[1], $_[2]) },
+  'help|h' => sub { pod2usage(-verbose => 1, -exitval => 0); },
+  'helpfull|help-full|man' => sub { pod2usage(-verbose => 2, -exitval => 0); },
+  'list-options|help-options|helpoptions' =>
+      sub { pod2usage(-verbose => 2, -exitval => 0, -input => $INC{'Markdown/Perl/Options.pm'}); },
+  'version|v' => sub { VersionMessage(-exitval => 0) },
+  'mode|m=s' => sub { $pmark->set_mode($_[1]) },
+  'option|o=s%' => sub { validate_options($_[1], $_[2]); $pmark->set_options($_[1], $_[2]) },
 ) or pod2usage(-verbose => 0, -exitval => 2);
 
 binmode STDIN, ':encoding(UTF-8)';

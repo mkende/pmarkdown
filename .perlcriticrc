@@ -80,3 +80,20 @@ allow = $+ @+
 
 # TODO: get rid of this and simplify the code.
 [-ControlStructures::ProhibitCascadingIfElse]
+
+# They are just too convenient when we need to track the index or modify the
+# array while we loop over it.
+[-ControlStructures::ProhibitCStyleForLoops]
+
+[Subroutines::RequireArgUnpacking]
+allow_delegation_to = &_get_this_and_args
+short_subroutine_statements = 3
+
+[TestingAndDebugging::ProhibitNoWarnings]
+allow = experimental::signatures experimental::refaliasing
+
+[TestingAndDebugging::ProhibitNoStrict]
+allow = refs
+
+[Subroutines::ProhibitExcessComplexity]
+max_mccabe = 30

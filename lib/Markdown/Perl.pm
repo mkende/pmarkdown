@@ -9,6 +9,7 @@ use feature 'refaliasing';
 no warnings 'experimental::refaliasing';
 
 use Carp;
+use English;
 use Exporter 'import';
 use Hash::Util 'lock_keys_plus';
 use List::MoreUtils 'first_index';
@@ -89,7 +90,7 @@ sub next_line {
   return delete $this->{forced_line} if exists $this->{forced_line};
   return if pos($this->{md}) == length($this->{md});
   $this->{last_pos} = pos($this->{md});
-  $this->{md} =~ m/\G([^\n\r]*)(\r\n|\n|\r)?/g;
+  $this->{md} =~ m/\G([^\n\r]*)(\r\n|\n|\r)?/g or die 'Should not happen';
   my ($t, $e) = ($1, $2);
   if ($1 =~ /^[ \t]+$/) {
     $this->{line_ending} = $t.($e // '');
@@ -118,7 +119,7 @@ sub get_pos {
 
 sub redo_line {
   my ($this) = @_;
-  confess "Cannot push back more than one line" unless exists $this->{last_pos};
+  confess 'Cannot push back more than one line' unless exists $this->{last_pos};
   $this->set_pos(delete $this->{last_pos});
   return;
 }
@@ -127,7 +128,7 @@ sub redo_line {
 # class method. In the latter case, provided options override those set in the
 # class constructor.
 # Both the input and output are unicode strings.
-sub convert {
+sub convert {  ## no critic (RequireArgUnpacking)
   &_get_this_and_args;  ## no critic (ProhibitAmpersandSigils)
   my $this = shift @_;
   \$this->{md} = \(shift @_);  # aliasing to avoid copying the input, does this work? is it useful?
@@ -145,7 +146,7 @@ sub convert {
   # Done at a later stage, as escaped characters don’t have their Markdown
   # meaning, we need a way to represent that.
 
-  while (defined(my $l = $this->next_line())) {
+  while (defined (my $l = $this->next_line())) {
     # This field might be set to true at the beginning of the processing, while
     # we’re looking at the conditions of the currently open containers.
     $this->{is_lazy_continuation} = 0;
@@ -237,7 +238,11 @@ sub _restore_parent_block {
 sub _test_lazy_continuation {
   my ($this, $l) = @_;
   return unless @{$this->{paragraph}};
-  my $tester = new(ref($this), ($this->{mode} ? (mode => $this->{mode}) : ()), %{$this->{options}}, %{$this->{local_options}});
+  my $tester = new(
+    ref($this),
+    ($this->{mode} ? (mode => $this->{mode}) : ()),
+    %{$this->{options}},
+    %{$this->{local_options}});
   $tester->{md} = '';
   pos($tester->{md}) = 0;
   # What is a paragraph depends on whether we already have a paragraph or not.
@@ -249,7 +254,7 @@ sub _test_lazy_continuation {
   $tester->_parse_blocks($l);
   # BUG: there is a bug here which is that a construct like a fenced code block
   # or a link ref definition, whose validity depends on more than one line,
-  # might be mis-classified. The probability of that is low.
+  # might be misclassified. The probability of that is low.
   if (@{$tester->{paragraph}}) {
     $this->{is_lazy_continuation} = 1;
     return 1;
@@ -275,8 +280,11 @@ my $thematic_break_re = qr/^\ {0,3} (?: (?:-[ \t]*){3,} | (_[ \t]*){3,} | (\*[ \
 my $block_quotes_re = qr/^ {0,3}>/;
 my $indented_code_re = qr/^(?: {0,3}\t| {4})/;
 my $list_item_marker_re = qr/ [-+*] | (?<digits>\d{1,9}) (?<symbol>[.)])/x;
-my $list_item_re = qr/^ (?<indent>\ {0,3}) (?<marker>${list_item_marker_re}) (?<text>(?:[ \t].*)?) $/x;
-my $supported_html_tags = join('|', qw(address article aside base basefont blockquote body caption center col colgroup dd details dialog dir div dl dt fieldset figcaption figure footer form frame frameset h1 h2 h3 h4 h5 h6 head header hr html iframe legend li link main menu menuitem nav noframes ol optgroup option p param search section summary table tbody td tfoot th thead title tr track ul));
+my $list_item_re =
+    qr/^ (?<indent>\ {0,3}) (?<marker>${list_item_marker_re}) (?<text>(?:[ \t].*)?) $/x;
+my $supported_html_tags = join('|',
+  qw(address article aside base basefont blockquote body caption center col colgroup dd details dialog dir div dl dt fieldset figcaption figure footer form frame frameset h1 h2 h3 h4 h5 h6 head header hr html iframe legend li link main menu menuitem nav noframes ol optgroup option p param search section summary table tbody td tfoot th thead title tr track ul)
+);
 # TODO: Share these regex with the Inlines.pm file that has a copy of them.
 my $html_tag_name_re = qr/[a-zA-Z][-a-zA-Z0-9]*/;
 my $html_attribute_name_re = qr/[a-zA-Z_:][-a-zA-Z0-9_.:]*/;
@@ -284,10 +292,12 @@ my $html_attribute_name_re = qr/[a-zA-Z_:][-a-zA-Z0-9_.:]*/;
 # match them for now as the regex will see lines one at a time.
 my $html_space_re = qr/\n[ \t]*|[ \t][ \t]*\n?[ \t]*/;  # Spaces, tabs, and up to one line ending.
 my $opt_html_space_re = qr/[ \t]*\n?[ \t]*/;  # Optional spaces.
-my $html_attribute_value_re = qr/[^ \t\n"'=<>`]+|'[^']*'|"[^"]*"/;
-my $html_attribute_re = qr/${html_space_re}${html_attribute_name_re}(?:${opt_html_space_re}=${opt_html_space_re}${html_attribute_value_re})?/;
-my $html_open_tag_re = qr/<${html_tag_name_re}${html_attribute_re}*${opt_html_space_re}\/?>/;
-my $html_close_tag_re = qr/<\/${html_tag_name_re}${opt_html_space_re}>/;
+my $html_attribute_value_re = qr/ [^ \t\n"'=<>`]+ | '[^']*' | "[^"]*" /x;
+my $html_attribute_re =
+    qr/ ${html_space_re} ${html_attribute_name_re} (?: ${opt_html_space_re} = ${opt_html_space_re} ${html_attribute_value_re} )? /x;
+my $html_open_tag_re =
+    qr/ < ${html_tag_name_re} ${html_attribute_re}* ${opt_html_space_re} \/? > /x;
+my $html_close_tag_re = qr/ <\/ ${html_tag_name_re} ${opt_html_space_re} > /x;
 
 # Parse at least one line of text to build a new block; and possibly several
 # lines, depending on the block type.
@@ -380,7 +390,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     my $count = 1;  # The number of lines we have read
     my $valid_count = 1;  # The number of lines we know are in the code block.
     my $valid_pos = $this->get_pos();
-    while (defined(my $nl = $this->next_line())) {
+    while (defined (my $nl = $this->next_line())) {
       if ($this->_all_blocks_match(\$nl)) {
         $count++;
         if ($nl =~ m/${indented_code_re}/) {
@@ -415,13 +425,13 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     # This is one of the few case where we need to process character escaping
     # outside of the full inlines rendering process.
     # TODO: Consider if it would be cleaner to do it inside the render_html method.
-    $info =~ s/\\(\p{PosixPunct})/$1/g; 
+    $info =~ s/\\(\p{PosixPunct})/$1/g;
     # The spec does not describe what we should do with fenced code blocks inside
     # other containers if we don’t match them.
     my @code_lines;  # The first line is not part of the block.
     my $end_fence_seen = 0;
     my $start_pos = $this->get_pos();
-    while (defined(my $nl = $this->next_line())) {
+    while (defined (my $nl = $this->next_line())) {
       if ($this->_all_blocks_match(\$nl)) {
         if ($nl =~ m/^ {0,3}${f}{$fl,}[ \t]*$/) {
           $end_fence_seen = 1;
@@ -455,11 +465,11 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
   }
 
   # https://spec.commonmark.org/0.31.2/#html-blocks
-  # HTML blockes can interrupt a paragraph.
+  # HTML blocks can interrupt a paragraph.
   # TODO: PERF: test that $l =~ m/^ {0,3}</ to short circuit all these regex.
   my $html_end_condition;
-  if ($l =~ m/^ {0,3}<(?:pre|script|style|textarea)(?: |\t|>|$)/) {
-    $html_end_condition = qr/<\/(?:pre|script|style|textarea)>/;
+  if ($l =~ m/ ^\ {0,3} < (?:pre|script|style|textarea) (?:\ |\t|>|$) /x) {
+    $html_end_condition = qr/ <\/ (?:pre|script|style|textarea) > /x;
   } elsif ($l =~ m/^ {0,3}<!--/) {
     $html_end_condition = qr/-->/;
   } elsif ($l =~ m/^ {0,3}<\?/) {
@@ -468,12 +478,13 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     $html_end_condition = qr/=>/;
   } elsif ($l =~ m/^ {0,3}<!\[CDATA\[/) {
     $html_end_condition = qr/]]>/;
-  } elsif ($l =~ m/^ {0,3}<\/?(?:${supported_html_tags})(?: |\t|\/?>|$)/) {
-    $html_end_condition = qr/^$/;
-  } elsif (!@{$this->{paragraph}} && $l =~ m/^ {0,3}(?:${html_open_tag_re}|${html_close_tag_re})[ \t]*$/) {
+  } elsif ($l =~ m/^\ {0,3} < \/? (?:${supported_html_tags}) (?:\ |\t|\/?>|$) /x) {
+    $html_end_condition = qr/^$/;  ## no critic (ProhibitFixedStringMatches)
+  } elsif (!@{$this->{paragraph}}
+    && $l =~ m/^\ {0,3} (?: ${html_open_tag_re} | ${html_close_tag_re} ) [ \t]* $ /x) {
     # TODO: the spec seem to say that the tag can take more than one line, but
     # this is not tested, so we don’t implement this for now.
-    $html_end_condition = qr/^$/;
+    $html_end_condition = qr/^$/;  ## no critic (ProhibitFixedStringMatches)
   }
   # TODO: Implement rule 7 about any possible tag.
   if ($html_end_condition) {
@@ -487,14 +498,13 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
         if ($this->_all_blocks_match(\$nl)) {
           if ($nl !~ m/${html_end_condition}/) {
             push @html_lines, $nl.$this->line_ending();
+          } elsif ($nl eq '') {
+            # This can only happen for rules 6 and 7 where the end condition
+            # line is not part of the HTML block.
+            $this->redo_line();
+            last;
           } else {
-            if ($nl eq '') {
-              # This can only happen for rules 6 and 7 where the end condition
-              # line is not part of the HTML block.
-              $this->redo_line();
-            } else {
-              push @html_lines, $nl.$this->line_ending();
-            }
+            push @html_lines, $nl.$this->line_ending();
             last;
           }
         } else {
@@ -555,7 +565,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
       my $indent_marker = length($indent_outside) + length($marker);
       my $indent = $indent_inside + $indent_marker;
       my $cond = sub {
-        if ($first_line_blank && $_ =~ m/^[ \t]*$/) {
+        if ($first_line_blank && m/^[ \t]*$/) {
           # A list item can start with at most one blank line
           return 0;
         } else {
@@ -567,7 +577,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
         }
         # TODO: we probably don’t need to test the list_item_re case here, just
         # the lazy continuation and the emptiness is enough.
-        return ($_ !~ m/${list_item_re}/ && $this->_test_lazy_continuation($_))
+        return (!m/${list_item_re}/ && $this->_test_lazy_continuation($_))
             || $_ eq '';
       };
       my $forced_next_line = undef;
@@ -614,48 +624,55 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     # future.
     # This also won’t work to consume markers of subsequent lines of the link
     # reference definition.
-    # TOOD: fix these two bugs above (hard!).
+    # TODO: fix these two bugs above (hard!).
     $this->{md} =~ m/\G.*?\[/g;
 
     # TODO:
     # - Support for escaped or balanced parenthesis in naked destination
-    # - break this up in smaller pieces and test them independantly.
-    if ($this->{md} =~ m/\G
-        (?>(?<LABEL>                                       # The link label (in square brackets), matched as an atomic group
+    # - break this up in smaller pieces and test them independently.
+    # - The need to disable ProhibitUnusedCapture seems to be buggy...
+    ## no critic (ProhibitComplexRegexes, ProhibitUnusedCapture)
+    if (
+      $this->{md} =~ m/\G
+        (?>(?<LABEL>                                            # The link label (in square brackets), matched as an atomic group
           (?:
             [^\\\[\]]{0,100} (?:(?:\\\\)* \\ .)?                # The label cannot contain unescaped ]
             # With 5.38 this could be (?(*{ ...}) (*FAIL))  which will be more efficient.
             (*COMMIT) (?(?{ pos() > $start_pos + 1004 }) (*FAIL) )  # As our block can be repeated, we prune the search when we are far enough.
           )+ 
         )) \]:
-        [ \t]*\n?[ \t]*                                       # optional spaces and tabs with up to one line ending
-        (?>(?<TARGET>                                         # the destination can be either:
-          < (?: [^\n>]* (?<! \\) (?:\\\\)* )+ >               # - enclosed in <> and containing no unescaped >
-          | [^< [:cntrl:]] [^ [:cntrl:]]*                     # - not enclosed but cannot contains spaces, new lines, etc. and only balanced or escaped parenthesis
+        [ \t]*\n?[ \t]*                                         # optional spaces and tabs with up to one line ending
+        (?>(?<TARGET>                                           # the destination can be either:
+          < (?: [^\n>]* (?<! \\) (?:\\\\)* )+ >                 # - enclosed in <> and containing no unescaped >
+          | [^< [:cntrl:]] [^ [:cntrl:]]*                       # - not enclosed but cannot contains spaces, new lines, etc. and only balanced or escaped parenthesis
         ))
         (?:
           (?> [ \t]+\n?[ \t]* | [ \t]*\n?[ \t]+ | [ \t]*\n[ \t]* )  # The spec says that spaces must be present here, but it seems that a new line is fine too.
-          (?<TITLE>  # The title can be betwen ", ' or (). The matching characters can’t appear unescaped in the title
+          (?<TITLE>                                             # The title can be between ", ' or (). The matching characters can’t appear unescaped in the title
             "  (:?[^\n"]* (?: (?<! \n) \n (?! \n) | (?<! \\) (?:\\\\)* \\ " )? )* "
           |  '  (:?[^\n']* (?: (?<! \n) \n (?! \n) | (?<! \\) (?:\\\\)* \\ ' )? )* '
           |  \( (:?[^\n"()]* (?: (?<! \n) \n (?! \n) | (?<! \\) (?:\\\\)* \\ [()] )? )* \)
           )
         )?
-        [ \t]*(:?\r\n|\n|\r|$)                                # The spec says that no characters can occur after the title, but it seems that whitespace is tolerated.
-        /gx) {
-      my %link_ref = %+;
-      my $ref = normalize_label($link_ref{LABEL});
+        [ \t]*(:?\r\n|\n|\r|$)                                  # The spec says that no characters can occur after the title, but it seems that whitespace is tolerated.
+        /gx
+      ## use critic
+    ) {
+      my ($ref, $target, $title) = @LAST_PAREN_MATCH{qw(LABEL TARGET TITLE)};
+      $ref = normalize_label($ref);
       if ($ref ne '') {
-        # TODO: option to keep the last appearance istead of the first one.
-        return if exists $this->{linkrefs}{$ref};  # We keep the firts appearance of a label.
-        if (exists $link_ref{TITLE}) {
-          $link_ref{TITLE} =~ s/^.(.*).$/$1/s;
-          _unescape_char($link_ref{TITLE});
+        # TODO: option to keep the last appearance instead of the first one.
+        return if exists $this->{linkrefs}{$ref};  # We keep the forts appearance of a label.
+        if (defined $title) {
+          $title =~ s/^.(.*).$/$1/s;
+          _unescape_char($title);
         }
-        $link_ref{TARGET} =~ s/^<(.*)>$/$1/;
-        _unescape_char($link_ref{TARGET});
-        $this->{linkrefs}{$ref} = 
-          { target => $link_ref{TARGET}, (exists $link_ref{TITLE} ? ('title', $link_ref{TITLE}) : ())};
+        $target =~ s/^<(.*)>$/$1/;
+        _unescape_char($target);
+        $this->{linkrefs}{$ref} = {
+          target => $target,
+          (defined $title ? ('title' => $title) : ())
+        };
         return;
       }
       # Pass-through intended.
@@ -663,14 +680,13 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     $this->set_pos($init_pos);
     # Pass-through intended.
   }
-  
 
   # https://spec.commonmark.org/0.30/#paragraphs
   # We need to test for blank lines here (not just emptiness) because after we
   # have removed the markers of container blocks our line can become empty. The
   # fact that we need to do this, seems to imply that we don’t really need to
-  # check fo emptiness when initially building $l.
-  # TOOD: check if the blank-line detection in next_line() is needed or not.
+  # check for emptiness when initially building $l.
+  # TODO: check if the blank-line detection in next_line() is needed or not.
   if ($l !~ m/^[ \t]*$/) {
     push @{$this->{paragraph}}, $l;
     return;
@@ -681,7 +697,8 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
   $this->_finalize_paragraph();
   # Needed to detect loose lists. But ignore blank lines when they are inside
   # block quotes
-  $this->{last_line_is_blank} =  !@{$this->{blocks_stack}} || $this->{blocks_stack}[-1]{block}{type} ne 'quotes';
+  $this->{last_line_is_blank} =
+      !@{$this->{blocks_stack}} || $this->{blocks_stack}[-1]{block}{type} ne 'quotes';
   return;
 }
 
@@ -689,6 +706,7 @@ sub _unescape_char {
   # TODO: configure the set of escapable character. Note that this regex is
   # shared with Inlines.pm process_char_escaping.
   $_[0] =~ s/\\(\p{PosixPunct})/$1/g;
+  return;
 }
 
 sub _render_inlines {
