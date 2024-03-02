@@ -14,7 +14,7 @@ use Hash::Util 'lock_keys_plus';
 use List::MoreUtils 'first_index';
 use List::Util 'pairs';
 use Markdown::Perl::Inlines;
-use Markdown::Perl::HTML 'html_escape';
+use Markdown::Perl::HTML 'html_escape', 'decode_entities';
 use Markdown::Perl::Util ':all';
 use Scalar::Util 'blessed';
 
@@ -705,6 +705,7 @@ sub _emit_html {
       my $l = $b->{level};
       my $c = $b->{content};
       $c = $this->_render_inlines(ref $c eq 'ARRAY' ? @{$c} : $c);
+      $c =~ s/^[ \t]+|[ \t]+$//g;  # Only the setext headings spec asks for this, but this can’t hurt atx heading where this can’t change anything.
       $out .= "<h${l}>$c</h${l}>\n";
     } elsif ($b->{type} eq 'code') {
       my $c = $b->{content};
@@ -712,6 +713,8 @@ sub _emit_html {
       my $i = '';
       if ($this->code_blocks_info eq 'language' && $b->{info}) {
         my $l = $b->{info} =~ s/\s.*//r;  # The spec does not really cover this behavior so we’re using Perl notion of whitespace here.
+        decode_entities($l);
+        html_escape($l);
         $i = " class=\"language-${l}\"";
       }
       $out .= "<pre><code${i}>$c</code></pre>\n";
