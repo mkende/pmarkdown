@@ -597,7 +597,7 @@ sub render_node_html {
     $n->{content} =~ s/\n/ /g;
     # If the content is not just whitespace and it has one space at the
     # beginning and one at the end, then we remove them.
-    $n->{content} =~ s/ (.*[^ ].*) /$1/g;
+    $n->{content} =~ s/^ (.*[^ ].*) $/$1/g;
     html_escape($n->{content});
     return $acc.'<code>'.$n->{content}.'</code>';
   } elsif ($n->{type} eq 'link') {

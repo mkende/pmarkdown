@@ -14,6 +14,8 @@ our @EXPORT = qw(test_suite);
 # The sanitizing here is quite strict (it only removes new lines happening just
 # before or after an HTML tag), so this forces our converter to match closely
 # what the cmark spec has (I guess it’s not a bad thing).
+# In addition, this light-weight normalization did encover a couple of bugs that
+# were hidden by the normalization done by the cmark tool.
 sub  _sanitize_html {
   my ($html) = @_;
   while ($html =~ m/<code>|(?<=>)\n(?=.)|\n(?=<)/g) {
