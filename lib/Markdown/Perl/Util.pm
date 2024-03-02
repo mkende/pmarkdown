@@ -92,7 +92,7 @@ sub indented {
 # https://spec.commonmark.org/0.31.2/#matches
 sub normalize_label {
   my ($label) = @_;
-  $label = fc($label);
+  $label = fc($label) // '';  # fc returns undef for empty label.
   $label =~ s/^[ \t\n]+|[ \t\n]+$//g;
   $label =~ s/[ \t\n]+|[\t\n]/ /g;
   return $label;

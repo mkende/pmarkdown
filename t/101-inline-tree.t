@@ -29,7 +29,7 @@ is([$t->find_in_text_with_balanced_content(qr/\(/, qr/\)/, qr/./, 0, 0)], [0, 0,
 is([$t->find_in_text_with_balanced_content(qr/\(/, qr/\)/, qr/\d/, 0, 0)], [3, 4, 5], 'find_with_balance_digit');
 is([$t->find_in_text_with_balanced_content(qr/\(/, qr/\)/, qr/\d/, 0, 2)], [1, 0, 1], 'find_with_balance_digit_easy');
 
-is($t->span_to_text(1,2,3,4), '3d(e)f<code>ignored)</code>gh)i', 'span_to_text');
+is($t->span_to_source_text(1,2,3,4), '3d(e)f<code>ignored)</code>gh)i', 'span_to_source_text');
 
 my $nt = $t->extract(1, 3, 3, 2);
 is($nt->fold(sub { $_[1].$_[0]->{content} }, ''), 'd(e)fignored)gh', 'extract_extracted');

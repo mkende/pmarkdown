@@ -411,10 +411,11 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
   ) {
     my $fl = length($+{fence});
     my $info = $+{info};
+    my $indent = length($+{indent});
     # This is one of the few case where we need to process character escaping
     # outside of the full inlines rendering process.
-    $info =~ s/\\(\p{PosixPunct})/$1/g;
-    my $indent = length($+{indent});
+    # TODO: Consider if it would be cleaner to do it inside the render_html method.
+    $info =~ s/\\(\p{PosixPunct})/$1/g; 
     # The spec does not describe what we should do with fenced code blocks inside
     # other containers if we don’t match them.
     my @code_lines;  # The first line is not part of the block.
@@ -735,8 +736,8 @@ sub _emit_html {
       my $num = $b->{start_num};
       my $loose = $b->{loose};
       $start = " start=\"${num}\"" if $type eq 'ol' && $num != 1;
-      $out .= "<${type}${start}>\n<li>".($loose ? "\n" : '')
-          .join("</li>\n<li>".($loose ? "\n" : ''),
+      $out .= "<${type}${start}>\n<li>"
+          .join("</li>\n<li>",
         map { $this->_emit_html(!$loose, @{$_->{content}}) } @{$b->{items}})
           ."</li>\n</${type}>\n";
     }
