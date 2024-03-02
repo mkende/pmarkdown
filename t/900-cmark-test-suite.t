@@ -16,7 +16,7 @@ BEGIN {
 }
 
 my %filter;
-my $use_full_spec = 1;
+my $use_full_spec = 0;
 
 while ($_ = shift) {
   %filter = (test_num => shift @ARGV) if /^-n$/;
