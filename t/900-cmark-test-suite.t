@@ -9,12 +9,6 @@ use Markdown::Perl;
 use JsonTest;
 use Test2::V0;
 
-BEGIN {
-  if ($ENV{HARNESS_ACTIVE} && !$ENV{EXTENDED_TESTING}) {
-    skip_all('Extended test. Run manually or set $ENV{EXTENDED_TESTING} to a true value to run.');
-  }
-}
-
 my %filter;
 my $use_full_spec = 0;
 
