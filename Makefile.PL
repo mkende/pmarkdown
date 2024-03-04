@@ -102,5 +102,15 @@ clean:: clean_nytprof
 
 clean_nytprof:
 \trm -fr nytprof nytprof.out
+
+exe: build build/pmarkdown\$(EXE_EXT)
+
+build:
+\tmkdir -p build
+
+.PHONY: build/pmarkdown\$(EXE_EXT)
+build/pmarkdown\$(EXE_EXT): export PAR_VERBATIM=1
+build/pmarkdown\$(EXE_EXT):
+\tpp -o build/pmarkdown\$(EXE_EXT) -cd build/pp.cache -I lib -F 'PodStrip=.*\\bMarkdown/Perl\\b(*COMMIT)(*FAIL)|.*' script/pmarkdown
 EOF
 }

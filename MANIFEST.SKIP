@@ -34,3 +34,4 @@
 ^.*\.tests$
 ^nytprof.out$
 ^nytprof/
+^build/
