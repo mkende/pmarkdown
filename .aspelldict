@@ -1,4 +1,4 @@
-personal_ws-1.1 en 137 
+personal_ws-1.1 en 141 
 CDATA
 CommonMark
 CounterClockwiseContourIntegral
@@ -81,6 +81,7 @@ inlines
 isa
 json
 li
+licenced
 linkrefs
 lr
 lt
@@ -102,13 +103,16 @@ param
 paren
 perl
 pmarkdown
+png
 pos
 pre
+programmatically
 ptp
 punct
 qw
 recurse
 refaliasing
+sa
 setext
 sn
 src

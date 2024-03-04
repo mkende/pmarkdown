@@ -53,6 +53,9 @@ pmarkdown – Very configurable Markdown processor written in pure Perl
 
 B<pmarkdown>
 
+If needed, See the L<GitHub pmarkdown page|https://github.com/mkende/pmarkdown>
+for installation instructions.
+
 =head1 OPTIONS
 
 =over 8

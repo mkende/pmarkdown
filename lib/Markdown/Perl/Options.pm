@@ -18,9 +18,33 @@ our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 =encoding utf8
 
-=head1 Configuration options for pmarkdown and Markdown::Perl
+=head1 NAME
+
+Configuration options for pmarkdown and Markdown::Perl
+
+=head1 SYNOPSIS
+
+This document describes the existing configuration options for the
+L<Markdown::Perl> library and the L<pmarkdown> program. Please refer to their
+documentation to know how to set and use these options.
+
+=head1 MODES
+
+Bundle of options can be set together using I<modes>.
+
+TODO
+
+=head1 OPTIONS
 
 =cut
+
+sub new {
+  my ($class, %options) = @_;
+
+  my $this = bless \%options, $class;
+  $this->{memoized} = {};
+  return $this;
+}
 
 my %options_modes;
 my %validation;
@@ -135,7 +159,7 @@ fence.
 
 =cut
 
-_make_option(fenced_code_blocks_must_be_closed => 1, _boolean, (cmark => 0));
+_make_option(fenced_code_blocks_must_be_closed => 1, _boolean, (cmark => 0, github => 0));
 
 =pod
 

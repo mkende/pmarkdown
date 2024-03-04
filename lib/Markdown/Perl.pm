@@ -21,7 +21,7 @@ use Scalar::Util 'blessed';
 
 use parent 'Markdown::Perl::Options';
 
-our $VERSION = '0.01';
+our $VERSION = '1.00';
 
 our @EXPORT_OK = qw(convert);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
@@ -35,7 +35,7 @@ our %EXPORT_TAGS = (all => \@EXPORT_OK);
 sub new {
   my ($class, @options) = @_;
 
-  my $this = bless {
+  my $this = $class->SUPER::new(
     mode => undef,
     options => {},
     local_options => {},
@@ -50,8 +50,7 @@ sub new {
     md => undef,
     last_pos => 0,
     line_ending => '',
-    linkrefs => {},
-  }, $class;
+    linkrefs => {},);
   $this->SUPER::set_options(options => @options);
   lock_keys_plus(%{$this}, qw(forced_line));
 

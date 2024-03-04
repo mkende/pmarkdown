@@ -24,11 +24,18 @@ our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 =encoding utf8
 
-=head1 NAME Markdown::Perl::InlineTree
+=head1 NAME
+
+Markdown::Perl::InlineTree
 
 =head1 SYNOPSIS
 
 A tree structure meant to represent the inline elements of a Markdown paragraph.
+
+This package is internal to the implementation of L<Markdown::Perl> and
+L<pmarkdown> and its documentation should be useful only if you are hacking
+them. Otherwise please refer to the L<Markdown::Perl> and L<pmarkdown>
+documentation.
 
 =head1 DESCRIPTION
 
