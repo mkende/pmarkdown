@@ -59,11 +59,9 @@ sub set_options {
       $this->set_mode($v);
     } else {
       carp "Unknown option ignored: ${k}" unless exists $validation{$k};
-      my $error = $validation{$k}($v);
-      croak "Invalid value for option '${k}': ${error}" if $error;
-      $v = 0 if $v eq 'false';
-      $v = 1 if $v eq 'true';
-      $this->{$dest}{$k} = $v;
+      my $validated_value = $validation{$k}($v);
+      croak "Invalid value for option '${k}': ${!}" unless defined $validated_value;
+      $this->{$dest}{$k} = $validated_value;
     }
   }
   return;
@@ -79,8 +77,8 @@ sub validate_options {
       die "Unknown mode '${v}'\n" unless exists $options_modes{$v};
     } else {
       die "Unknown option: ${k}\n" unless exists $validation{$k};
-      my $error = $validation{$k}($v);
-      die "Invalid value for option '${k}': ${error}\n" if $error;
+      my $validated = $validation{$k}($v);
+      die "Invalid value for option '${k}': ${!}\n" unless defined $validated;
     }
   }
   return;
@@ -110,7 +108,7 @@ sub _make_option {
 
   {
     no strict 'refs';
-    *{$opt} = sub {
+    *{"get_".$opt} = sub {
       my ($this) = @_;
       return $this->{local_options}{$opt} if exists $this->{local_options}{$opt};
       return $this->{options}{$opt} if exists $this->{options}{$opt};
@@ -127,24 +125,37 @@ sub _make_option {
 
 sub _boolean {
   return sub {
-    return if $_[0] eq 'false' || $_[0] eq 'true';
-    return if $_[0] eq '0' || $_[0] eq '1';
-    return 'must be a boolean value (0 or 1)';
+    return 0 if $_[0] eq 'false' || $_[0] eq '0';
+    return 1 if $_[0] eq 'true' || $_[0] eq '1';
+    $! = 'must be a boolean value (0 or 1)';
+    return;
   };
 }
 
 sub _enum {
   my @valid = @_;
   return sub {
-    return if any { $_ eq $_[0] } @valid;
-    return "must be one of '".join("', '", @valid)."'";
+    return $_[0] if any { $_ eq $_[0] } @valid;
+    $! = "must be one of '".join("', '", @valid)."'";
+    return;
   };
 }
 
 sub _regex {
   return sub {
-    return if defined eval { qr/$_[0]/ };
-    return 'cannot be parsed as a Perl regex';
+    my $re = eval { qr/$_[0]/ };
+    return $re if defined $re;
+    $! = 'cannot be parsed as a Perl regex ($@)';
+    return;
+  };
+}
+
+sub _delimiters_map {
+  return sub {
+    my %m = ref $_[0] eq 'HASH' ? %{$_[0]} : map { split(/=/, $_, 2) } split(/,/, $_[0]);
+    # TODO: validate the keys and values of m.
+    return \%m if %m;
+    return { "\x{00}" => 'p' } # this can’t trigger but the code fails with an empty map otherwise.
   };
 }
 
@@ -274,5 +285,42 @@ _make_option(
   autolinks_email_regex =>
       q{[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*},
   _regex);
+
+=pod
+
+=head2 B<inline_delimiters> I<(map)>
+
+TODO: document
+TODO: provide a way to add entries to this option without redefining it entirely
+(when used on the command line).
+
+=cut
+
+_make_option(
+  inline_delimiters =>
+    {
+      '*' => 'em',
+      '**' => 'strong',
+      '_' => 'em',
+      '__' => 'strong',
+      '~' => 's',
+      '~~' => 'del',
+    },
+    _delimiters_map,
+    cmark => {
+      '*' => 'em',
+      '**' => 'strong',
+      '_' => 'em',
+      '__' => 'strong',
+    },
+    github => {
+      '*' => 'em',
+      '**' => 'strong',
+      '_' => 'em',
+      '__' => 'strong',
+      '~' => 'del',
+      '~~' => 'del',
+    }
+);
 
 1;

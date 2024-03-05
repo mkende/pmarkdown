@@ -27,6 +27,7 @@ on 'develop' => sub {
 
 # End of the template. You can add custom content below this line.
 
+requires 'List::Util', '1.45';
 requires 'List::MoreUtils';
 requires 'Readonly';
 requires 'Unicode::CaseFold';

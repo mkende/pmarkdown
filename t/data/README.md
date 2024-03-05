@@ -2,7 +2,7 @@
 
 ## CommonMark JSON test suites
 
-The `cmark.tests.json` and `github.tests.json` files are licenced under the
+The `cmark.tests.json` and `github.tests.json` files are licenced under
 [![CC BY-SA licence](cc-by-sa.png)](http://creativecommons.org/licenses/by-sa/4.0/).
 
 Their source can be found respectively at the

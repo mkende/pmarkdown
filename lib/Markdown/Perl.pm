@@ -351,7 +351,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     # TODO: this should not interrupt a list if the heading is just one -
     my $c = substr $1, 0, 1;
     my $p = $this->{paragraph};
-    my $m = $this->multi_lines_setext_headings;
+    my $m = $this->get_multi_lines_setext_headings;
     if ($m eq 'single_line' && @{$p} > 1) {
       my $last_line = pop @{$p};
       $this->_finalize_paragraph();
@@ -443,12 +443,12 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
         # We’re out of our enclosing block and we haven’t seen the end of the
         # fence. If we accept enclosed fence, then that last line must be tried
         # again (and, otherwise, we will start again from start_pos).
-        $this->redo_line() if !$this->fenced_code_blocks_must_be_closed;
+        $this->redo_line() if !$this->get_fenced_code_blocks_must_be_closed;
         last;
       }
     }
 
-    if (!$end_fence_seen && $this->fenced_code_blocks_must_be_closed) {
+    if (!$end_fence_seen && $this->get_fenced_code_blocks_must_be_closed) {
       $this->set_pos($start_pos);
       # pass-through intended
     } else {
@@ -729,7 +729,7 @@ sub _emit_html {
       my $c = $b->{content};
       html_escape($c);
       my $i = '';
-      if ($this->code_blocks_info eq 'language' && $b->{info}) {
+      if ($this->get_code_blocks_info eq 'language' && $b->{info}) {
         my $l = $b->{info} =~ s/\s.*//r;  # The spec does not really cover this behavior so we’re using Perl notion of whitespace here.
         decode_entities($l);
         html_escape($l);

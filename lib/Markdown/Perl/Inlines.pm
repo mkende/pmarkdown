@@ -10,6 +10,7 @@ use feature ':5.24';
 use English;
 use List::MoreUtils 'first_index', 'last_index';
 use List::Util 'min';
+use List::Util 1.45 'uniq';
 use Markdown::Perl::InlineTree ':all';
 use Markdown::Perl::Util 'normalize_label';
 
@@ -103,8 +104,8 @@ sub find_code_and_tag_runs {
       }  # in the else clause, pos($text) == $start_after (because of the /c modifier).
     } else {
       # We matched a single < character.
-      my $re = $that->autolinks_regex;
-      my $email_re = $that->autolinks_email_regex;
+      my $re = $that->get_autolinks_regex;
+      my $email_re = $that->get_autolinks_email_regex;
       # We’re not using /gc in these to regex because this confuses the ProhibitUnusedCapture
       # PerlCritic policy. Anyway, as we are always resetting pos() in case of
       # successful match, it’s not important to update it.
@@ -471,7 +472,12 @@ sub process_styles {
   # options.
   my $current_child = 0;
   my @delimiters;
-  while (my @match = $tree->find_in_text(qr/([*_~])\1*/, $current_child, 0)) {
+  my $delim = delim_characters($that);
+  while (my @match = $tree->find_in_text(qr/([${delim}])\1*/, $current_child, 0)) {
+    # TODO: add an option to prevent some delimiters to be part of long run
+    # (e.g. max_delimiter_run_length), typically for ~ which can only be in run
+    # of lengths 2 according to Github spec (to not collide with code block
+    # probably).
     # We extract the delimiter run into a new node, that will be at $index.
     my ($delim_tree, $index) = $tree->extract($match[0], $match[1], $match[0], $match[2]);
     # We use the type literal so that if we do nothing with the delimiter it
@@ -645,25 +651,25 @@ sub valid_rules_9_10 {
       || ($o->{orig_len} % 3 == 0 && $c->{orig_len} % 3 == 0);
 }
 
-my %delimiters_map = (
-  '*' => 'em',
-  '**' => 'strong',
-  '_' => 'em',
-  '__' => 'strong',
-  '~' => 's',
-  '~~' => 'del',
-  # TODO: use ^ and ˇ to represent sup and sub
-  # TODO: add support for MathML in some way.
-);
-
+# TODO: use ^ and ˇ to represent sup and sub
+# TODO: add support for MathML in some way.
 sub delim_to_html_tag {
   my ($that, $delim) = @_;
-  # TODO: this must be based on options on $that.
-  # TODO: this must be called somewhere in process_styles, to ensure that we
-  # are building valid delimiters.
   # TODO: sort what to do if a given delimiter does not have a variant with
   # two characters (we must backtrack somewhere in match_delimiters probably).
-  return $delimiters_map{$delim};
+  # TOOD: add support for <span class="foo"> when the value in the map is ".foo"
+  # instead of just "foo".
+  return $that->get_inline_delimiters()->{$delim};
+}
+
+# Return the list of characters that can be delimiters (using the regex
+# character class syntax).
+sub delim_characters {
+  my ($that) = @_;
+  # TODO: memo-ize this function inside $that (but clear it when the options
+  # change).
+  my @c = map { substr $_, 0, 1 } keys %{$that->get_inline_delimiters()};
+  return join('', uniq @c);
 }
 
 1;
