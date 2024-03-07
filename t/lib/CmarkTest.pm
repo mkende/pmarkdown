@@ -1,4 +1,8 @@
-package JsonTest;
+# A package to execute the cmark test suite (and those of the specs derived from
+# it).
+# This is mostly based on a JSON file containing all the tests.
+
+package CmarkTest;
 
 use strict;
 use warnings;

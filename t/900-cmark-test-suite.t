@@ -6,7 +6,7 @@ use FindBin;
 use lib "${FindBin::Bin}/lib";
 
 use Markdown::Perl;
-use JsonTest;
+use CmarkTest;
 use Test2::V0;
 
 my %filter;
