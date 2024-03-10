@@ -11,6 +11,7 @@ use Exporter 'import';
 use File::Basename;
 use HtmlSanitizer;
 use Test2::V0;
+use Text::Diff;
 
 our @EXPORT = qw(test_suite);
 
@@ -29,17 +30,24 @@ sub one_test {
   my $md = slurp_file($md_file);
   my $out = sanitize_html($pmarkdown->convert($md));
   my $expected = sanitize_html(slurp_file($html_file));
-  my @diag = ('Input markdown:', $md, "\n");
+  my @diag;
+  my $diff = diff \$out, \$expected, { FILENAME_A => 'actual', FILENAME_B => 'expected', CONTEXT => 0 };
+  push @diag, 'Diff:', $diff, "\n";
+  push @diag, 'Input markdown:', $md, "\n";
   is ($out, $expected, $test_name, @diag);
 }
 
 sub test_suite {
-  my ($test_dir, $pmarkdown) = @_;
+  my ($test_dir, $pmarkdown, %opt) = @_;
+  my $i = $opt{start_num} // 0;
   for my $md_file (glob "${test_dir}/*.text") {
+    $i++;
+    next if exists $opt{test_num} && $opt{test_num} != $i;
     my $html_file = $md_file =~ s/\.text$/.html/r;
     SKIP: {
       skip "Missing html file '${html_file}'" unless -f $html_file;
       one_test($pmarkdown, $md_file, $html_file);
     }
   }
+  return $i;
 }

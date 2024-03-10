@@ -18,14 +18,15 @@ our @EXPORT = qw(sanitize_html);
 # were hidden by the normalization done by the cmark tool.
 sub  sanitize_html {
   my ($html) = @_;
-  while ($html =~ m/<code>|(?<=>)\n(?=.)|\n(?=<)/g) {
-    if ($& eq "\n") {
+  while ($html =~ m/<code>|(?<new_line>(?<=>)\n+(?=.)|\n+(?=<))/g) {
+    if ($+{new_line}) {
       my $p = pos($html);
       substr $html, $-[0], $+[0] - $-[0], '';
-      pos($html) = $p - length($&);
+      pos($html) = $p - length($+{new_line});
     } else {
       $html =~ m/<\/code>|$/g;
     }
   }
+  $html =~ s/(<\/[a-z]+>)/$1\n/g;
   return $html;
 }

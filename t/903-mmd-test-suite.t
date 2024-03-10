@@ -9,6 +9,12 @@ use Markdown::Perl;
 use MmdTest;
 use Test2::V0;
 
+my %filter;
+
+while ($_ = shift) {
+  %filter = (test_num => shift @ARGV) if /^-n$/;
+}
+
 my $test_suite = "${FindBin::Bin}/../third_party/MMD-Test-Suite";
 # As of writing, the spec seems more up to date in the commonmark-spec repo than
 # in the cmark repo, although the cmark one has other tools too.
@@ -17,7 +23,7 @@ skip_all('MMD-Test-Suite must be checked out.') unless -d $test_suite;
 my $pmarkdown = Markdown::Perl->new();
 
 todo 'MMD syntax is not yet fully implemented' => sub {
-  test_suite($test_suite."/MultiMarkdownTests", $pmarkdown);
+  test_suite($test_suite."/MultiMarkdownTests", $pmarkdown, %filter);
 };
 
 done_testing;
