@@ -45,6 +45,8 @@ sub render {
 
   # At this point we have added the emphasis, strong emphasis, etc. in the tree.
 
+  $tree->apply(sub { $_->escape_content() });
+
   my $out = $tree->render_html();
 
   return $out;

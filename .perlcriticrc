@@ -58,9 +58,6 @@ minimum_regex_length_to_complain_about = 30
 
 # End of the template. You can add custom content below this line.
 
-# This is a binary, not a library, so let’s not require Carp
-[-ErrorHandling::RequireCarping]
-
 # This is inconvenient
 [-ValuesAndExpressions::ProhibitEmptyQuotes]
 [-ValuesAndExpressions::ProhibitNoisyQuotes]

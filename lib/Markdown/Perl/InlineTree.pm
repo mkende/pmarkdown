@@ -8,10 +8,10 @@ use warnings;
 use utf8;
 use feature ':5.24';
 
+use Carp;
 use English;
 use Exporter 'import';
 use Hash::Util ();
-use Markdown::Perl::HTML 'decode_entities', 'html_escape', 'http_escape';
 use Scalar::Util 'blessed';
 
 our $VERSION = 0.01;
@@ -54,6 +54,8 @@ sub new {
 }
 
 package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
+  use Carp;
+  use Markdown::Perl::HTML 'decode_entities', 'html_escape', 'http_escape';
 
   sub hashpush (\%%) {
     my ($hash, %args) = @_;
@@ -66,7 +68,7 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
   sub new {
     my ($class, $type, $content, %options) = @_;
 
-    my $this = {type => $type};
+    my $this = {type => $type, escaped => 0};
     $this->{debug} = delete $options{debug} if exists $options{debug};
     my $content_ref = ref $content;
     if (Scalar::Util::blessed($content)
@@ -75,29 +77,29 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
     } elsif (!ref($content)) {
       hashpush %{$this}, content => $content;
     } else {
-      die "Unexpected content for inline ${type} node: ".ref($content);
+      confess "Unexpected content for inline ${type} node: ".ref($content);
     }
     # There is one more node type, not created here, that looks like a text
     # node but that is a 'delimiter' node. These nodes are created manually
     # inside the Inlines module.
     if ($type eq 'text' || $type eq 'code' || $type eq 'literal' || $type eq 'html') {
-      die "Unexpected content for inline ${type} node: ${content_ref}" if $content_ref;
-      die "Unexpected parameters for inline ${type} node: ".join(', ', %options)
+      confess "Unexpected content for inline ${type} node: ${content_ref}" if $content_ref;
+      confess "Unexpected parameters for inline ${type} node: ".join(', ', %options)
           if %options;
     } elsif ($type eq 'link') {
-      die 'Missing required option "type" for inline link node' unless exists $options{type};
+      confess 'Missing required option "type" for inline link node' unless exists $options{type};
       hashpush %{$this}, linktype => delete $options{type};
-      die 'Missing required option "target" for inline link node' unless exists $options{target};
+      confess 'Missing required option "target" for inline link node' unless exists $options{target};
       hashpush %{$this}, target => delete $options{target};
       hashpush %{$this}, title => delete $options{title} if exists $options{title};
-      die 'Unexpected parameters for inline link node: '.join(', ', %options) if keys %options;
+      confess 'Unexpected parameters for inline link node: '.join(', ', %options) if keys %options;
     } elsif ($type eq 'style') {
-      die 'Unexpected parameters for inline style node: '.join(', ', %options)
+      confess 'Unexpected parameters for inline style node: '.join(', ', %options)
           if keys %options > 1 || !exists $options{tag};
-      die 'The content of a style node must be an InlineTree' unless $content_ref;
+      confess 'The content of a style node must be an InlineTree' unless $content_ref;
       hashpush %{$this}, tag => $options{tag};
     } else {
-      die "Unexpected type for an InlineNode: ${type}";
+      confess "Unexpected type for an InlineNode: ${type}";
     }
     bless $this, $class;
 
@@ -115,6 +117,52 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
     my ($this) = @_;
 
     return exists $this->{subtree};
+  }
+
+  sub escape_content {
+    my ($this) = @_;
+
+    confess 'Node should not already be escaped when calling to_text' if $this->{escaped};
+    $this->{escaped} = 1;
+
+    if ($this->{type} eq 'text') {
+      decode_entities($this->{content});
+      html_escape($this->{content});
+    } elsif ($this->{type} eq 'literal') {
+      html_escape($this->{content});
+    } elsif ($this->{type} eq 'code') {
+      # New lines are treated like spaces in code.
+      $this->{content} =~ s/\n/ /g;
+      # If the content is not just whitespace and it has one space at the
+      # beginning and one at the end, then we remove them.
+      $this->{content} =~ s/^ (.*[^ ].*) $/$1/g;
+      html_escape($this->{content});
+    } elsif ($this->{type} eq 'link') {
+      if ($this->{linktype} eq 'autolink') {
+        # For autolinks we don’t decode entities as these are treated like html
+        # construct.
+        html_escape($this->{content});
+        http_escape($this->{target});
+        html_escape($this->{target});
+      } elsif ($this->{linktype} eq 'link' || $this->{linktype} eq 'img') {
+        # This is a real MD link definition (or image). The target and title
+        # have been generated through the to_source_text() method, so they need
+        # to be decoded and html_escaped
+        if (exists $this->{title}) {
+          decode_entities($this->{title});
+          html_escape($this->{title});
+        }
+        decode_entities($this->{target});
+        http_escape($this->{target});
+        html_escape($this->{target});
+      } else {
+        confess 'Unexpected link type in render_node_html: '.$this->{linktype};
+      }
+    } elsif ($this->{type} eq 'html' || $this->{type} eq 'style') {
+      # Nothing here on purpose
+    } else {
+      confess 'Unexpected node type in render_node_html: '.$this->{type};
+    }
   }
 }
 
@@ -182,7 +230,7 @@ sub push {  ## no critic (ProhibitBuiltinHomonyms)
     } elsif (is_tree($node_or_tree)) {
       push @{$this->{children}}, @{$node_or_tree->{children}};
     } else {
-      die 'Invalid argument type for InlineTree::push: '.ref($node_or_tree);
+      confess 'Invalid argument type for InlineTree::push: '.ref($node_or_tree);
     }
   }
 
@@ -253,7 +301,7 @@ sub extract {
   # boundary of non-text nodes.
 
   my $sn = $this->{children}[$child_start];
-  die 'Start node in an extract operation is not of type text: '.$sn->{type}
+  confess 'Start node in an extract operation is not of type text: '.$sn->{type}
       unless $sn->{type} eq 'text' || $text_start == 0;
 
   ## I don’t think that this block is useful (I should add tests for this case
@@ -274,10 +322,10 @@ sub extract {
   # }
 
   my $en = $this->{children}[$child_end];
-  die 'End node in an extract operation is not of type text: '.$en->{type}
+  confess 'End node in an extract operation is not of type text: '.$en->{type}
       unless $text_end == 0 || $en->{type} eq 'text';
-  die 'Start offset is less than 0 in an extract operation' if $text_start < 0;
-  die 'End offset is past the end of the text in an extract operation'
+  confess 'Start offset is less than 0 in an extract operation' if $text_start < 0;
+  confess 'End offset is past the end of the text in an extract operation'
       if $text_end != 0 && $text_end > length($en->{content});
 
   my $empty_last = 0;
@@ -405,6 +453,27 @@ sub map {  ## no critic (ProhibitBuiltinHomonyms)
 
   return $new_tree if defined wantarray;
   %{$this} = %{$new_tree};
+  return;
+}
+=pod
+
+=head2 apply
+
+  $tree->apply($sub);
+
+Apply the given C<$sub> to all nodes of the tree. The sub receives the current
+node in C<$_> and can modify it. The return value of the sub is ignored.
+
+=cut
+
+sub apply {
+  my ($this, $sub) = @_;
+
+  for (@{$this->{children}}) {
+    $sub->();
+    $_->{subtree}->apply($sub) if $_->has_subtree();
+  }
+
   return;
 }
 
@@ -584,71 +653,36 @@ sub render_html {
 sub render_node_html {
   my ($n, $acc) = @_;
 
-  # TODO: all the decoding and escaping should be moved to class methods of the
-  # node, to be done once at a clear point.
+  confess 'Node should  already be escaped when calling render_html' unless $n->{escaped};
 
-  if ($n->{type} eq 'text') {
-    decode_entities($n->{content});
-    html_escape($n->{content});
-    return $acc.$n->{content};
-  } elsif ($n->{type} eq 'literal') {
-    html_escape($n->{content});
-    return $acc.$n->{content};
-  } elsif ($n->{type} eq 'html') {
+  if ($n->{type} eq 'text' || $n->{type} eq 'literal' || $n->{type} eq 'html') {
     return $acc.$n->{content};
   } elsif ($n->{type} eq 'code') {
-    # New lines are treated like spaces in code.
-    $n->{content} =~ s/\n/ /g;
-    # If the content is not just whitespace and it has one space at the
-    # beginning and one at the end, then we remove them.
-    $n->{content} =~ s/^ (.*[^ ].*) $/$1/g;
-    html_escape($n->{content});
     return $acc.'<code>'.$n->{content}.'</code>';
   } elsif ($n->{type} eq 'link') {
     if ($n->{linktype} eq 'autolink') {
-      # For autolinks we don’t decode entities as these are treated like html
-      # construct.
-      html_escape($n->{content});
-      http_escape($n->{target});
-      html_escape($n->{target});
       return $acc.'<a href="'.($n->{target}).'">'.($n->{content}).'</a>';
-    } elsif ($n->{linktype} eq 'link') {
-      # This is a real MD link definition. The target and title have been
-      # generated through the to_source_text() method, so they need to be
-      # decoded and html_escaped
-      my $title = '';
-      if (exists $n->{title}) {
-        decode_entities($n->{title});
-        html_escape($n->{title});
-        $title = " title=\"$n->{title}\"";
-      }
-      my $content = $n->{subtree}->render_html();
-      decode_entities($n->{target});
-      http_escape($n->{target});
-      html_escape($n->{target});
-      return $acc."<a href=\"$n->{target}\"${title}>${content}</a>";
-    } elsif ($n->{linktype} eq 'img') {
-      # TODO: share code with the normal links.
-      my $title = '';
-      if (exists $n->{title}) {
-        decode_entities($n->{title});
-        html_escape($n->{title});
-        $title = " title=\"$n->{title}\"";
-      }
-      my $content = $n->{subtree}->to_text();
-      decode_entities($n->{target});
-      http_escape($n->{target});
-      html_escape($n->{target});
-      return $acc."<img src=\"$n->{target}\" alt=\"${content}\"${title} />";
     } else {
-      die 'Unexpected link type in render_node_html: '.$n->{linktype};
+      my $title = '';
+      if (exists $n->{title}) {
+        $title = " title=\"$n->{title}\"";
+      }
+      if ($n->{linktype} eq 'link') {
+        my $content = $n->{subtree}->render_html();
+        return $acc."<a href=\"$n->{target}\"${title}>${content}</a>";
+      } elsif ($n->{linktype} eq 'img') {
+        my $content = $n->{subtree}->to_text();
+        return $acc."<img src=\"$n->{target}\" alt=\"${content}\"${title} />";
+      } else {
+        confess 'Unexpected link type in render_node_html: '.$n->{linktype};
+      }
     }
   } elsif ($n->{type} eq 'style') {
     my $content = $n->{subtree}->render_html();
     my $tag = $n->{tag};
     return $acc."<${tag}>${content}</${tag}>";
   } else {
-    die 'Unexpected node type in render_node_html: '.$n->{type};
+    confess 'Unexpected node type in render_node_html: '.$n->{type};
   }
 }
 
@@ -671,23 +705,22 @@ sub to_text {
 
 sub node_to_text {
   my ($n, $acc) = @_;
+  confess 'Node should  already be escaped when calling to_text' unless $n->{escaped};
   if ($n->{type} eq 'text') {
-    decode_entities($n->{content});
-    html_escape($n->{content});
     return $acc.$n->{content};
   } elsif ($n->{type} eq 'style') {
     return $acc.$n->{subtree}->to_text();
   } elsif ($n->{type} eq 'literal' || $n->{type} eq 'html') {
-    # This is somehow buggy as the content inline html is not escaped at all.
-    # But this matches what cmark does...
+    # This is not the exact same behavior as cmark because we will escape
+    # literals here, while cmark would not escape them. The cmark behavior is
+    # probably faulty here (and is not tested by the test suite).
     return $acc.$n->{content};
   } elsif ($n->{type} eq 'link' && $n->{linktype} ne 'autolink') {
     return $acc.$n->{subtree}->to_text();
   } elsif ($n->{type} eq 'code') {
-    html_escape($n->{content});
     return $acc.'<code>'.$n->{content}.'</code>';
   } else {
-    die 'Unsupported node type for to_text: '.$n->{type};
+    confess 'Unsupported node type for to_text: '.$n->{type};
   }
 }
 
@@ -725,6 +758,7 @@ sub node_to_source_text {
   my ($unescape_literal) = @_;
   return sub {
     my ($n, $acc) = @_;
+    confess 'Node should not already be escaped when calling to_source_text' if $n->{escaped};
     if ($n->{type} eq 'text') {
       return $acc.$n->{content};
     } elsif ($n->{type} eq 'literal' && $unescape_literal) {
@@ -735,7 +769,7 @@ sub node_to_source_text {
       # TODO: This also need to be the source string with the right delimiters.
       return $acc.'<code>'.$n->{content}.'</code>';
     } else {
-      die 'Unsupported node type for to_source_text: '.$n->{type};
+      confess 'Unsupported node type for to_source_text: '.$n->{type};
     }
   };
 }

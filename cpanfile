@@ -35,7 +35,7 @@ requires 'Unicode::CaseFold';
 on 'test' => sub {
   requires 'JSON';
   requires 'Test2::V0';
-  requires 'Text'::Diff';
+  requires 'Text::Diff';
 };
 
 on 'develop' => sub {
