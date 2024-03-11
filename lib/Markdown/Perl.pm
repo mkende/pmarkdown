@@ -727,12 +727,12 @@ sub _emit_html {
       $out .= "<h${l}>$c</h${l}>\n";
     } elsif ($b->{type} eq 'code') {
       my $c = $b->{content};
-      html_escape($c);
+      html_escape($c, $this->get_html_escaped_characters);
       my $i = '';
       if ($this->get_code_blocks_info eq 'language' && $b->{info}) {
         my $l = $b->{info} =~ s/\s.*//r;  # The spec does not really cover this behavior so we’re using Perl notion of whitespace here.
         decode_entities($l);
-        html_escape($l);
+        html_escape($l, $this->get_html_escaped_characters);
         $i = " class=\"language-${l}\"";
       }
       $out .= "<pre><code${i}>$c</code></pre>\n";

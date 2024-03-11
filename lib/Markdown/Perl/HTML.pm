@@ -62,14 +62,17 @@ sub decode_entities {
 # spec never really says so because they claim that they care only about parsing).
 my %char_to_html_entity = (
   '"' => '&quot;',
+  "'" => '&apos;',
   '&' => '&amp;',
   '<' => '&lt;',
   '>' => '&gt;'
 );
 
+# html_escape($str_to_escape, $character_class_to_use_for_escaping)
 sub html_escape {
-  # We put the " twice, to not confuse our spell-checker.
-  $_[0] =~ s/([&""<>])/$char_to_html_entity{$1}/eg;
+  # TODO: I believe that this is re-compiled at each call because of the local
+  # variable. The regex should be built once in the Markdown::Perl object.
+  $_[0] =~ s/([$_[1]])/$char_to_html_entity{$1}/eg;
   return;
 }
 

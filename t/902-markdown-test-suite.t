@@ -20,7 +20,7 @@ my $test_suite = "${FindBin::Bin}/../third_party/MMD-Test-Suite";
 # in the cmark repo, although the cmark one has other tools too.
 skip_all('MMD-Test-Suite must be checked out.') unless -d $test_suite;
 
-my $pmarkdown = Markdown::Perl->new();
+my $pmarkdown = Markdown::Perl->new(mode => 'markdown');
 
 todo 'Original syntax is not yet fully implemented' => sub {
   my $n = test_suite($test_suite."/Tests", $pmarkdown, %filter);

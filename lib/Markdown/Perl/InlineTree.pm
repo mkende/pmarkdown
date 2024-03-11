@@ -120,41 +120,41 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
   }
 
   sub escape_content {
-    my ($this) = @_;
+    my ($this, $char_class_to_escape) = @_;
 
     confess 'Node should not already be escaped when calling to_text' if $this->{escaped};
     $this->{escaped} = 1;
 
     if ($this->{type} eq 'text') {
       decode_entities($this->{content});
-      html_escape($this->{content});
+      html_escape($this->{content}, $char_class_to_escape);
     } elsif ($this->{type} eq 'literal') {
-      html_escape($this->{content});
+      html_escape($this->{content}, $char_class_to_escape);
     } elsif ($this->{type} eq 'code') {
       # New lines are treated like spaces in code.
       $this->{content} =~ s/\n/ /g;
       # If the content is not just whitespace and it has one space at the
       # beginning and one at the end, then we remove them.
       $this->{content} =~ s/^ (.*[^ ].*) $/$1/g;
-      html_escape($this->{content});
+      html_escape($this->{content}, $char_class_to_escape);
     } elsif ($this->{type} eq 'link') {
       if ($this->{linktype} eq 'autolink') {
         # For autolinks we don’t decode entities as these are treated like html
         # construct.
-        html_escape($this->{content});
+        html_escape($this->{content}, $char_class_to_escape);
         http_escape($this->{target});
-        html_escape($this->{target});
+        html_escape($this->{target}, $char_class_to_escape);
       } elsif ($this->{linktype} eq 'link' || $this->{linktype} eq 'img') {
         # This is a real MD link definition (or image). The target and title
         # have been generated through the to_source_text() method, so they need
         # to be decoded and html_escaped
         if (exists $this->{title}) {
           decode_entities($this->{title});
-          html_escape($this->{title});
+          html_escape($this->{title}, $char_class_to_escape);
         }
         decode_entities($this->{target});
         http_escape($this->{target});
-        html_escape($this->{target});
+        html_escape($this->{target}, $char_class_to_escape);
       } else {
         confess 'Unexpected link type in render_node_html: '.$this->{linktype};
       }

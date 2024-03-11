@@ -103,7 +103,21 @@ C<0>, C<1>, C<false>, or C<true>.
 
 =head1 MODES
 
-TODO
+TODO: fill this section.
+
+=over 8
+
+=item I<default> The default mode. TODO: document the active feature. Note that
+B<default> is not a mode that can be specified. You get the default mode by not
+passing the B<--mode> flag.
+
+=item B<cmark> L<https://spec.commonmark.org/0.31.2/>
+
+=item B<github> L<https://github.github.com/gfm/>
+
+=item B<markdown> L<https://daringfireball.net/projects/markdown/syntax>
+
+=back
 
 =head1 AUTHOR
 

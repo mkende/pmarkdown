@@ -150,15 +150,6 @@ sub _regex {
   };
 }
 
-sub _delimiters_map {
-  return sub {
-    my %m = ref $_[0] eq 'HASH' ? %{$_[0]} : map { split(/=/, $_, 2) } split(/,/, $_[0]);
-    # TODO: validate the keys and values of m.
-    return \%m if %m;
-    return { "\x{00}" => 'p' } # this can’t trigger but the code fails with an empty map otherwise.
-  };
-}
-
 =pod
 
 =head2 B<fenced_code_blocks_must_be_closed> I<(boolean, default: true)>
@@ -296,6 +287,15 @@ TODO: provide a way to add entries to this option without redefining it entirely
 
 =cut
 
+sub _delimiters_map {
+  return sub {
+    my %m = ref $_[0] eq 'HASH' ? %{$_[0]} : map { split(/=/, $_, 2) } split(/,/, $_[0]);
+    # TODO: validate the keys and values of m.
+    return \%m if %m;
+    return { "\x{00}" => 'p' } # this can’t trigger but the code fails with an empty map otherwise.
+  };
+}
+
 _make_option(
   inline_delimiters =>
     {
@@ -322,5 +322,26 @@ _make_option(
       '~~' => 'del',
     }
 );
+
+=pod
+
+=head2 B<html_escaped_characters> I<(character_class)>
+
+This option specifies the list of characters that will be escaped in the HTML
+output. This should be a string containing the characters to escapes. Only the
+following characters are supported and can be passed in the string: C<">, C<'>,
+C<&>, C<E<lt>>, and C<E<gt>>.
+
+=cut
+
+sub _escaped_characters {
+  return sub {
+    return $_[0] if $_[0] =~ m/^["'&<>]*$/;
+    $! = "must only contains the following characters: \", ', &, <, and >";
+    return;
+  };
+}
+
+_make_option(html_escaped_characters => '"&<>', _escaped_characters, markdown => '&<');
 
 1;
