@@ -28,5 +28,6 @@ sub  sanitize_html {
     }
   }
   $html =~ s/(<\/[a-z]+>)/$1\n/g;
+  $html =~ s/\n\n+$/\n/;
   return $html;
 }
