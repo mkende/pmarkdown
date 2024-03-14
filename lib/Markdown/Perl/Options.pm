@@ -346,6 +346,17 @@ _make_option(html_escaped_characters => '"&<>', _escaped_characters, markdown =>
 
 =pod
 
+=head2 B<html_escaped_code_characters> I<(character_class)>
+
+This option is similar to the C<html_escaped_characters> but is used in the
+context of C<E<lt>codeE<gt>> blocks.
+
+=cut
+
+_make_option(html_escaped_code_characters => '"&<>', _escaped_characters, markdown => '&<>');
+
+=pod
+
 =head2 B<allow_spaces_in_links> I<(enum, default: none)>
 
 This option controls whether spaces are allowed between the link text and the
@@ -371,5 +382,19 @@ _make_option(
   allow_spaces_in_links => 'none',
   _enum(qw(none reference)),
   (markdown => 'reference'));
+
+=pod
+
+=head2 B<force_final_new_line> I<(boolean, default: false)>
+
+This option forces the processing of the input markdown to behave as if a final
+new line was always present. Note that, even without this option, a final new
+line will almost always be present in the output (and will always be present
+with it).
+
+=cut
+
+_make_option(force_final_new_line => 0, _boolean, (markdown => 1));
+
 
 1;

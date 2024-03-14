@@ -120,7 +120,7 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
   }
 
   sub escape_content {
-    my ($this, $char_class_to_escape) = @_;
+    my ($this, $char_class_to_escape, $char_class_to_escape_in_code) = @_;
 
     confess 'Node should not already be escaped when calling to_text' if $this->{escaped};
     $this->{escaped} = 1;
@@ -136,7 +136,7 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
       # If the content is not just whitespace and it has one space at the
       # beginning and one at the end, then we remove them.
       $this->{content} =~ s/^ (.*[^ ].*) $/$1/g;
-      html_escape($this->{content}, $char_class_to_escape);
+      html_escape($this->{content}, $char_class_to_escape_in_code);
     } elsif ($this->{type} eq 'link') {
       if ($this->{linktype} eq 'autolink') {
         # For autolinks we don’t decode entities as these are treated like html

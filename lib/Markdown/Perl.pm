@@ -95,7 +95,7 @@ sub next_line {
     $this->{line_ending} = $t.($e // '');
     return '';
   } else {
-    $this->{line_ending} = $e // '';
+    $this->{line_ending} = $e // ($this->get_force_final_new_line ? "\n" : '');
     return $t;
   }
 }
@@ -727,7 +727,7 @@ sub _emit_html {
       $out .= "<h${l}>$c</h${l}>\n";
     } elsif ($b->{type} eq 'code') {
       my $c = $b->{content};
-      html_escape($c, $this->get_html_escaped_characters);
+      html_escape($c, $this->get_html_escaped_code_characters);
       my $i = '';
       if ($this->get_code_blocks_info eq 'language' && $b->{info}) {
         my $l = $b->{info} =~ s/\s.*//r;  # The spec does not really cover this behavior so we’re using Perl notion of whitespace here.
@@ -759,6 +759,9 @@ sub _emit_html {
           ."</li>\n</${type}>\n";
     }
   }
+  # Note: a final new line should always be appended to $out. This is not
+  # guaranteed when the last element is HTML and the input file did not contain
+  # a final new line, unless the option force_final_new_line is set.
   return $out;
 }
 
