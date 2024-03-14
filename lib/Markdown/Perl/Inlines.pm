@@ -225,51 +225,59 @@ sub find_link_destination_and_title {
   # We assume that the beginning of the link destination must be just after the
   # link text and in the same child, as there can be no other constructs
   # in-between.
-  # TODO: For now we only look at a single element.
-  # TODO: this is a very very partial treatment of the link destination.
-  # We need to support more formatting and the case where there are Literal
-  # elements in the link. The spec does not say what happens if there are
-  # other type of elements in the link destination like, stuff that looks like
-  # code for example (in practice, CommonMark will not process their content).
-  # So let’s not care too much...
-  # TODO: we are not yet finding the link title, if any.
 
-  # $cur_child is advanced through the tree while we parse the link destination
-  # and title, it always point to the node that we are currently looking into
-  # (the one containing the end of the element that was previously found).
-  # $n is the node at index $cur_child.
   my $cur_child = $child_start;
   my $n = $tree->{children}[$cur_child];
   die 'Unexpected link destination search in a non-text element: '.$n->{type}
       unless $n->{type} eq 'text';
-  my @start = ($child_start, $text_start, $child_start, $text_start + 1);
-  # TODO: use find_in_text bounded (to work across child limit) (maybe not
-  # really needed as this should never be a different child).
-  my $collapsed;
-  if (substr($n->{content}, $text_start, 1) eq '(') {
-    my @target = parse_inline_link($tree, @start);
-    return @target if @target;
-  } elsif (substr($n->{content}, $text_start, 2) eq '[]') {
-    # https://spec.commonmark.org/0.31.2/#collapsed-reference-link
-    $collapsed = 2;
-    # Pass-through intended.
-  } elsif (substr($n->{content}, $text_start, 1) eq '[') {
-    my @target = parse_reference_link($that, $tree, @start);
-    return @target if @target;
-    return;
+  pos($n->{content}) = $text_start;
+  $n->{content} =~ m/ \G (?<space> [ \t\n]+ )? (?: (?<inline> \( ) | (?<reference> \[\]? ) )? /x;
+  my @start = ($child_start, $text_start, $child_start, $LAST_MATCH_END[0]);
+
+  my $has_space = exists $+{space};
+  my $type;
+  if (exists $+{inline}) {
+    $type = 'inline';
+  } elsif (exists $+{reference}) {
+    if($+{reference} eq '[') {
+      $type = 'reference';
+    } else {
+      $type = 'collapsed';
+    }
   } else {
-    # https://spec.commonmark.org/0.31.2/#shortcut-reference-link
-    $collapsed = 0;
-    # Pass-through intended.
+    $type = 'shortcut';
   }
 
-  # TODO: assert defined(collapsed).
-  # We have a syntax that might be a shortcut reference link or a
-  # collapsed reference link. We check if we have a matching label.
+  my $mode = $that->get_allow_spaces_in_links;
+  if ($has_space) {
+    if ($mode eq 'reference' && ($type eq 'reference' || $type eq 'collapsed') && $+{space} eq ' ') {
+      # ok, do nothing
+    } else {
+      # We have forbidden spaces, so we treat this as a tentative shortcut link.
+      $type = 'shortcut';
+    }
+  }
+  
+  if ($type eq 'inline') {
+    my @target = parse_inline_link($tree, @start);
+    return @target if @target;
+    # pass-through intended if we can’t parse a valid target, we will try a
+    # shortcut link.
+  } elsif ($type eq 'reference') {
+    my %target = parse_reference_link($that, $tree, @start);
+    return %target if exists $target{target};
+    # no pass-through here if this was a valid reference link syntax. This is
+    # not fully specified by the spec but matches what the reference
+    # implementation does.
+    return if %target;
+    # Otherwise, pass-through.
+  }
+  # This is either a collapsed or a shortcut reference link (or something that
+  # might be one).
   my $ref = $tree->span_to_source_text(@text_span, UNESCAPE_LITERAL);
   $ref = normalize_label($ref) if $ref;
   if (exists $that->{linkrefs}{$ref}) {
-    $tree->extract($child_start, $text_start, $child_start, $text_start + $collapsed) if $collapsed;
+    $tree->extract(@start) if $type eq 'collapsed';
     return %{$that->{linkrefs}{$ref}};
   }
   return;
@@ -279,6 +287,10 @@ sub parse_inline_link {
   my ($tree, @start) = @_;  # ($child_start, $text_start, $child_start, $text_start + 1);
                             # @start points to before and after the '(' character opening the link.
 
+  # $cur_child is advanced through the tree while we parse the link destination
+  # and title, it always point to the node that we are currently looking into
+  # (the one containing the end of the element that was previously found).
+  # $n is the node at index $cur_child.
   my $cur_child = $start[0];
   my $n = $tree->{children}[$cur_child];
 
@@ -409,10 +421,15 @@ sub parse_reference_link {
   if (my @end_ref = $tree->find_in_text(qr/]/, $cur_child, $start[3])) {
     my $ref =
         normalize_label($tree->span_to_source_text(@start[2, 3], @end_ref[0, 1], UNESCAPE_LITERAL));
-    # TODO: normalize the ref
     if (exists $that->{linkrefs}{$ref}) {
       $tree->extract(@start[0, 1], @end_ref[0, 2]);
       return %{$that->{linkrefs}{$ref}};
+    } else {
+      # TODO: we should only return this if the span was indeed a valid
+      # reference link label (not longer than 1000 characters mostly).
+      # This is used to notice that we had a proper reference link syntax and
+      # not fallback to trying a shortcut link.
+      return ( ignored_valid_value => 1 )
     }
   }
   return;

@@ -42,7 +42,7 @@ sub new {
   my ($class, %options) = @_;
 
   my $this = bless \%options, $class;
-  $this->{memoized} = {};
+  $this->{memoized} = {};  # TODO: use this.
   return $this;
 }
 
@@ -343,5 +343,33 @@ sub _escaped_characters {
 }
 
 _make_option(html_escaped_characters => '"&<>', _escaped_characters, markdown => '&<');
+
+=pod
+
+=head2 B<allow_spaces_in_links> I<(enum, default: none)>
+
+This option controls whether spaces are allowed between the link text and the
+link destination (between the closing bracket of the text and the opening
+parenthesis or bracket of the destination).
+
+=over 4
+
+=item B<none> I<(default)>
+
+No space is allowed between the link text and the link target.
+
+=item B<reference>
+
+This allows at most one space between the two sets of brackets in a
+reference link.
+
+=back
+
+=cut
+
+_make_option(
+  allow_spaces_in_links => 'none',
+  _enum(qw(none reference)),
+  (markdown => 'reference'));
 
 1;

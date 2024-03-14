@@ -12,5 +12,4 @@ is(convert($md, multi_lines_setext_headings => 'break'), "<p>Foo\nbar</p>\n<hr /
 is(convert($md, multi_lines_setext_headings => 'multi_line'), "<h2>Foo\nbar</h2>\n<p>baz</p>\n", 'multi_line');
 is(convert($md, multi_lines_setext_headings => 'ignore'), "<p>Foo\nbar\n---\nbaz</p>\n", 'ignore');
 
-
 done_testing;

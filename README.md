@@ -10,15 +10,14 @@ This software supports the entire `CommonMark` spec syntax, with some addition.
 
 ### Pre-compiled binaries for Windows and Linux
 
-You can download on the
-[releases page](https://github.com/mkende/pmarkdown/releases) portable version
-of `pmarkdown` for Windows and Linux.
+You can download portable versions of `pmarkdown` for Windows and Linux on the
+[releases page](https://github.com/mkende/pmarkdown/releases).
 
 ### Installation from the Perl package manager
 
 To install `pmarkdown` you need Perl (which is already installed on most Linux
-distribution) and you need the `cpanm` Perl package manager. You can usually get
-both with one of these commands:
+distributions) and you need the `cpanm` Perl package manager. You can usually
+get both with one of these commands:
 
 ```
 # On Debian, Ubuntu, Mint, etc.
@@ -28,17 +27,17 @@ sudo apt-get install perl cpanminus
 sudo yum install perl perl-App-cpanminus
 ```
 
-Then run the following:
+Then run the following to install `pmarkdown`:
 
 ```
 cpanm --notest App::pmarkdown
 ```
 
-### Installation from the Git source
+### Installation from the Git sources
 
 To install `pmarkdown` you need Perl (which is already installed on most Linux
-distribution) and you need the `cpanm` Perl package manager. You can usually get
-both with one of these commands:
+distributions) and you need the `cpanm` Perl package manager. You can usually
+get both with one of these commands:
 
 ```
 # On Debian, Ubuntu, Mint, etc.
@@ -48,7 +47,7 @@ sudo apt-get install perl cpanminus
 sudo yum install perl perl-App-cpanminus
 ```
 
-Then run the following:
+Then run the following command to install `pmarkdown`:
 
 ```
 git clone https://github.com/mkende/pmarkdown.git
