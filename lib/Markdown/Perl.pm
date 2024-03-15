@@ -5,9 +5,6 @@ use warnings;
 use utf8;
 use feature ':5.24';
 
-use feature 'refaliasing';
-no warnings 'experimental::refaliasing';
-
 use Carp;
 use English;
 use Exporter 'import';
