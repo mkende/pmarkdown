@@ -496,7 +496,11 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
       while (defined (my $nl = $this->next_line())) {
         if ($this->_all_blocks_match(\$nl)) {
           if ($nl !~ m/${html_end_condition}/) {
-            push @html_lines, $nl.$this->line_ending();
+            if ($this->get_preserve_tabs) {
+              push @html_lines, $nl.$this->line_ending();
+            } else {
+              push @html_lines, remove_prefix_spaces(0, $nl.$this->line_ending(), 0);
+            }
           } elsif ($nl eq '') {
             # This can only happen for rules 6 and 7 where the end condition
             # line is not part of the HTML block.
