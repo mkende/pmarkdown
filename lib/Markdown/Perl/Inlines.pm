@@ -250,7 +250,10 @@ sub find_link_destination_and_title {
 
   my $mode = $that->get_allow_spaces_in_links;
   if ($has_space) {
-    if ($mode eq 'reference' && ($type eq 'reference' || $type eq 'collapsed') && $+{space} eq ' ') {
+    # 'reference' mode is the mode that emulates Markdown.pl which is kind of
+    # weird and probably does not intend this exact behavior (at most one space
+    # then an optional new line and, if you have it, then any number of spaces).
+    if ($mode eq 'reference' && ($type eq 'reference' || $type eq 'collapsed') && $+{space} =~ m/^ ?(?:\n[ \t]*)?$/) {
       # ok, do nothing
     } else {
       # We have forbidden spaces, so we treat this as a tentative shortcut link.
