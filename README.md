@@ -47,7 +47,8 @@ sudo apt-get install perl cpanminus
 sudo yum install perl perl-App-cpanminus
 ```
 
-Then run the following command to install `pmarkdown`:
+Then run the following command to install `pmarkdown` (note that you do not need
+to initialize the git submodules):
 
 ```
 git clone https://github.com/mkende/pmarkdown.git

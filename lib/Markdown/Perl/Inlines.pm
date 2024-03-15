@@ -19,7 +19,7 @@ our $VERSION = 0.01;
 # Everywhere here, $that is a Markdown::Perl instance that we carry everywhere
 # because it contains the options that we are using.
 sub render {
-  my ($that, @lines) = @_;
+  my ($that, $linkrefs, @lines) = @_;
 
   my $text = join("\n", @lines);
   my $tree = find_code_and_tag_runs($that, $text);
@@ -32,7 +32,7 @@ sub render {
   # At this point, @runs can also contain 'literal' elements, that don’t have
   # children.
 
-  process_links($that, $tree);
+  process_links($that, $linkrefs, $tree);
 
   # This removes the spurious white-space at the beginning and end of lines and
   # also inserts hard line break as required.
@@ -168,9 +168,7 @@ sub process_char_escaping {
   }
 }
 
-# We find all the links in the tree, starting at the child $child_start and its
-# offset $text_start. If the bounds are set, then we don’t investigate links
-# that starts further than this bound.
+# We find all the links in the tree.
 #
 # We are mostly implementing the recommended algorithm from
 # https://spec.commonmark.org/0.31.2/#phase-2-inline-structure
@@ -179,7 +177,7 @@ sub process_char_escaping {
 # Overall, this methods implement this whole section of the spec:
 # https://spec.commonmark.org/0.30/#links
 sub process_links {
-  my ($that, $tree, $child_start, $text_start, $start_child_bound, $start_text_bound) = @_;
+  my ($that, $linkrefs, $tree) = @_;
 
   my @open_link;
   for (my $i = 0; $i < @{$tree->{children}}; $i++) {
@@ -196,7 +194,7 @@ sub process_links {
         next unless $open{active};
         my @text_span = ($open{pos}[0], $open{pos}[2], $pos[0], $pos[1]);
         my $cur_pos = pos($n->{content});
-        my %target = find_link_destination_and_title($that, $tree, $pos[0], $pos[2], @text_span);
+        my %target = find_link_destination_and_title($that, $linkrefs, $tree, $pos[0], $pos[2], @text_span);
         pos($n->{content}) = $cur_pos;
         next unless %target;
         my $text_tree = $tree->extract(@text_span);
@@ -221,7 +219,7 @@ sub process_links {
 # @text_span is the span of the link definition text, used in case we have a
 # collapsed link reference call.
 sub find_link_destination_and_title {
-  my ($that, $tree, $child_start, $text_start, @text_span) = @_;
+  my ($that, $linkrefs, $tree, $child_start, $text_start, @text_span) = @_;
   # We assume that the beginning of the link destination must be just after the
   # link text and in the same child, as there can be no other constructs
   # in-between.
@@ -267,7 +265,7 @@ sub find_link_destination_and_title {
     # pass-through intended if we can’t parse a valid target, we will try a
     # shortcut link.
   } elsif ($type eq 'reference') {
-    my %target = parse_reference_link($that, $tree, @start);
+    my %target = parse_reference_link($that, $linkrefs, $tree, @start);
     return %target if exists $target{target};
     # no pass-through here if this was a valid reference link syntax. This is
     # not fully specified by the spec but matches what the reference
@@ -279,9 +277,9 @@ sub find_link_destination_and_title {
   # might be one).
   my $ref = $tree->span_to_source_text(@text_span, UNESCAPE_LITERAL);
   $ref = normalize_label($ref) if $ref;
-  if (exists $that->{linkrefs}{$ref}) {
+  if (exists $linkrefs->{$ref}) {
     $tree->extract(@start) if $type eq 'collapsed';
-    return %{$that->{linkrefs}{$ref}};
+    return %{$linkrefs->{$ref}};
   }
   return;
 }
@@ -414,7 +412,7 @@ sub parse_inline_link {
 }
 
 sub parse_reference_link {
-  my ($that, $tree, @start) = @_;  # ($child_start, $text_start, $child_start, $text_start + 1);
+  my ($that, $linkrefs, $tree, @start) = @_;  # ($child_start, $text_start, $child_start, $text_start + 1);
 
   my $cur_child = $start[0];
   my $n = $tree->{children}[$cur_child];
@@ -424,9 +422,9 @@ sub parse_reference_link {
   if (my @end_ref = $tree->find_in_text(qr/]/, $cur_child, $start[3])) {
     my $ref =
         normalize_label($tree->span_to_source_text(@start[2, 3], @end_ref[0, 1], UNESCAPE_LITERAL));
-    if (exists $that->{linkrefs}{$ref}) {
+    if (exists $linkrefs->{$ref}) {
       $tree->extract(@start[0, 1], @end_ref[0, 2]);
-      return %{$that->{linkrefs}{$ref}};
+      return %{$linkrefs->{$ref}};
     } else {
       # TODO: we should only return this if the span was indeed a valid
       # reference link label (not longer than 1000 characters mostly).
