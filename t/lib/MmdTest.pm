@@ -40,13 +40,19 @@ sub one_test {
 sub test_suite {
   my ($test_dir, $pmarkdown, %opt) = @_;
   my $i = $opt{start_num} // 0;
+  my %todo = map { $_ => 1 } @{$opt{todo} // []};
   for my $md_file (glob "${test_dir}/*.text") {
     $i++;
     next if exists $opt{test_num} && $opt{test_num} != $i;
     my $html_file = $md_file =~ s/\.text$/.html/r;
+    my $test = sub { one_test($pmarkdown, $md_file, $html_file) };
     SKIP: {
       skip "Missing html file '${html_file}'" unless -f $html_file;
-      one_test($pmarkdown, $md_file, $html_file);
+      if ($todo{$i}) {
+        todo 'Not yet supported' => $test;
+      } else {
+        $test->();
+      }
     }
   }
   return $i;
