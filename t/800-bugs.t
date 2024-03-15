@@ -9,14 +9,6 @@ sub run {
   &Markdown::Perl::convert;
 }
 
-todo 'Link destination parsed as closing HTML tag' => sub {
-  is(run('[foo](</bar>)'), "<p><a href=\"/bar\">foo</a></p>\n", 'todo1');
-};
-
-todo 'Keep the first appearence of a link reference definition' => sub {
-  is(run("[foo][bar]\n\n[bar]: /url\n[bar]: /other"), "<p><a href=\"/url\">foo</a></p>\n", 'todo2');
-};
-
 todo 'New lines after lists should not make it be loose' => sub {
   is(run("* a\n* b\n* c\n\n\nfoo"), "<ul>\n<li>a</li>\n<li>b</li>\n<li>c</li>\n</ul>\n<p>foo</p>\n", 'list is tight');
 };
