@@ -33,6 +33,8 @@ is(remove_prefix_spaces(8, '        test'), 'test', 'remove_prefix_spaces14');
 is(remove_prefix_spaces(8, '          test'), '  test', 'remove_prefix_spaces15');
 is(remove_prefix_spaces(2, "  \n"), "\n", 'remove_prefix_spaces16');
 is(remove_prefix_spaces(2, "\t\ttest"), "\t  test", 'remove_prefix_spaces17');
+is(remove_prefix_spaces(4, "\t\ttest"), "\ttest", 'remove_prefix_spaces18');
+is(remove_prefix_spaces(4, "\t\ttest", 0), "    test", 'remove_prefix_spaces19');
 
 is(indent_size("abc"), 0, 'indent_size1');
 is(indent_size(" abc"), 1, 'indent_size2');

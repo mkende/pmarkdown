@@ -396,5 +396,17 @@ with it).
 
 _make_option(force_final_new_line => 0, _boolean, (markdown => 1));
 
+=pod
+
+=head2 B<preserve_tabs> I<(boolean, default: true)>
+
+When removing prefix spaces in front of some constructs (typically indented code
+blocks), pmarkdown will try to preserve tabs when they are used instead of
+space. If this option is set to false, prefix tabs will be turned into spaces.
+
+=cut
+
+_make_option(preserve_tabs => 1, _boolean, (markdown => 0));
+
 
 1;

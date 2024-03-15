@@ -385,7 +385,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
   # https://spec.commonmark.org/0.30/#indented-code-blocks
   # Indented code blocks cannot interrupt a paragraph.
   if (!@{$this->{paragraph}} && $l =~ m/${indented_code_re}/) {
-    my @code_lines = remove_prefix_spaces(4, $l.$this->line_ending());
+    my @code_lines = remove_prefix_spaces(4, $l.$this->line_ending(), $this->get_preserve_tabs);
     my $count = 1;  # The number of lines we have read
     my $valid_count = 1;  # The number of lines we know are in the code block.
     my $valid_pos = $this->get_pos();
@@ -395,9 +395,9 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
         if ($nl =~ m/${indented_code_re}/) {
           $valid_pos = $this->get_pos();
           $valid_count = $count;
-          push @code_lines, remove_prefix_spaces(4, $nl.$this->line_ending());
+          push @code_lines, remove_prefix_spaces(4, $nl.$this->line_ending(), $this->get_preserve_tabs);
         } elsif ($nl eq '') {
-          push @code_lines, remove_prefix_spaces(4, $nl.$this->line_ending());
+          push @code_lines, remove_prefix_spaces(4, $nl.$this->line_ending(), $this->get_preserve_tabs);
         } else {
           last;
         }

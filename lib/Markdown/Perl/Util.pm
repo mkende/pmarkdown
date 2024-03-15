@@ -7,6 +7,7 @@ use feature ':5.24';
 
 use Exporter 'import';
 use List::MoreUtils 'first_index';
+use List::Util 'max';
 use Unicode::CaseFold 'fc';
 
 our $VERSION = 0.01;
@@ -30,7 +31,11 @@ sub split_while : prototype(&@) {  ## no critic (RequireArgUnpacking)
 # Removes all the spaces if there is less than that.
 # If needed, tabs are converted into 4 spaces.
 sub remove_prefix_spaces {
-  my ($n, $text) = @_;
+  my ($n, $text, $preserve_tabs) = (@_, 1);  # when not specified we do preserve tabs
+  if (!$preserve_tabs) {
+    my $s = indent_size($text);  # this sets pos($text);
+    return (' ' x max(0, $s - $n)).(substr $text, pos($text));
+  }
   my $t = int($n / 4);
   my $s = $n % 4;
   for my $i (1 .. $t) {
@@ -56,10 +61,11 @@ sub remove_prefix_spaces {
 }
 
 # Return the indentation of the given text
+# Sets pos($_[0]) to the first non-whitespace character.
 sub indent_size {
-  my ($text) = @_;
-  my $t = () = $text =~ m/\G( {0,3}\t| {4})/gc;  # Forcing list context.
-  $text =~ m/\G( *)/;
+  pos($_[0]) = 0;
+  my $t = () = $_[0] =~ m/\G( {0,3}\t| {4})/gc;  # Forcing list context.
+  $_[0] =~ m/\G( *)/g;
   my $s = length($1);  ## no critic (ProhibitCaptureWithoutTest)
   return $t * 4 + $s;
 }
