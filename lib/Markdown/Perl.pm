@@ -92,7 +92,7 @@ sub next_line {
   $this->{md} =~ m/\G([^\n\r]*)(\r\n|\n|\r)?/g or die 'Should not happen';
   my ($t, $e) = ($1, $2);
   if ($1 =~ /^[ \t]+$/) {
-    $this->{line_ending} = $t.($e // '');
+    $this->{line_ending} = $t.($e // '') if $this->get_preserve_white_lines;
     return '';
   } else {
     $this->{line_ending} = $e // ($this->get_force_final_new_line ? "\n" : '');

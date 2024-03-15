@@ -408,5 +408,17 @@ space. If this option is set to false, prefix tabs will be turned into spaces.
 
 _make_option(preserve_tabs => 1, _boolean, (markdown => 0));
 
+=pod
+
+=head2 B<preserve_white_lines> I<(boolean, default: true)>
+
+By default, pmarkdown will try to preserve lines that contains only whitespaces
+when possible. If this option is set to false, such lines are treated as if they
+contained just the new line character.
+
+=cut
+
+_make_option(preserve_white_lines => 1, _boolean, (markdown => 0));
+
 
 1;
