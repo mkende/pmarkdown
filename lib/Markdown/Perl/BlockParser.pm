@@ -268,8 +268,12 @@ my $html_close_tag_re = qr/ <\/ ${html_tag_name_re} ${opt_html_space_re} > /x;
 # Parse at least one line of text to build a new block; and possibly several
 # lines, depending on the block type.
 # https://spec.commonmark.org/0.30/#blocks-and-inlines
+our $l;  # global variable, localized during the call to _parse_blocks.
 sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce complexity
-  my ($this, $l) = @_;
+  my $this = shift @_;
+  # TODO do the localization in process to avoid the copy (but this will need
+  # change in the continuation tester).
+  local $l = shift @_; 
 
   if (!$this->{skip_next_block_matching}) {
     my $matched_block = $this->_count_matching_blocks(\$l);
@@ -297,7 +301,24 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
   $this->{last_line_was_blank} = $this->{last_line_is_blank};
   $this->{last_line_is_blank} = 0;
 
-  # https://spec.commonmark.org/0.30/#atx-headings
+  _do_atx_heading($this)
+  || _do_setext_heading($this)
+  # Thematic breaks are described first in the spec, but the setext headings has
+  # precedence in case of conflict, so we test for the break after the heading.
+  || _do_thematic_break($this)
+  || _do_indented_code_block($this)
+  || _do_fenced_code_block($this)
+  || _do_html_block($this)
+  || _do_block_quotes($this)
+  || _do_list_item($this)
+  || _do_link_reference_definition($this)
+  || _do_paragraph($this)
+  || croak "Current line could not be parsed as anything: $l";
+}
+
+# https://spec.commonmark.org/0.30/#atx-headings
+sub _do_atx_heading {
+  my ($this) = @_;
   if ($l =~ /^ \ {0,3} (\#{1,6}) (?:[ \t]+(.+?))?? (?:[ \t]+\#+)? [ \t]* $/x) {
     # Note: heading breaks can interrupt a paragraph or a list
     # TODO: the content of the header needs to be interpreted for inline content.
@@ -307,10 +328,14 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
       content => $2 // '',
       debug => 'atx'
     });
-    return;
+    return 1;
   }
+  return;
+}
 
-  # https://spec.commonmark.org/0.30/#setext-headings
+# https://spec.commonmark.org/0.30/#setext-headings
+sub _do_setext_heading {
+  my ($this) = @_;
   if ( $l =~ /^ {0,3}(-+|=+)[ \t]*$/
     && @{$this->{paragraph}}
     && indent_size($this->{paragraph}[0]) < 4
@@ -326,10 +351,10 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     } elsif ($m eq 'break' && $l =~ m/${thematic_break_re}/) {
       $this->_finalize_paragraph();
       $this->_add_block({type => 'break', debug => 'setext_as_break'});
-      return;
+      return 1;
     } elsif ($m eq 'ignore') {
       push @{$this->{paragraph}}, $l;
-      return;
+      return 1;
     }
     $this->{paragraph} = [];
     $this->_add_block({
@@ -338,18 +363,24 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
       content => $p,
       debug => 'setext'
     });
-    return;
+    return 1;
   }
+  return;
+}
 
-  # https://spec.commonmark.org/0.30/#thematic-breaks
-  # Thematic breaks are described first in the spec, but the setext headings has
-  # precedence in case of conflict, so we test for the break after the heading.
+# https://spec.commonmark.org/0.30/#thematic-breaks
+sub _do_thematic_break {
+  my ($this) = @_;
   if ($l =~ /${thematic_break_re}/) {
     $this->_add_block({type => 'break', debug => 'native_break'});
-    return;
+    return 1;
   }
+  return;
+}
 
-  # https://spec.commonmark.org/0.30/#indented-code-blocks
+# https://spec.commonmark.org/0.30/#indented-code-blocks
+sub _do_indented_code_block {
+  my ($this) = @_;
   # Indented code blocks cannot interrupt a paragraph.
   if (!@{$this->{paragraph}} && $l =~ m/${indented_code_re}/) {
     my @code_lines = remove_prefix_spaces(4, $l.$this->line_ending(), $this->get_preserve_tabs);
@@ -376,15 +407,20 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     $this->set_pos($valid_pos);
     my $code = join('', @code_lines);
     $this->_add_block({type => 'code', content => $code, debug => 'indented'});
-    return;
+    return 1;
   }
+  return;
+}
 
-  # https://spec.commonmark.org/0.30/#fenced-code-blocks
+# https://spec.commonmark.org/0.30/#fenced-code-blocks
+sub _do_fenced_code_block {
+  my ($this) = @_;
   if (
     $l =~ /^ (?<indent>\ {0,3}) (?<fence>`{3,}|~{3,}) [ \t]* (?<info>.*?) [ \t]* $/x  ## no critic (ProhibitComplexRegexes)
     && ( ((my $f = substr $+{fence}, 0, 1) ne '`')
       || (index($+{info}, '`') == -1))
   ) {
+    return unless $this->get_use_fenced_code_blocks;
     my $fl = length($+{fence});
     my $info = $+{info};
     my $indent = length($+{indent});
@@ -417,7 +453,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
 
     if (!$end_fence_seen && $this->get_fenced_code_blocks_must_be_closed) {
       $this->set_pos($start_pos);
-      # pass-through intended
+      return;
     } else {
       my $code = join('', @code_lines);
       $this->_add_block({
@@ -426,11 +462,15 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
         info => $info,
         debug => 'fenced'
       });
-      return;
+      return 1;
     }
   }
+  return;
+}
 
-  # https://spec.commonmark.org/0.31.2/#html-blocks
+# https://spec.commonmark.org/0.31.2/#html-blocks
+sub _do_html_block {
+  my ($this) = @_;
   # HTML blocks can interrupt a paragraph.
   # TODO: PERF: test that $l =~ m/^ {0,3}</ to short circuit all these regex.
   my $html_end_condition;
@@ -485,10 +525,14 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     }
     my $html = join('', @html_lines);
     $this->_add_block({type => 'html', content => $html});
-    return;
+    return 1;
   }
+  return;
+}
 
-  # https://spec.commonmark.org/0.30/#block-quotes
+# https://spec.commonmark.org/0.30/#block-quotes
+sub _do_block_quotes {
+  my ($this) = @_;
   if ($l =~ /${block_quotes_re}/) {
     # TODO: handle laziness (block quotes where the > prefix is missing)
     my $cond = sub {
@@ -509,10 +553,14 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     }
     $this->{skip_next_block_matching} = 1;
     $this->_enter_child_block({type => 'quotes'}, $cond, $l);
-    return;
+    return 1;
   }
+  return;
+}
 
-  # https://spec.commonmark.org/0.30/#list-items
+# https://spec.commonmark.org/0.30/#list-items
+sub _do_list_item {
+  my ($this) = @_;
   if ($l =~ m/${list_item_re}/) {
     # There is a note in the spec on thematic breaks that are not list items,
     # it’s not exactly clear what is intended, and there are no examples.
@@ -523,9 +571,9 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
     # When interrupting a paragraph, the rules are stricter.
     if (@{$this->{paragraph}}
       && ($text eq '' || ($type eq 'ol' && $digits != 1))) {
-      # pass-through intended
+      return;
     } elsif ($text ne '' && $text_indent == 0) {
-      # pass-through intended
+      return;
     } else {
       # in the current implementation, $text_indent is enough to know if $text
       # is matching $indented_code_re, but let’s not depend on that.
@@ -571,11 +619,15 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
       $item->{loose} =
           $this->_list_match($item) && $this->{last_line_was_blank};
       $this->_enter_child_block($item, $cond, $forced_next_line);
-      return;
+      return 1;
     }
   }
+  return;
+}
 
-  # - https://spec.commonmark.org/0.31.2/#link-reference-definitions
+# https://spec.commonmark.org/0.31.2/#link-reference-definitions
+sub _do_link_reference_definition {
+  my ($this) = @_;
   # Link reference definitions cannot interrupt paragraphs
   #
   # This construct needs to be parsed across multiple lines, so we are directly
@@ -632,7 +684,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
       $ref = normalize_label($ref);
       if ($ref ne '') {
         # TODO: option to keep the last appearance instead of the first one.
-        return if exists $this->{linkrefs}{$ref};  # We keep the forts appearance of a label.
+        return 1 if exists $this->{linkrefs}{$ref};  # We keep the forts appearance of a label.
         if (defined $title) {
           $title =~ s/^.(.*).$/$1/s;
           _unescape_char($title);
@@ -643,15 +695,18 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
           target => $target,
           (defined $title ? ('title' => $title) : ())
         };
-        return;
+        return 1;
       }
-      # Pass-through intended.
+      #pass-through intended;
     }
     $this->set_pos($init_pos);
-    # Pass-through intended.
   }
+  return;
+}
 
-  # https://spec.commonmark.org/0.30/#paragraphs
+# https://spec.commonmark.org/0.30/#paragraphs
+sub _do_paragraph {
+  my ($this) = @_;
   # We need to test for blank lines here (not just emptiness) because after we
   # have removed the markers of container blocks our line can become empty. The
   # fact that we need to do this, seems to imply that we don’t really need to
@@ -659,7 +714,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
   # TODO: check if the blank-line detection in next_line() is needed or not.
   if ($l !~ m/^[ \t]*$/) {
     push @{$this->{paragraph}}, $l;
-    return;
+    return 1;
   }
 
   # https://spec.commonmark.org/0.30/#blank-lines
@@ -669,7 +724,7 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
   # block quotes
   $this->{last_line_is_blank} =
       !@{$this->{blocks_stack}} || $this->{blocks_stack}[-1]{block}{type} ne 'quotes';
-  return;
+  return 1;
 }
 
 sub _unescape_char {

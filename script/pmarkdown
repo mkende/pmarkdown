@@ -107,9 +107,13 @@ TODO: fill this section.
 
 =over 8
 
-=item I<default> The default mode. TODO: document the active feature. Note that
-B<default> is not a mode that can be specified. You get the default mode by not
-passing the B<--mode> flag.
+=item B<default> The default mode if no other mode is specified using the
+default value for all the options (as per their documentation).
+
+Note that, in practice, setting the mode to B<default> will I<erase> the mode
+currently set, which means that no warning will be emitted if this mode is
+overidden afterward (as opposed to what happens when any other mode is being
+overriden, including by the default mode).
 
 =item B<cmark> L<https://spec.commonmark.org/0.31.2/>
 

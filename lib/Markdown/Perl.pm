@@ -18,14 +18,8 @@ use parent 'Markdown::Perl::Options';
 
 our $VERSION = '1.00';
 
-our @EXPORT_OK = qw(convert);
+our @EXPORT_OK = qw(convert set_options);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
-
-=pod
-
-=encoding utf8
-
-=cut
 
 sub new {
   my ($class, @options) = @_;
@@ -41,8 +35,14 @@ sub new {
 }
 
 sub set_options {
-  my ($this, @options) = @_;
+  my ($this, @options) = &_get_this_and_args;  ## no critic (ProhibitAmpersandSigils)
   $this->SUPER::set_options(options => @options);
+  return;
+}
+
+sub set_mode {
+  my ($this, $mode) = &_get_this_and_args;  ## no critic (ProhibitAmpersandSigils)
+  $this->SUPER::set_mode($mode);
   return;
 }
 
@@ -59,9 +59,9 @@ sub _get_this_and_args {  ## no critic (RequireArgUnpacking)
     unshift @_, $this;
     $this = $default_this;
   }
+  return ($this, @_) if wantarray;
   unshift @_, $this;
   return;
-  # return ($this, @_);
 }
 
 # Takes a string and converts it to HTML. Can be called as a free function or as
@@ -142,3 +142,95 @@ sub _emit_html {
 }
 
 1;
+
+__END__
+
+=pod
+
+=encoding utf8
+
+=head1 NAME
+
+Markdown::Perl – Very configurable Markdown processor written in pure Perl
+
+=head1 SYNOPSIS
+
+This is the library underlying the L<pmarkdown> tool.
+
+=head1 DESCRIPTION
+
+  use Markdown::Perl;
+  my $converter = Markdown::Perl->new([mode => $mode], %options);
+  my $html = $converter->convert($markdown);
+
+Or you can use the library functionnaly:
+
+  use Markdown::Perl 'convert';
+  Markdown::Perl::set_options([mode => $mode], %options);
+  my $html = convert($markdown);
+
+=head1 METHODS
+
+=head2 new
+
+  my $pmarkdown = Markdown::Perl->new([mode => $mode], %options);
+
+See the L<pmarkdown/MODES> page for the documentation of existing modes.
+
+See the L<Markdown::Perl::Options> documention for all the existing options.
+
+=head2 set_options
+
+  $pmarkdown->set_options(%options);
+  Markdown::Perl::set_options(%option);
+
+Sets the options of the current object or, for the functional version, the
+options used by functional calls to C<convert>. The options set through the
+functional version do B<not> apply to any objects created through a call to
+C<new>.
+
+See the L<Markdown::Perl::Options> documentation for all the existing options.
+
+=head2 set_mode
+
+See the L<pmarkdown/MODES> page for the documentation of existing modes.
+
+=head2 convert
+
+=head1 AUTHOR
+
+Mathias Kende
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2024 Mathias Kende
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+=head1 SEE ALSO
+
+=over
+
+=item L<pmarkdown>
+
+=item L<Text::Markdown> another pure Perl implementation, implementing the
+original Markdown syntax from L<http://daringfireball.net/projects/markdown>.
+
+=back
+
+=cut

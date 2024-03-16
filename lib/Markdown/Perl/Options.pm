@@ -152,6 +152,26 @@ sub _regex {
 
 =pod
 
+=head2 B<use_fenced_code_blocks> I<(boolean, default: true)>
+
+This options controls whether fenced code blocks can be used.
+
+=cut
+
+_make_option(use_fenced_code_blocks => 1, _boolean, (markdown => 0));
+
+=pod
+
+=head2 B<use_table_blocks> I<(boolean, default: true)>
+
+This options controls whether table blocks can be used.
+
+=cut
+
+_make_option(use_table_blocks => 1, _boolean, (cmark => 0, markdown => 0));
+
+=pod
+
 =head2 B<fenced_code_blocks_must_be_closed> I<(boolean, default: true)>
 
 By default, a fenced code block with no closing fence will run until the end of
