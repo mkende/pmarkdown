@@ -49,6 +49,10 @@ sub new {
 my %options_modes;
 my %validation;
 
+# Undocumented for now, used in tests.
+our @valid_modes = (qw(default cmark github markdown));
+my %valid_modes = map { $_ => 1 } @valid_modes;
+
 sub set_options {
   my ($this, $dest, @options) = @_;
   # We don’t put the options into a hash, to preserve the order in which they
@@ -92,7 +96,7 @@ sub set_mode {
     undef $this->{mode};
     return;
   }
-  croak "Unknown mode '${mode}'" unless exists $options_modes{$mode};
+  croak "Unknown mode '${mode}'" unless exists $valid_modes{$mode};
   $this->{mode} = $mode;
   return;
 }
@@ -102,6 +106,7 @@ sub set_mode {
 sub _make_option {
   my ($opt, $default, $validation, %mode) = @_;
   while (my ($k, $v) = each %mode) {
+    confess "Unknown mode '${k}' when creating option '${opt}'" unless exists $valid_modes{$k};
     $options_modes{$k}{$opt} = $v;
   }
   $validation{$opt} = $validation;

@@ -715,8 +715,12 @@ sub node_to_text {
     # literals here, while cmark would not escape them. The cmark behavior is
     # probably faulty here (and is not tested by the test suite).
     return $acc.$n->{content};
-  } elsif ($n->{type} eq 'link' && $n->{linktype} ne 'autolink') {
-    return $acc.$n->{subtree}->to_text();
+  } elsif ($n->{type} eq 'link') {
+    if ($n->{linktype} ne 'autolink') {
+      return $acc.$n->{subtree}->to_text();
+    } else {
+      return $acc.$n->{content};
+    }
   } elsif ($n->{type} eq 'code') {
     return $acc.'<code>'.$n->{content}.'</code>';
   } else {
@@ -756,6 +760,12 @@ sub to_source_text {
 
 sub node_to_source_text {
   my ($unescape_literal) = @_;
+  # TODO: ideally all this should be replaced by the fact that the nodes should
+  # store the span of text that they represent, to be able to extract the actual
+  # source text.
+  # This probably requires that the inlines processing should be rewritten to do
+  # the link at the same time as the auto-links and inline HTML so that this
+  # operates on text.
   return sub {
     my ($n, $acc) = @_;
     confess 'Node should not already be escaped when calling to_source_text' if $n->{escaped};
@@ -768,6 +778,18 @@ sub node_to_source_text {
     } elsif ($n->{type} eq 'code') {
       # TODO: This also need to be the source string with the right delimiters.
       return $acc.'<code>'.$n->{content}.'</code>';
+    } elsif ($n->{type} eq 'link') {
+      if ($n->{linktype} eq 'autolink') {
+        return $acc.'<'.$n->{content}.'>';
+      } else {
+        # 'img' can appear inside other links and links can appear inside images
+        # and, as-such, we may try to treat them as link reference label, so we
+        # need this case.
+        # Because their structure is complex, we return a dummy value.
+        # BUG: we can’t have a link reference using a label that looks like an
+        # image.
+        return $acc.'dummy_text_hopefully_this_does_not_collide_with_anything';
+      }
     } else {
       confess 'Unsupported node type for to_source_text: '.$n->{type};
     }

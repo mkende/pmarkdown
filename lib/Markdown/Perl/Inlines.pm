@@ -119,6 +119,8 @@ sub find_code_and_tag_runs {
       } elsif ($text =~ m/\G(?<link>${email_re})>/) {
         $tree->push(new_text(substr($text, 0, $start_before)))
             if $start_before > 0;
+        # TODO: we have a bug in to_source_text, that will assume that the
+        # mailto: was part of the source text.
         $tree->push(new_link($+{link}, type => 'autolink', target => 'mailto:'.$+{link}));
         substr $text, 0, $+[0], '';  # This resets pos($text) as we want it to.
       } elsif ($text =~ m/\G(?:${html_tag_re})>/) {
@@ -319,12 +321,15 @@ sub parse_inline_link {
     }
   } elsif (
     length($n->{content}) <= $search_start
-    && @{$tree->{children}} > $cur_child
+    && @{$tree->{children}} > $cur_child + 1
     && ( $tree->{children}[$cur_child + 1]{type} eq 'html'
       || $tree->{children}[$cur_child + 1]{type} eq 'link')
   ) {
     # The element inside was already parsed as an autolink or an html element,
-    # we use it as-is for the link destination.
+    # we use it as-is for the link destination. However, we need at least one
+    # element after in the tree for this to be valid (otherwise we know that the
+    # syntax can’t be a real tree, so we return from here).
+    return if @{$tree->{children}} <= $cur_child + 2;
     @target = ($cur_child + 1, 0, $cur_child + 2, 0);
     my $link_node = $tree->{children}[$cur_child + 1];
     if ($link_node->{type} eq 'html') {
