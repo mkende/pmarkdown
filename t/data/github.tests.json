@@ -2518,6 +2518,24 @@
     "extensions": []
   },
   {
+    "markdown": "- [ ] foo\n- [x] bar\n",
+    "html": "<ul>\n<li><input disabled=\"\" type=\"checkbox\"> foo</li>\n<li><input checked=\"\" disabled=\"\" type=\"checkbox\"> bar</li>\n</ul>\n",
+    "example": 279,
+    "start_line": 5108,
+    "end_line": 5116,
+    "section": "Task list items (extension)",
+    "extensions": []
+  },
+  {
+    "markdown": "- [x] foo\n  - [ ] bar\n  - [x] baz\n- [ ] bim\n",
+    "html": "<ul>\n<li><input checked=\"\" disabled=\"\" type=\"checkbox\"> foo\n<ul>\n<li><input disabled=\"\" type=\"checkbox\"> bar</li>\n<li><input checked=\"\" disabled=\"\" type=\"checkbox\"> baz</li>\n</ul>\n</li>\n<li><input disabled=\"\" type=\"checkbox\"> bim</li>\n</ul>\n",
+    "example": 280,
+    "start_line": 5120,
+    "end_line": 5135,
+    "section": "Task list items (extension)",
+    "extensions": []
+  },
+  {
     "markdown": "- foo\n- bar\n+ baz\n",
     "html": "<ul>\n<li>foo</li>\n<li>bar</li>\n</ul>\n<ul>\n<li>baz</li>\n</ul>\n",
     "example": 281,

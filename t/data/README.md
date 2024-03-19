@@ -14,5 +14,7 @@ The JSON files are generated with:
     third_party/commonmark-spec/test/spec_tests.py --dump-tests --spec third_party/commonmark-spec/spec.txt > t/data/cmark.tests.json
     third_party/cmark-gfm/test/spec_tests.py --dump-tests --spec third_party/cmark-gfm/test/spec.txt > t/data/github.tests.json
 
-But note that there are currently some bugs in the generation of the file for
-the GitHub test suite, with some tests being empty or missing.
+But first, the examples that are annotated with `example disabled` in the
+cmark-gfm spec.txt file are renamed just `example` (otherwise they are skipped
+from the output). Note that the cmark-gfm file needs to be processed with the
+`spec_text.py` tool from the same repository, otherwise some tests are empty.
