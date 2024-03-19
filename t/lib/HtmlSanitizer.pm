@@ -1,4 +1,4 @@
-# A package to sanitize HTML in order to ease comparison between multiple tool.
+# A package to sanitize HTML in order to ease comparison between multiple tools.
 
 package HtmlSanitizer;
 

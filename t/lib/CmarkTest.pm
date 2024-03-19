@@ -1,6 +1,9 @@
 # A package to execute the cmark test suite (and those of the specs derived from
 # it).
-# This is mostly based on a JSON file containing all the tests.
+# There is a fast version that we execute ourselves based on a JSON file with
+# all the tests and there is the full version using the cmark test tool but
+# which is much slower (and has a more agressive HTML normalization that
+# actually hides some bugs).
 
 package CmarkTest;
 
