@@ -498,6 +498,7 @@ sub process_styles {
   my $current_child = 0;
   my @delimiters;
   my $delim = delim_characters($that);
+  my %max_delim_run_length = %{$that->get_inline_delimiters_max_run_length};
   while (my @match = $tree->find_in_text(qr/([${delim}])\1*/, $current_child, 0)) {
     # TODO: add an option to prevent some delimiters to be part of long run
     # (e.g. max_delimiter_run_length), typically for ~ which can only be in run
@@ -510,7 +511,10 @@ sub process_styles {
     # delimiters using the @delimiters array.
     $delim_tree->{children}[0]{type} = 'literal';
     $tree->insert($index, $delim_tree);
-    push @delimiters, classify_delimiter($that, $tree, $index, 'left');
+    my $d = classify_delimiter($that, $tree, $index);
+    if (!exists $max_delim_run_length{$d->{delim}} || $d->{len} <= $max_delim_run_length{$d->{delim}}) {
+      push @delimiters, $d;
+    }
     $current_child = $index + 1;
   }
 

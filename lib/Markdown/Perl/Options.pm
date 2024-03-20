@@ -347,6 +347,29 @@ _make_option(
       '~~' => 'del',
     }
 );
+=pod
+
+=head2 B<inline_delimiters_max_run_length> I<(map)>
+
+TODO: document
+
+=cut
+
+sub _delimiters_max_run_length_map {
+  return sub {
+    my %m = ref $_[0] eq 'HASH' ? %{$_[0]} : map { split(/=/, $_, 2) } split(/,/, $_[0]);
+    # TODO: validate the keys and values of m.
+    return \%m;
+  };
+}
+
+_make_option(
+  inline_delimiters_max_run_length => {},
+    _delimiters_max_run_length_map,
+    github => {
+      '~' => 2,
+    }
+);
 
 =pod
 

@@ -16,8 +16,6 @@ while ($_ = shift) {
 }
 
 my $test_suite = "${FindBin::Bin}/../third_party/MMD-Test-Suite";
-# As of writing, the spec seems more up to date in the commonmark-spec repo than
-# in the cmark repo, although the cmark one has other tools too.
 skip_all('MMD-Test-Suite must be checked out.') unless -d $test_suite;
 
 my $pmarkdown = Markdown::Perl->new();
