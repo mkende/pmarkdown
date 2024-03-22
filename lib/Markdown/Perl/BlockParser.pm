@@ -13,7 +13,7 @@ use English;
 use Hash::Util 'lock_keys_plus';
 use List::MoreUtils 'first_index';
 use List::Util 'pairs';
-use Markdown::Perl::HTML 'html_escape', 'decode_entities';
+use Markdown::Perl::HTML 'html_escape', 'decode_entities', 'remove_disallowed_tags';
 use Markdown::Perl::Util ':all';
 
 our $VERSION = '0.01';
@@ -524,6 +524,7 @@ sub _do_html_block {
       }
     }
     my $html = join('', @html_lines);
+    remove_disallowed_tags($html, $this->get_disallowed_htlm_tags);
     $this->_add_block({type => 'html', content => $html});
     return 1;
   }

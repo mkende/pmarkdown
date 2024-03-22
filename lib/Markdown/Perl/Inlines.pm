@@ -13,6 +13,7 @@ use List::Util 'min';
 use List::Util 1.45 'uniq';
 use Markdown::Perl::InlineTree ':all';
 use Markdown::Perl::Util 'normalize_label';
+use Markdown::Perl::HTML 'remove_disallowed_tags';
 
 our $VERSION = 0.01;
 
@@ -127,7 +128,9 @@ sub find_code_and_tag_runs {
         # This resets pos($text) as we want it to.
         $tree->push(new_text(substr($text, 0, $start_before, '')))
             if $start_before > 0;
-        $tree->push(new_html(substr($text, 0, $LAST_MATCH_END[0] - $start_before, '')));
+        my $html = substr($text, 0, $LAST_MATCH_END[0] - $start_before, '');
+        remove_disallowed_tags($html, $that->get_disallowed_htlm_tags);
+        $tree->push(new_html($html));
       }
     }
   }

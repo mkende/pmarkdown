@@ -21,4 +21,11 @@ is(decode_entities('&#x41;'), 'A', 'html_hex_entity2');
 is(decode_entities('&#;'), "&#;", 'no_html_hex_entity1');
 is(decode_entities('&#X1234567;'), "&#X1234567;", 'no_html_hex_entity2');
 
+{
+  my $html = '<test>';
+  remove_disallowed_tags($html, [qw(foo bar)]);
+  is($html, '<test>', 'remove_disallowed_tags1');
+  remove_disallowed_tags($html, [qw(foo bar test)]);
+  is($html, '&lt;test>', 'remove_disallowed_tags2');
+}
 done_testing;

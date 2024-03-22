@@ -468,5 +468,27 @@ contained just the new line character.
 
 _make_option(preserve_white_lines => 1, _boolean, (markdown => 0));
 
+=pod
+
+=head2 B<disallowed_htlm_tags> I<(world list)>
+
+This option specifies a comma separated list (or, in Perl, an array reference)
+of name of HTML tags that will be disallowed in the output. If these tags appear
+they will be deactivated in the ouptut.
+
+=cut
+
+# TODO: this is just a "word list" for now, see if this can be shared with other
+# options.
+sub _tag_list {
+  return sub {
+    my @a = ref $_[0] eq 'ARRAY' ? @{$_[0]} : split(/,/, $_[0]);
+    # TODO: validate the values of a.
+    return \@a;
+  };
+}
+
+_make_option(disallowed_htlm_tags => [], _tag_list,
+             github => [qw(title textarea style xmp iframe noembed noframes script plaintext)]);
 
 1;

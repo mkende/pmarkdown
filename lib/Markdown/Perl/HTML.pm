@@ -8,7 +8,7 @@ use feature ':5.24';
 use English;
 use Exporter 'import';
 
-our @EXPORT_OK = qw(decode_entities html_escape http_escape);
+our @EXPORT_OK = qw(decode_entities html_escape http_escape remove_disallowed_tags);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 our $VERSION = 0.01;
@@ -84,6 +84,18 @@ sub http_escape {
   # specific. See: https://spec.commonmark.org/0.31.2/#example-502
   $_[0] =~ s/([ \\\[\]\x80-\xff`""])/sprintf('%%%02X', ord($1))/ge;
   return;
+}
+
+# remove_disallowed_tags($html, \@tag_list)
+# modify $html in place.
+sub remove_disallowed_tags {
+  # TODO: check if GitHub also deactivates closing tags or only openning ones.
+  # Note: this is a dummy approach, based on the fact that this method is called
+  # only in the context of HTML blocks or inline HTML and so, something looking
+  # like an HTML tag is probably an HTML tag.
+  for my $t (@{$_[1]}) {
+    $_[0] =~ s/<\Q$t\E/&lt;$t/;
+  }
 }
 
 1;
