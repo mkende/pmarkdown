@@ -754,6 +754,11 @@ sub create_autolinks {
         substr $url, -$remove, $remove, '';
       }
     }
+    if ($url =~ m/\&[a-zA-Z0-9]+;$/) {
+      my $len = $LAST_MATCH_END[0] - $LAST_MATCH_START[0];
+      $match_end -= $len;
+      substr $url, -$len, $len, '';
+    }
     # TODO: handle an HTML entity at the end of the link.
     if ($match_start > 0) {
       push @nodes, new_text(substr $n->{content}, 0, $match_start);

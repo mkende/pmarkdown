@@ -10,7 +10,7 @@ use Test2::V0;
 
 # TODO: remove these todos.
 my %opt = (todo => [198 .. 202, 204, 205, 279, 280, 398, 426, 434 .. 436,
-                       473 .. 475, 477, 626, 628 .. 631, 652],
+                       473 .. 475, 477, 629 .. 631, 652],
            # These are bugs in the GitHub spec, not in our implementation. All
            # of these have been tested to be buggy in the real cmark-gfm
            # implementation.
@@ -22,6 +22,9 @@ my %opt = (todo => [198 .. 202, 204, 205, 279, 280, 398, 426, 434 .. 436,
             # extended autolinks syntax (but the cmark part of the spec is not
             # updated).
             616, 619,
+            # The spec says that only http:// and https:// scheme can be used
+            # for extended autolinks. But this example uses ftp://
+            628,
             ],
            json_file => "${FindBin::Bin}/data/github.tests.json",
            test_url => 'https://github.github.com/gfm/#example-%d',
