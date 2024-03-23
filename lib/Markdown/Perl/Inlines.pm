@@ -45,6 +45,10 @@ sub render {
 
   process_styles($that, $tree);
 
+  if ($that->get_use_extended_autolinks) {
+    $tree->map(sub { create_autolinks($that, $_) });
+  }
+
   # At this point we have added the emphasis, strong emphasis, etc. in the tree.
 
   $tree->apply(
@@ -711,6 +715,56 @@ sub delim_characters {
   # change).
   my @c = map { substr $_, 0, 1 } keys %{$that->get_inline_delimiters()};
   return join('', uniq @c);
+}
+
+sub create_autolinks {
+  my ($that, $n) = @_;
+  if ($n->{type} ne 'text') {
+    return $n;
+  }
+
+  my @nodes;
+
+  # TODO: technically we should forbid the presence of _ in the last two parts
+  # of the domain, according to the gfm spec.
+  ## no critic (ProhibitComplexRegexes)
+  while (
+    $n->{content} =~ m/
+    (?<prefix> ^ | [ \t\n*_~\(] )              # The link must start after a whitespace or some specific delimiters.
+    (?<url>
+      (?: (?<scheme>https?:\/\/) | www\. )      # It must start by a scheme or the string wwww. 
+      [-_a-zA-Z0-9]+ (?: \. [-_a-zA-Z0-9]+ )*   # Then there must be something that looks like a domain
+      (?: \/ [^ \t\n<]*? )?                     # Some characters are forbidden in the link.
+    )
+    [?!.,:*_~]* (?: [ \t\n<] | $)               # We remove some punctuation from the end of the link.
+   /x
+    ## use critic
+  ) {
+    my $url = $+{url};
+    my $match_start = $LAST_MATCH_START[0] + length($LAST_PAREN_MATCH{prefix});
+    my $match_end = $match_start + length($url);
+    my $has_scheme = exists $LAST_PAREN_MATCH{scheme};
+    if ($url =~ m/\)+$/) {
+      my $nb_final_closing_parens = $LAST_MATCH_END[0] - $LAST_MATCH_START[0];
+      my $open = 0;
+      () = $url =~ m/ \( (?{$open++}) | \) (?{$open--}) /gx;
+      my $remove = min($nb_final_closing_parens, -$open);
+      if ($remove > 0) {
+        $match_end -= $remove;
+        substr $url, -$remove, $remove, '';
+      }
+    }
+    # TODO: handle an HTML entity at the end of the link.
+    if ($match_start > 0) {
+      push @nodes, new_text(substr $n->{content}, 0, $match_start);
+    }
+    my $scheme = $has_scheme ? '' : $that->get_default_extended_autolinks_scheme.'://';
+    push @nodes,
+        new_link($url, type => 'autolink', target => $scheme.$url, debug => 'extended autolink');
+    $n = new_text(substr $n->{content}, $match_end);
+  }
+  push @nodes, $n if length($n->{content}) > 0;
+  return @nodes;
 }
 
 1;

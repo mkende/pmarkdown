@@ -10,10 +10,19 @@ use Test2::V0;
 
 # TODO: remove these todos.
 my %opt = (todo => [198 .. 202, 204, 205, 279, 280, 398, 426, 434 .. 436,
-                       473 .. 475, 477, 621 .. 631, 652],
-           # The spec says that some HTML tags are forbidden in the output, but
-           # they still have examples with these tags.
-           bugs => [140 .. 142, 145, 147],
+                       473 .. 475, 477, 626, 628 .. 631, 652],
+           # These are bugs in the GitHub spec, not in our implementation. All
+           # of these have been tested to be buggy in the real cmark-gfm
+           # implementation.
+           bugs => [
+             # The spec says that some HTML tags are forbidden in the output, but
+             # they still have examples with these tags.
+            140 .. 142, 145, 147,
+            # Some things that are not cmark autolinks are matched by the
+            # extended autolinks syntax (but the cmark part of the spec is not
+            # updated).
+            616, 619,
+            ],
            json_file => "${FindBin::Bin}/data/github.tests.json",
            test_url => 'https://github.github.com/gfm/#example-%d',
            spec_tool => "${FindBin::Bin}/../third_party/commonmark-spec/test/spec_tests.py",

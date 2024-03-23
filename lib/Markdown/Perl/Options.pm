@@ -156,6 +156,14 @@ sub _regex {
   };
 }
 
+sub _word_list {
+  return sub {
+    my @a = ref $_[0] eq 'ARRAY' ? @{$_[0]} : split(/,/, $_[0]);
+    # TODO: validate the values of a.
+    return \@a;
+  };
+}
+
 =pod
 
 =head2 B<use_fenced_code_blocks> I<(boolean, default: true)>
@@ -477,19 +485,39 @@ they will be deactivated in the output.
 
 =cut
 
-# TODO: this is just a "word list" for now, see if this can be shared with other
-# options.
-sub _tag_list {
-  return sub {
-    my @a = ref $_[0] eq 'ARRAY' ? @{$_[0]} : split(/,/, $_[0]);
-    # TODO: validate the values of a.
-    return \@a;
-  };
-}
-
 _make_option(
   disallowed_html_tags => [],
-  _tag_list,
+  _word_list,
   github => [qw(title textarea style xmp iframe noembed noframes script plaintext)]);
+
+=pod
+
+=head2 B<use_extended_autolinks> I<(boolean, default: true)>
+
+Allow some links to be recognised when they appear in plain text. These links
+must start by C<http://>, C<https://>, or C<www.>.
+
+=cut
+
+_make_option(
+  use_extended_autolinks => 1,
+  _boolean, (
+    markdown => 0,
+    cmark => 0
+  ));
+
+=pod
+
+=head2 B<default_extended_autolinks_scheme> I<(enum, default: https)>
+
+Specify which scheme is added to the beginning of extended autolinks when none
+was present initially.
+
+=cut
+
+_make_option(
+  default_extended_autolinks_scheme => 'https',
+  _enum(qw(http https)),
+  github => 'http');
 
 1;
