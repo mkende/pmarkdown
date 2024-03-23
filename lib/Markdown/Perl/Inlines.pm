@@ -7,6 +7,7 @@ use warnings;
 use utf8;
 use feature ':5.24';
 
+use Carp;
 use English;
 use List::MoreUtils 'first_index', 'last_index';
 use List::Util 'min';
@@ -46,7 +47,11 @@ sub render {
 
   # At this point we have added the emphasis, strong emphasis, etc. in the tree.
 
-  $tree->apply(sub { $_->escape_content($that->get_html_escaped_characters, $that->get_html_escaped_code_characters) });
+  $tree->apply(
+    sub {
+      $_->escape_content($that->get_html_escaped_characters,
+        $that->get_html_escaped_code_characters);
+    });
 
   my $out = $tree->render_html();
 
@@ -129,7 +134,7 @@ sub find_code_and_tag_runs {
         $tree->push(new_text(substr($text, 0, $start_before, '')))
             if $start_before > 0;
         my $html = substr($text, 0, $LAST_MATCH_END[0] - $start_before, '');
-        remove_disallowed_tags($html, $that->get_disallowed_htlm_tags);
+        remove_disallowed_tags($html, $that->get_disallowed_html_tags);
         $tree->push(new_html($html));
       }
     }
@@ -169,7 +174,7 @@ sub process_char_escaping {
   } elsif ($node->{type} eq 'html') {
     return $node;
   } else {
-    die 'Unexpected node type in process_char_escaping: '.$node->{type};
+    confess 'Unexpected node type in process_char_escaping: '.$node->{type};
   }
 }
 
@@ -199,7 +204,8 @@ sub process_links {
         next unless $open{active};
         my @text_span = ($open{pos}[0], $open{pos}[2], $pos[0], $pos[1]);
         my $cur_pos = pos($n->{content});
-        my %target = find_link_destination_and_title($that, $linkrefs, $tree, $pos[0], $pos[2], @text_span);
+        my %target =
+            find_link_destination_and_title($that, $linkrefs, $tree, $pos[0], $pos[2], @text_span);
         pos($n->{content}) = $cur_pos;
         next unless %target;
         my $text_tree = $tree->extract(@text_span);
@@ -231,7 +237,7 @@ sub find_link_destination_and_title {
 
   my $cur_child = $child_start;
   my $n = $tree->{children}[$cur_child];
-  die 'Unexpected link destination search in a non-text element: '.$n->{type}
+  confess 'Unexpected link destination search in a non-text element: '.$n->{type}
       unless $n->{type} eq 'text';
   pos($n->{content}) = $text_start;
   $n->{content} =~ m/ \G (?<space> [ \t\n]+ )? (?: (?<inline> \( ) | (?<reference> \[\]? ) )? /x;
@@ -242,7 +248,7 @@ sub find_link_destination_and_title {
   if (exists $+{inline}) {
     $type = 'inline';
   } elsif (exists $+{reference}) {
-    if($+{reference} eq '[') {
+    if ($+{reference} eq '[') {
       $type = 'reference';
     } else {
       $type = 'collapsed';
@@ -256,14 +262,16 @@ sub find_link_destination_and_title {
     # 'reference' mode is the mode that emulates Markdown.pl which is kind of
     # weird and probably does not intend this exact behavior (at most one space
     # then an optional new line and, if you have it, then any number of spaces).
-    if ($mode eq 'reference' && ($type eq 'reference' || $type eq 'collapsed') && $+{space} =~ m/^ ?(?:\n[ \t]*)?$/) {
+    if ( $mode eq 'reference'
+      && ($type eq 'reference' || $type eq 'collapsed')
+      && $+{space} =~ m/^ ?(?:\n[ \t]*)?$/) {
       # ok, do nothing
     } else {
       # We have forbidden spaces, so we treat this as a tentative shortcut link.
       $type = 'shortcut';
     }
   }
-  
+
   if ($type eq 'inline') {
     my @target = parse_inline_link($tree, @start);
     return @target if @target;
@@ -438,7 +446,7 @@ sub parse_reference_link {
       # reference link label (not longer than 1000 characters mostly).
       # This is used to notice that we had a proper reference link syntax and
       # not fallback to trying a shortcut link.
-      return ( ignored_valid_value => 1 )
+      return (ignored_valid_value => 1);
     }
   }
   return;
@@ -505,7 +513,7 @@ sub process_styles {
   while (my @match = $tree->find_in_text(qr/([${delim}])\1*/, $current_child, 0)) {
     # TODO: add an option to prevent some delimiters to be part of long run
     # (e.g. max_delimiter_run_length), typically for ~ which can only be in run
-    # of lengths 2 according to Github spec (to not collide with code block
+    # of lengths 2 according to GitHub spec (to not collide with code block
     # probably).
     # We extract the delimiter run into a new node, that will be at $index.
     my ($delim_tree, $index) = $tree->extract($match[0], $match[1], $match[0], $match[2]);
@@ -515,7 +523,8 @@ sub process_styles {
     $delim_tree->{children}[0]{type} = 'literal';
     $tree->insert($index, $delim_tree);
     my $d = classify_delimiter($that, $tree, $index);
-    if (!exists $max_delim_run_length{$d->{delim}} || $d->{len} <= $max_delim_run_length{$d->{delim}}) {
+    if (!exists $max_delim_run_length{$d->{delim}}
+      || $d->{len} <= $max_delim_run_length{$d->{delim}}) {
       push @delimiters, $d;
     }
     $current_child = $index + 1;
@@ -689,7 +698,7 @@ sub delim_to_html_tag {
   my ($that, $delim) = @_;
   # TODO: sort what to do if a given delimiter does not have a variant with
   # two characters (we must backtrack somewhere in match_delimiters probably).
-  # TOOD: add support for <span class="foo"> when the value in the map is ".foo"
+  # TODO: add support for <span class="foo"> when the value in the map is ".foo"
   # instead of just "foo".
   return $that->get_inline_delimiters()->{$delim};
 }

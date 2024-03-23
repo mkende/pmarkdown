@@ -94,3 +94,8 @@ allow = refs
 
 [Subroutines::ProhibitExcessComplexity]
 max_mccabe = 30
+
+# TODO: move this to perl_dist_setup as there is rarely a good reason to
+# localize $ERRNO.
+[Variables::RequireLocalizedPunctuationVars]
+allow = $! $ERRNO

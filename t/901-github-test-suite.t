@@ -11,12 +11,15 @@ use Test2::V0;
 # TODO: remove these todos.
 my %opt = (todo => [198 .. 202, 204, 205, 279, 280, 398, 426, 434 .. 436,
                        473 .. 475, 477, 621 .. 631, 652],
-              json_file => "${FindBin::Bin}/data/github.tests.json",
-              test_url => 'https://github.github.com/gfm/#example-%d',
-              spec_tool => "${FindBin::Bin}/../third_party/commonmark-spec/test/spec_tests.py",
-              spec => "${FindBin::Bin}/../third_party/cmark-gfm/test/spec.txt",
-              spec_name => 'GitHub',
-              mode => 'github');
+           # The spec says that some HTML tags are forbidden in the output, but
+           # they still have examples with these tags.
+           bugs => [140 .. 142, 145, 147],
+           json_file => "${FindBin::Bin}/data/github.tests.json",
+           test_url => 'https://github.github.com/gfm/#example-%d',
+           spec_tool => "${FindBin::Bin}/../third_party/commonmark-spec/test/spec_tests.py",
+           spec => "${FindBin::Bin}/../third_party/cmark-gfm/test/spec.txt",
+           spec_name => 'GitHub',
+           mode => 'github');
 
 while ($_ = shift) {
   $opt{test_num} = shift @ARGV if /^-n$/;

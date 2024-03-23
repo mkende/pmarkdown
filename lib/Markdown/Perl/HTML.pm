@@ -5,6 +5,7 @@ use warnings;
 use utf8;
 use feature ':5.24';
 
+use Carp 'cluck';
 use English;
 use Exporter 'import';
 
@@ -25,8 +26,8 @@ sub parse_entities {
   return if %html_entities;
   local $INPUT_RECORD_SEPARATOR = undef;
   %html_entities = eval <DATA>;  ## no critic (ProhibitStringyEval);
-  die $EVAL_ERROR if $EVAL_ERROR;
-  close DATA or warn 'Can’t close DATA file handle in lazy parsing of HTML entities mapping';
+  confess $EVAL_ERROR if $EVAL_ERROR;
+  close DATA or cluck 'Can’t close DATA file handle in lazy parsing of HTML entities mapping';
   return;
 }
 
@@ -89,13 +90,14 @@ sub http_escape {
 # remove_disallowed_tags($html, \@tag_list)
 # modify $html in place.
 sub remove_disallowed_tags {
-  # TODO: check if GitHub also deactivates closing tags or only openning ones.
+  # TODO: check if GitHub also deactivates closing tags or only opening ones.
   # Note: this is a dummy approach, based on the fact that this method is called
   # only in the context of HTML blocks or inline HTML and so, something looking
   # like an HTML tag is probably an HTML tag.
   for my $t (@{$_[1]}) {
     $_[0] =~ s/<\Q$t\E/&lt;$t/;
   }
+  return;
 }
 
 1;

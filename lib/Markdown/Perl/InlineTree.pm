@@ -89,7 +89,8 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
     } elsif ($type eq 'link') {
       confess 'Missing required option "type" for inline link node' unless exists $options{type};
       hashpush %{$this}, linktype => delete $options{type};
-      confess 'Missing required option "target" for inline link node' unless exists $options{target};
+      confess 'Missing required option "target" for inline link node'
+          unless exists $options{target};
       hashpush %{$this}, target => delete $options{target};
       hashpush %{$this}, title => delete $options{title} if exists $options{title};
       confess 'Unexpected parameters for inline link node: '.join(', ', %options) if keys %options;
@@ -163,8 +164,9 @@ package Markdown::Perl::InlineNode {  ## no critic (ProhibitMultiplePackages)
     } else {
       confess 'Unexpected node type in render_node_html: '.$this->{type};
     }
+    return;
   }
-}
+}  # package Markdown::Perl::InlineNode
 
 =pod
 
@@ -455,6 +457,7 @@ sub map {  ## no critic (ProhibitBuiltinHomonyms)
   %{$this} = %{$new_tree};
   return;
 }
+
 =pod
 
 =head2 apply

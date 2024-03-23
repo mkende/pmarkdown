@@ -2,7 +2,7 @@
 # it).
 # There is a fast version that we execute ourselves based on a JSON file with
 # all the tests and there is the full version using the cmark test tool but
-# which is much slower (and has a more agressive HTML normalization that
+# which is much slower (and has a more aggressive HTML normalization that
 # actually hides some bugs).
 
 package CmarkTest;
@@ -31,6 +31,7 @@ sub json_test {
     $test_data = from_json($json_data);
   }
   my %todo = map { $_ => 1 } @{$opt{todo} // []};
+  my %bugs = map { $_ => 1 } @{$opt{bugs} // []};
   my $i = 0;
   for my $t (@{$test_data}) {
     $i++;
@@ -49,6 +50,8 @@ sub json_test {
   
     if ($todo{$i}) {
       todo 'Not yet supported' => $test;
+    } elsif ($bugs{$i}) {
+      todo 'The spec is buggy' => $test;
     } else {
       $test->();
     }

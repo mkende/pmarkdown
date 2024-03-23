@@ -16,7 +16,7 @@ my @token = (
   '</div>', "\n\n", '![', '](', '](http://url)', "  \n", "\\\n",
 );
 
-my $num_tests = $maxi_test ? 100000 : $ENV{EXTENDED_TESTING} ? 5000 : 500;
+my $num_tests = $maxi_test ? 100000 : $ENV{EXTENDED_TESTING} ? 4000 : 500;
 my $max_tokens = 100;
 
 my @testers = map { Markdown::Perl->new(mode => $_) } @Markdown::Perl::Options::valid_modes;

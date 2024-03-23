@@ -163,7 +163,7 @@ This is the library underlying the L<pmarkdown> tool.
   my $converter = Markdown::Perl->new([mode => $mode], %options);
   my $html = $converter->convert($markdown);
 
-Or you can use the library functionnaly:
+Or you can use the library functionally:
 
   use Markdown::Perl 'convert';
   Markdown::Perl::set_options([mode => $mode], %options);
@@ -177,7 +177,7 @@ Or you can use the library functionnaly:
 
 See the L<pmarkdown/MODES> page for the documentation of existing modes.
 
-See the L<Markdown::Perl::Options> documention for all the existing options.
+See the L<Markdown::Perl::Options> documentation for all the existing options.
 
 =head2 set_options
 

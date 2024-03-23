@@ -6,6 +6,7 @@ use utf8;
 use feature ':5.24';
 
 use Carp;
+use English;
 use Exporter 'import';
 use List::Util 'any', 'pairs';
 
@@ -64,7 +65,7 @@ sub set_options {
     } else {
       carp "Unknown option ignored: ${k}" unless exists $validation{$k};
       my $validated_value = $validation{$k}($v);
-      croak "Invalid value for option '${k}': ${!}" unless defined $validated_value;
+      croak "Invalid value for option '${k}': ${ERRNO}" unless defined $validated_value;
       $this->{$dest}{$k} = $validated_value;
     }
   }
@@ -82,7 +83,7 @@ sub validate_options {
     } else {
       die "Unknown option: ${k}\n" unless exists $validation{$k};
       my $validated = $validation{$k}($v);
-      die "Invalid value for option '${k}': ${!}\n" unless defined $validated;
+      die "Invalid value for option '${k}': ${ERRNO}\n" unless defined $validated;
     }
   }
   return;
@@ -113,7 +114,7 @@ sub _make_option {
 
   {
     no strict 'refs';
-    *{"get_".$opt} = sub {
+    *{"get_${opt}"} = sub {
       my ($this) = @_;
       return $this->{local_options}{$opt} if exists $this->{local_options}{$opt};
       return $this->{options}{$opt} if exists $this->{options}{$opt};
@@ -132,7 +133,7 @@ sub _boolean {
   return sub {
     return 0 if $_[0] eq 'false' || $_[0] eq '0';
     return 1 if $_[0] eq 'true' || $_[0] eq '1';
-    $! = 'must be a boolean value (0 or 1)';
+    $ERRNO = 'must be a boolean value (0 or 1)';
     return;
   };
 }
@@ -141,7 +142,7 @@ sub _enum {
   my @valid = @_;
   return sub {
     return $_[0] if any { $_ eq $_[0] } @valid;
-    $! = "must be one of '".join("', '", @valid)."'";
+    $ERRNO = "must be one of '".join("', '", @valid)."'";
     return;
   };
 }
@@ -150,7 +151,7 @@ sub _regex {
   return sub {
     my $re = eval { qr/$_[0]/ };
     return $re if defined $re;
-    $! = 'cannot be parsed as a Perl regex ($@)';
+    $ERRNO = 'cannot be parsed as a Perl regex ($@)';
     return;
   };
 }
@@ -317,36 +318,35 @@ sub _delimiters_map {
     my %m = ref $_[0] eq 'HASH' ? %{$_[0]} : map { split(/=/, $_, 2) } split(/,/, $_[0]);
     # TODO: validate the keys and values of m.
     return \%m if %m;
-    return { "\x{00}" => 'p' } # this can’t trigger but the code fails with an empty map otherwise.
+    return {"\N{NULL}" => 'p'}  # this can’t trigger but the code fails with an empty map otherwise.
   };
 }
 
 _make_option(
-  inline_delimiters =>
-    {
-      '*' => 'em',
-      '**' => 'strong',
-      '_' => 'em',
-      '__' => 'strong',
-      '~' => 's',
-      '~~' => 'del',
-    },
-    _delimiters_map,
-    cmark => {
-      '*' => 'em',
-      '**' => 'strong',
-      '_' => 'em',
-      '__' => 'strong',
-    },
-    github => {
-      '*' => 'em',
-      '**' => 'strong',
-      '_' => 'em',
-      '__' => 'strong',
-      '~' => 'del',
-      '~~' => 'del',
-    }
-);
+  inline_delimiters => {
+    '*' => 'em',
+    '**' => 'strong',
+    '_' => 'em',
+    '__' => 'strong',
+    '~' => 's',
+    '~~' => 'del',
+  },
+  _delimiters_map,
+  cmark => {
+    '*' => 'em',
+    '**' => 'strong',
+    '_' => 'em',
+    '__' => 'strong',
+  },
+  github => {
+    '*' => 'em',
+    '**' => 'strong',
+    '_' => 'em',
+    '__' => 'strong',
+    '~' => 'del',
+    '~~' => 'del',
+  });
+
 =pod
 
 =head2 B<inline_delimiters_max_run_length> I<(map)>
@@ -365,11 +365,10 @@ sub _delimiters_max_run_length_map {
 
 _make_option(
   inline_delimiters_max_run_length => {},
-    _delimiters_max_run_length_map,
-    github => {
-      '~' => 2,
-    }
-);
+  _delimiters_max_run_length_map,
+  github => {
+    '~' => 2,
+  });
 
 =pod
 
@@ -385,7 +384,7 @@ C<&>, C<E<lt>>, and C<E<gt>>.
 sub _escaped_characters {
   return sub {
     return $_[0] if $_[0] =~ m/^["'&<>]*$/;
-    $! = "must only contains the following characters: \", ', &, <, and >";
+    $ERRNO = "must only contains the following characters: \", ', &, <, and >";
     return;
   };
 }
@@ -460,7 +459,7 @@ _make_option(preserve_tabs => 1, _boolean, (markdown => 0));
 
 =head2 B<preserve_white_lines> I<(boolean, default: true)>
 
-By default, pmarkdown will try to preserve lines that contains only whitespaces
+By default, pmarkdown will try to preserve lines that contains only whitespace
 when possible. If this option is set to false, such lines are treated as if they
 contained just the new line character.
 
@@ -470,11 +469,11 @@ _make_option(preserve_white_lines => 1, _boolean, (markdown => 0));
 
 =pod
 
-=head2 B<disallowed_htlm_tags> I<(world list)>
+=head2 B<disallowed_html_tags> I<(world list)>
 
 This option specifies a comma separated list (or, in Perl, an array reference)
 of name of HTML tags that will be disallowed in the output. If these tags appear
-they will be deactivated in the ouptut.
+they will be deactivated in the output.
 
 =cut
 
@@ -488,7 +487,9 @@ sub _tag_list {
   };
 }
 
-_make_option(disallowed_htlm_tags => [], _tag_list,
-             github => [qw(title textarea style xmp iframe noembed noframes script plaintext)]);
+_make_option(
+  disallowed_html_tags => [],
+  _tag_list,
+  github => [qw(title textarea style xmp iframe noembed noframes script plaintext)]);
 
 1;

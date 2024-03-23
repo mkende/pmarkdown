@@ -1,10 +1,19 @@
 package App::pmarkdown;
 
+use strict;
+use warnings;
+
 use Markdown::Perl;
 
 our $VERSION = $Markdown::Perl::VERSION; ## no critic (ProhibitComplexVersion,RequireConstantVersion)
 
+1;
+
+__END__
+
 =pod
+
+=encoding utf8
 
 =head1 NAME
 

@@ -40,7 +40,8 @@ sub new {
     md => undef,
     last_pos => 0,
     line_ending => '',
-    linkrefs => {}}, $class;
+    linkrefs => {}
+  }, $class;
   lock_keys_plus(%{$this}, qw(forced_line));
 
   \$this->{md} = $md;  # aliasing to avoid copying the input, does this work? is it useful?
@@ -51,13 +52,14 @@ sub new {
 # This autoload method allows to call option accessors from the parent object
 # transparently.
 my $pkg = __PACKAGE__;
-sub AUTOLOAD {
+
+sub AUTOLOAD {  ## no critic (ProhibitAutoloading, RequireArgUnpacking)
   our $AUTOLOAD;  # Automatically populated when the method is called.
   $AUTOLOAD =~ s/${pkg}:://;
   return if $AUTOLOAD eq 'DESTROY';
   confess "Undefined method ${AUTOLOAD}" unless $AUTOLOAD =~ m/^get_/;
   my $this = shift @_;
-  $this->{pmarkdown}->$AUTOLOAD(@_);
+  return $this->{pmarkdown}->$AUTOLOAD(@_);
 }
 
 sub next_line {
@@ -68,7 +70,7 @@ sub next_line {
   return delete $this->{forced_line} if exists $this->{forced_line};
   return if pos($this->{md}) == length($this->{md});
   $this->{last_pos} = pos($this->{md});
-  $this->{md} =~ m/\G([^\n\r]*)(\r\n|\n|\r)?/g or die 'Should not happen';
+  $this->{md} =~ m/\G([^\n\r]*)(\r\n|\n|\r)?/g or confess 'Should not happen';
   my ($t, $e) = ($1, $2);
   if ($1 =~ /^[ \t]+$/) {
     $this->{line_ending} = $t.($e // '') if $this->get_preserve_white_lines;
@@ -106,7 +108,7 @@ sub redo_line {
 # class method. In the latter case, provided options override those set in the
 # class constructor.
 # Both the input and output are unicode strings.
-sub process {  ## no critic (RequireArgUnpacking)
+sub process {
   my ($this) = @_;
   pos($this->{md}) = 0;
 
@@ -208,8 +210,7 @@ sub _restore_parent_block {
 sub _test_lazy_continuation {
   my ($this, $l) = @_;
   return unless @{$this->{paragraph}};
-  my $tester = new(
-    ref($this), $this->{pmarkdown}, \'');
+  my $tester = new(ref($this), $this->{pmarkdown}, \'');
   pos($tester->{md}) = 0;
   # What is a paragraph depends on whether we already have a paragraph or not.
   $tester->{paragraph} = [@{$this->{paragraph}} ? ('foo') : ()];
@@ -269,11 +270,12 @@ my $html_close_tag_re = qr/ <\/ ${html_tag_name_re} ${opt_html_space_re} > /x;
 # lines, depending on the block type.
 # https://spec.commonmark.org/0.30/#blocks-and-inlines
 our $l;  # global variable, localized during the call to _parse_blocks.
-sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce complexity
+
+sub _parse_blocks {  ## no critic (RequireArgUnpacking)
   my $this = shift @_;
   # TODO do the localization in process to avoid the copy (but this will need
   # change in the continuation tester).
-  local $l = shift @_; 
+  local $l = shift @_;  ## no critic (ProhibitLocalVars)
 
   if (!$this->{skip_next_block_matching}) {
     my $matched_block = $this->_count_matching_blocks(\$l);
@@ -302,18 +304,19 @@ sub _parse_blocks {  ## no critic (ProhibitExcessComplexity) # TODO: reduce comp
   $this->{last_line_is_blank} = 0;
 
   _do_atx_heading($this)
-  || _do_setext_heading($this)
-  # Thematic breaks are described first in the spec, but the setext headings has
-  # precedence in case of conflict, so we test for the break after the heading.
-  || _do_thematic_break($this)
-  || _do_indented_code_block($this)
-  || _do_fenced_code_block($this)
-  || _do_html_block($this)
-  || _do_block_quotes($this)
-  || _do_list_item($this)
-  || _do_link_reference_definition($this)
-  || _do_paragraph($this)
-  || croak "Current line could not be parsed as anything: $l";
+      || _do_setext_heading($this)
+      # Thematic breaks are described first in the spec, but the setext headings has
+      # precedence in case of conflict, so we test for the break after the heading.
+      || _do_thematic_break($this)
+      || _do_indented_code_block($this)
+      || _do_fenced_code_block($this)
+      || _do_html_block($this)
+      || _do_block_quotes($this)
+      || _do_list_item($this)
+      || _do_link_reference_definition($this)
+      || _do_paragraph($this)
+      || croak "Current line could not be parsed as anything: $l";
+  return;
 }
 
 # https://spec.commonmark.org/0.30/#atx-headings
@@ -336,136 +339,136 @@ sub _do_atx_heading {
 # https://spec.commonmark.org/0.30/#setext-headings
 sub _do_setext_heading {
   my ($this) = @_;
-  if ( $l =~ /^ {0,3}(-+|=+)[ \t]*$/
-    && @{$this->{paragraph}}
-    && indent_size($this->{paragraph}[0]) < 4
-    && !$this->{is_lazy_continuation}) {
-    # TODO: this should not interrupt a list if the heading is just one -
-    my $c = substr $1, 0, 1;
-    my $p = $this->{paragraph};
-    my $m = $this->get_multi_lines_setext_headings;
-    if ($m eq 'single_line' && @{$p} > 1) {
-      my $last_line = pop @{$p};
-      $this->_finalize_paragraph();
-      $p = [$last_line];
-    } elsif ($m eq 'break' && $l =~ m/${thematic_break_re}/) {
-      $this->_finalize_paragraph();
-      $this->_add_block({type => 'break', debug => 'setext_as_break'});
-      return 1;
-    } elsif ($m eq 'ignore') {
-      push @{$this->{paragraph}}, $l;
-      return 1;
-    }
-    $this->{paragraph} = [];
-    $this->_add_block({
-      type => 'heading',
-      level => ($c eq '=' ? 1 : 2),
-      content => $p,
-      debug => 'setext'
-    });
+  return unless $l =~ /^ {0,3}(-+|=+)[ \t]*$/;
+  if ( !@{$this->{paragraph}}
+    || indent_size($this->{paragraph}[0]) >= 4
+    || $this->{is_lazy_continuation}) {
+    return;
+  }
+  # TODO: this should not interrupt a list if the heading is just one -
+  my $c = substr $1, 0, 1;
+  my $p = $this->{paragraph};
+  my $m = $this->get_multi_lines_setext_headings;
+  if ($m eq 'single_line' && @{$p} > 1) {
+    my $last_line = pop @{$p};
+    $this->_finalize_paragraph();
+    $p = [$last_line];
+  } elsif ($m eq 'break' && $l =~ m/${thematic_break_re}/) {
+    $this->_finalize_paragraph();
+    $this->_add_block({type => 'break', debug => 'setext_as_break'});
+    return 1;
+  } elsif ($m eq 'ignore') {
+    # TODO: maybe we should just do nothing and return 0 here.
+    push @{$this->{paragraph}}, $l;
     return 1;
   }
-  return;
+  $this->{paragraph} = [];
+  $this->_add_block({
+    type => 'heading',
+    level => ($c eq '=' ? 1 : 2),
+    content => $p,
+    debug => 'setext'
+  });
+  return 1;
 }
 
 # https://spec.commonmark.org/0.30/#thematic-breaks
 sub _do_thematic_break {
   my ($this) = @_;
-  if ($l =~ /${thematic_break_re}/) {
-    $this->_add_block({type => 'break', debug => 'native_break'});
-    return 1;
+  if ($l !~ /${thematic_break_re}/) {
+    return;
   }
-  return;
+  $this->_add_block({type => 'break', debug => 'native_break'});
+  return 1;
 }
 
 # https://spec.commonmark.org/0.30/#indented-code-blocks
 sub _do_indented_code_block {
   my ($this) = @_;
   # Indented code blocks cannot interrupt a paragraph.
-  if (!@{$this->{paragraph}} && $l =~ m/${indented_code_re}/) {
-    my @code_lines = remove_prefix_spaces(4, $l.$this->line_ending(), $this->get_preserve_tabs);
-    my $count = 1;  # The number of lines we have read
-    my $valid_count = 1;  # The number of lines we know are in the code block.
-    my $valid_pos = $this->get_pos();
-    while (defined (my $nl = $this->next_line())) {
-      if ($this->_all_blocks_match(\$nl)) {
-        $count++;
-        if ($nl =~ m/${indented_code_re}/) {
-          $valid_pos = $this->get_pos();
-          $valid_count = $count;
-          push @code_lines, remove_prefix_spaces(4, $nl.$this->line_ending(), $this->get_preserve_tabs);
-        } elsif ($nl eq '') {
-          push @code_lines, remove_prefix_spaces(4, $nl.$this->line_ending(), $this->get_preserve_tabs);
-        } else {
-          last;
-        }
+  if (@{$this->{paragraph}} || $l !~ m/${indented_code_re}/) {
+    return;
+  }
+  my @code_lines = remove_prefix_spaces(4, $l.$this->line_ending(), $this->get_preserve_tabs);
+  my $count = 1;  # The number of lines we have read
+  my $valid_count = 1;  # The number of lines we know are in the code block.
+  my $valid_pos = $this->get_pos();
+  while (defined (my $nl = $this->next_line())) {
+    if ($this->_all_blocks_match(\$nl)) {
+      $count++;
+      if ($nl =~ m/${indented_code_re}/) {
+        $valid_pos = $this->get_pos();
+        $valid_count = $count;
+        push @code_lines,
+            remove_prefix_spaces(4, $nl.$this->line_ending(), $this->get_preserve_tabs);
+      } elsif ($nl eq '') {
+        push @code_lines,
+            remove_prefix_spaces(4, $nl.$this->line_ending(), $this->get_preserve_tabs);
       } else {
         last;
       }
+    } else {
+      last;
     }
-    splice @code_lines, $valid_count;
-    $this->set_pos($valid_pos);
-    my $code = join('', @code_lines);
-    $this->_add_block({type => 'code', content => $code, debug => 'indented'});
-    return 1;
   }
-  return;
+  splice @code_lines, $valid_count;
+  $this->set_pos($valid_pos);
+  my $code = join('', @code_lines);
+  $this->_add_block({type => 'code', content => $code, debug => 'indented'});
+  return 1;
 }
 
 # https://spec.commonmark.org/0.30/#fenced-code-blocks
 sub _do_fenced_code_block {
   my ($this) = @_;
-  if (
-    $l =~ /^ (?<indent>\ {0,3}) (?<fence>`{3,}|~{3,}) [ \t]* (?<info>.*?) [ \t]* $/x  ## no critic (ProhibitComplexRegexes)
-    && ( ((my $f = substr $+{fence}, 0, 1) ne '`')
-      || (index($+{info}, '`') == -1))
-  ) {
-    return unless $this->get_use_fenced_code_blocks;
-    my $fl = length($+{fence});
-    my $info = $+{info};
-    my $indent = length($+{indent});
-    # This is one of the few case where we need to process character escaping
-    # outside of the full inlines rendering process.
-    # TODO: Consider if it would be cleaner to do it inside the render_html method.
-    $info =~ s/\\(\p{PosixPunct})/$1/g;
-    # The spec does not describe what we should do with fenced code blocks inside
-    # other containers if we don’t match them.
-    my @code_lines;  # The first line is not part of the block.
-    my $end_fence_seen = 0;
-    my $start_pos = $this->get_pos();
-    while (defined (my $nl = $this->next_line())) {
-      if ($this->_all_blocks_match(\$nl)) {
-        if ($nl =~ m/^ {0,3}${f}{$fl,}[ \t]*$/) {
-          $end_fence_seen = 1;
-          last;
-        } else {
-          # We’re adding one line to the fenced code block
-          push @code_lines, remove_prefix_spaces($indent, $nl.$this->line_ending());
-        }
-      } else {
-        # We’re out of our enclosing block and we haven’t seen the end of the
-        # fence. If we accept enclosed fence, then that last line must be tried
-        # again (and, otherwise, we will start again from start_pos).
-        $this->redo_line() if !$this->get_fenced_code_blocks_must_be_closed;
+  return unless $l =~ /^ (?<indent>\ {0,3}) (?<fence>`{3,}|~{3,}) [ \t]* (?<info>.*?) [ \t]* $/x;  ## no critic (ProhibitComplexRegexes)
+  my $f = substr $+{fence}, 0, 1;
+  if ($f eq '`' && index($+{info}, '`') != -1) {
+    return;
+  }
+  return unless $this->get_use_fenced_code_blocks;
+  my $fl = length($+{fence});
+  my $info = $+{info};
+  my $indent = length($+{indent});
+  # This is one of the few case where we need to process character escaping
+  # outside of the full inlines rendering process.
+  # TODO: Consider if it would be cleaner to do it inside the render_html method.
+  $info =~ s/\\(\p{PosixPunct})/$1/g;
+  # The spec does not describe what we should do with fenced code blocks inside
+  # other containers if we don’t match them.
+  my @code_lines;  # The first line is not part of the block.
+  my $end_fence_seen = 0;
+  my $start_pos = $this->get_pos();
+  while (defined (my $nl = $this->next_line())) {
+    if ($this->_all_blocks_match(\$nl)) {
+      if ($nl =~ m/^ {0,3}${f}{$fl,}[ \t]*$/) {
+        $end_fence_seen = 1;
         last;
+      } else {
+        # We’re adding one line to the fenced code block
+        push @code_lines, remove_prefix_spaces($indent, $nl.$this->line_ending());
       }
-    }
-
-    if (!$end_fence_seen && $this->get_fenced_code_blocks_must_be_closed) {
-      $this->set_pos($start_pos);
-      return;
     } else {
-      my $code = join('', @code_lines);
-      $this->_add_block({
-        type => 'code',
-        content => $code,
-        info => $info,
-        debug => 'fenced'
-      });
-      return 1;
+      # We’re out of our enclosing block and we haven’t seen the end of the
+      # fence. If we accept enclosed fence, then that last line must be tried
+      # again (and, otherwise, we will start again from start_pos).
+      $this->redo_line() if !$this->get_fenced_code_blocks_must_be_closed;
+      last;
     }
   }
-  return;
+
+  if (!$end_fence_seen && $this->get_fenced_code_blocks_must_be_closed) {
+    $this->set_pos($start_pos);
+    return;
+  }
+  my $code = join('', @code_lines);
+  $this->_add_block({
+    type => 'code',
+    content => $code,
+    info => $info,
+    debug => 'fenced'
+  });
+  return 1;
 }
 
 # https://spec.commonmark.org/0.31.2/#html-blocks
@@ -493,42 +496,42 @@ sub _do_html_block {
     $html_end_condition = qr/^$/;  ## no critic (ProhibitFixedStringMatches)
   }
   # TODO: Implement rule 7 about any possible tag.
-  if ($html_end_condition) {
-    # TODO: see if some code could be shared with the code blocks
-    my @html_lines = $l.$this->line_ending();
-    # TODO: add an option to not parse a tag if it’s closing condition is never
-    # seen.
-    if ($l !~ m/${html_end_condition}/) {
-      # The end condition can occur on the opening line.
-      while (defined (my $nl = $this->next_line())) {
-        if ($this->_all_blocks_match(\$nl)) {
-          if ($nl !~ m/${html_end_condition}/) {
-            if ($this->get_preserve_tabs) {
-              push @html_lines, $nl.$this->line_ending();
-            } else {
-              push @html_lines, remove_prefix_spaces(0, $nl.$this->line_ending(), 0);
-            }
-          } elsif ($nl eq '') {
-            # This can only happen for rules 6 and 7 where the end condition
-            # line is not part of the HTML block.
-            $this->redo_line();
-            last;
-          } else {
+  if (!$html_end_condition) {
+    return;
+  }
+  # TODO: see if some code could be shared with the code blocks
+  my @html_lines = $l.$this->line_ending();
+  # TODO: add an option to not parse a tag if it’s closing condition is never
+  # seen.
+  if ($l !~ m/${html_end_condition}/) {
+    # The end condition can occur on the opening line.
+    while (defined (my $nl = $this->next_line())) {
+      if ($this->_all_blocks_match(\$nl)) {
+        if ($nl !~ m/${html_end_condition}/) {
+          if ($this->get_preserve_tabs) {
             push @html_lines, $nl.$this->line_ending();
-            last;
+          } else {
+            push @html_lines, remove_prefix_spaces(0, $nl.$this->line_ending(), 0);
           }
-        } else {
+        } elsif ($nl eq '') {
+          # This can only happen for rules 6 and 7 where the end condition
+          # line is not part of the HTML block.
           $this->redo_line();
           last;
+        } else {
+          push @html_lines, $nl.$this->line_ending();
+          last;
         }
+      } else {
+        $this->redo_line();
+        last;
       }
     }
-    my $html = join('', @html_lines);
-    remove_disallowed_tags($html, $this->get_disallowed_htlm_tags);
-    $this->_add_block({type => 'html', content => $html});
-    return 1;
   }
-  return;
+  my $html = join('', @html_lines);
+  remove_disallowed_tags($html, $this->get_disallowed_html_tags);
+  $this->_add_block({type => 'html', content => $html});
+  return 1;
 }
 
 # https://spec.commonmark.org/0.30/#block-quotes
