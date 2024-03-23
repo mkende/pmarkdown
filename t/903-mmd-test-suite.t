@@ -16,7 +16,6 @@ while ($_ = shift) {
 }
 
 my $test_suite = "${FindBin::Bin}/../third_party/MMD-Test-Suite";
-skip_all('MMD-Test-Suite must be checked out.') unless -d $test_suite;
 
 my $pmarkdown = Markdown::Perl->new();
 

@@ -16,11 +16,9 @@ while ($_ = shift) {
   $filter{test_num} = shift @ARGV if /^-n$/;
 }
 
-my $test_suite = "${FindBin::Bin}/../third_party/MMD-Test-Suite";
-skip_all('MMD-Test-Suite must be checked out.') unless -d $test_suite;
-
 my $pmarkdown = Markdown::Perl->new(mode => 'markdown');
 
+my $test_suite = "${FindBin::Bin}/../third_party/MMD-Test-Suite";
 my $n = test_suite($test_suite."/Tests", $pmarkdown, %filter);
 test_suite($test_suite."/Test", $pmarkdown, start_num => $n, %filter);
 

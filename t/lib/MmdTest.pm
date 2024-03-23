@@ -39,6 +39,7 @@ sub one_test {
 
 sub test_suite {
   my ($test_dir, $pmarkdown, %opt) = @_;
+  skip_all('MMD-Test-Suite must be checked out.') unless -d $test_dir;
   my $i = $opt{start_num} // 0;
   my %todo = map { $_ => 1 } @{$opt{todo} // []};
   for my $md_file (glob "${test_dir}/*.text") {
