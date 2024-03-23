@@ -79,7 +79,7 @@ sub convert {  ## no critic (RequireArgUnpacking)
   # TODO: introduce an HtmlRenderer object that carries the $linkrefs states
   # around (instead of having to pass it in all the calls).
   my ($linkrefs, $blocks) = $parser->process();
-  my $out = $this->_emit_html(0, $linkrefs, @{$blocks});
+  my $out = $this->_emit_html(0, 'root', $linkrefs, @{$blocks});
   $this->{local_options} = {};
   return $out;
 }
@@ -90,9 +90,11 @@ sub _render_inlines {
 }
 
 sub _emit_html {
-  my ($this, $tight_block, $linkrefs, @blocks) = @_;
+  my ($this, $tight_block, $parent_type, $linkrefs, @blocks) = @_;
   my $out = '';
+  my $block_index = 0;
   for my $b (@blocks) {
+    $block_index++;
     if ($b->{type} eq 'break') {
       $out .= "<hr />\n";
     } elsif ($b->{type} eq 'heading') {
@@ -115,13 +117,30 @@ sub _emit_html {
     } elsif ($b->{type} eq 'html') {
       $out .= $b->{content};
     } elsif ($b->{type} eq 'paragraph') {
+      my $html = '';
+      if ((
+             $this->get_allow_task_list_markers eq 'list'
+          && $parent_type eq 'list'
+          && $block_index == 1)
+        || $this->get_allow_task_list_markers eq 'always'
+      ) {
+        if ($b->{content}[0] =~ m/ ^ \s* \[ (?<marker> [ xX] ) \] (?<space> \s | $ ) /x) {
+          $html =
+               '<input '
+              .($LAST_PAREN_MATCH{marker} eq ' ' ? '' : 'checked="" ')
+              .'disabled="" type="checkbox">'
+              .($LAST_PAREN_MATCH{space} eq ' ' ? ' ' : "\n");
+          substr $b->{content}[0], 0, $LAST_MATCH_END[0], '';
+        }
+      }
+      $html .= $this->_render_inlines($linkrefs, @{$b->{content}});
       if ($tight_block) {
-        $out .= $this->_render_inlines($linkrefs, @{$b->{content}});
+        $out .= $html;
       } else {
-        $out .= '<p>'.$this->_render_inlines($linkrefs, @{$b->{content}})."</p>\n";
+        $out .= "<p>${html}</p>\n";
       }
     } elsif ($b->{type} eq 'quotes') {
-      my $c = $this->_emit_html(0, $linkrefs, @{$b->{content}});
+      my $c = $this->_emit_html(0, 'quotes', $linkrefs, @{$b->{content}});
       $out .= "<blockquote>\n${c}</blockquote>\n";
     } elsif ($b->{type} eq 'list') {
       my $type = $b->{style};  # 'ol' or 'ul'
@@ -131,7 +150,7 @@ sub _emit_html {
       $start = " start=\"${num}\"" if $type eq 'ol' && $num != 1;
       $out .= "<${type}${start}>\n<li>"
           .join("</li>\n<li>",
-        map { $this->_emit_html(!$loose, $linkrefs, @{$_->{content}}) } @{$b->{items}})
+        map { $this->_emit_html(!$loose, 'list', $linkrefs, @{$_->{content}}) } @{$b->{items}})
           ."</li>\n</${type}>\n";
     }
   }

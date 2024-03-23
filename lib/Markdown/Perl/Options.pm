@@ -520,4 +520,38 @@ _make_option(
   _enum(qw(http https)),
   github => 'http');
 
+=pod
+
+=head2 B<allow_task_list_markers> I<(enum, default: list)>
+
+Specify whether task list markers (rendered as check boxes) are recognised in
+the input. The possible values are as follow:
+
+=over 4
+
+=item B<never>
+
+Task list marker are never recognised
+
+=item B<list> I<(default)>
+
+Task list markers are recognised only as the first element at the beginning of
+a list item.
+
+=item B<always>
+
+Task list markers are recognised at the beginning of any paragraphs, inside any
+type of block.
+
+=back
+
+=cut
+
+_make_option(
+  allow_task_list_markers => 'list',
+  _enum(qw(never list always)), (
+    markdown => 'never',
+    cmark => 'never',
+  ));
+
 1;
