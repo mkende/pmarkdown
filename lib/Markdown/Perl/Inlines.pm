@@ -782,7 +782,7 @@ sub create_extended_email_autolinks {
 
   # TODO: We’re not handling links with prefix protocol (mailto: or xmpp:) but
   # these are not tested by the spec present in the current repo (although they
-  # are docummented online).
+  # are documented online).
   ## no critic (ProhibitComplexRegexes)
   # use re 'debug';
   while (
