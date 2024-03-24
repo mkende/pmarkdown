@@ -43,11 +43,12 @@ sub render {
   # Now, there are more link elements and they can have children instead of
   # content.
 
-  process_styles($that, $tree);
-
   if ($that->get_use_extended_autolinks) {
-    $tree->map(sub { create_autolinks($that, $_) });
+    $tree->map(sub { create_extended_autolinks($that, $_) });
+    $tree->map(sub { create_extended_email_autolinks($that, $_) });
   }
+
+  process_styles($that, $tree);
 
   # At this point we have added the emphasis, strong emphasis, etc. in the tree.
 
@@ -717,7 +718,7 @@ sub delim_characters {
   return join('', uniq @c);
 }
 
-sub create_autolinks {
+sub create_extended_autolinks {
   my ($that, $n) = @_;
   if ($n->{type} ne 'text') {
     return $n;
@@ -759,13 +760,56 @@ sub create_autolinks {
       $match_end -= $len;
       substr $url, -$len, $len, '';
     }
-    # TODO: handle an HTML entity at the end of the link.
     if ($match_start > 0) {
       push @nodes, new_text(substr $n->{content}, 0, $match_start);
     }
     my $scheme = $has_scheme ? '' : $that->get_default_extended_autolinks_scheme.'://';
     push @nodes,
         new_link($url, type => 'autolink', target => $scheme.$url, debug => 'extended autolink');
+    $n = new_text(substr $n->{content}, $match_end);
+  }
+  push @nodes, $n if length($n->{content}) > 0;
+  return @nodes;
+}
+
+sub create_extended_email_autolinks {
+  my ($that, $n) = @_;
+  if ($n->{type} ne 'text') {
+    return $n;
+  }
+
+  my @nodes;
+
+  # TODO: We’re not handling links with prefix protocol (mailto: or xmpp:) but
+  # these are not tested by the spec present in the current repo (although they
+  # are docummented online).
+  ## no critic (ProhibitComplexRegexes)
+  # use re 'debug';
+  while (
+    $n->{content} =~ m/
+    (?<prefix> ^ | [ \t\n*_~\(] )               # The link must start after a whitespace or some specific delimiters.
+    (?<email>
+      (?<scheme> mailto:\/\/ )?
+      [-_.+a-zA-Z0-9]+ @ [-_a-zA-Z0-9]+ (?: \. [-_a-zA-Z0-9]+ )+ (?<= [a-zA-Z0-9] )
+    )
+    (?: [ \t\n.<] | $ )               # We remove some punctuation from the end of the link.
+   /x
+    ## use critic
+  ) {
+    my $email = $+{email};
+    my $match_start = $LAST_MATCH_START[0] + length($LAST_PAREN_MATCH{prefix});
+    my $match_end = $match_start + length($email);
+    my $has_scheme = exists $LAST_PAREN_MATCH{scheme};
+    if ($match_start > 0) {
+      push @nodes, new_text(substr $n->{content}, 0, $match_start);
+    }
+    my $scheme = $has_scheme ? '' : 'mailto:';
+    push @nodes,
+        new_link(
+          $email,
+          type => 'autolink',
+          target => $scheme.$email,
+          debug => 'extended autolink');
     $n = new_text(substr $n->{content}, $match_end);
   }
   push @nodes, $n if length($n->{content}) > 0;

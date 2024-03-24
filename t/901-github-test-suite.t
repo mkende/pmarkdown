@@ -9,7 +9,7 @@ use CmarkTest;
 use Test2::V0;
 
 # TODO: remove these todos.
-my %opt = (todo => [198 .. 202, 204, 205, 629 .. 631, 652],
+my %opt = (todo => [198 .. 202, 204, 205, 652],
            # These are bugs in the GitHub spec, not in our implementation. All
            # of these have been tested to be buggy in the real cmark-gfm
            # implementation.
@@ -20,7 +20,7 @@ my %opt = (todo => [198 .. 202, 204, 205, 629 .. 631, 652],
             # Some things that are not cmark autolinks are matched by the
             # extended autolinks syntax (but the cmark part of the spec is not
             # updated for it).
-            616, 619,
+            616, 619, 620,
             # The spec says that only http: and https: scheme can be used
             # for extended autolinks. But this example uses ftp:.
             628,
