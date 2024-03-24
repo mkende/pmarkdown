@@ -9,11 +9,12 @@ use Test2::V0;
 my $maxi_test = !!$ENV{MAXI_TEST};
 
 my @token = (
-  'foo', 'bar', ' ', '  ', '   ', '    ', "\n", "\t", '"', '>', "\n>", '- ',
-  "\n- ", '1. ', "\n1. ", '[', ']', '[]', '[foo]', '\n[foo]:', ':', '/url',
-  'http://url', '<', '>', '<http://url>', '(', ')', '(http://url)', '*',
-  '*foo*', '**', '_', '`', '```', "\n```", '---', '--', '#', '##', '<div>',
-  '</div>', "\n\n", '![', '](', '](http://url)', "  \n", "\\\n",
+  'foo', 'bar', 'baz', ' ', '  ', '   ', '    ', "\n", "\t", '"', '>', "\n>",
+  '- ', "\n- ", '1. ', "\n1. ", '[', ']', '[]', '[foo]', '\n[foo]:', ':',
+  '/url','http://url', '<', '>', '<http://url>', '(', ')', '(http://url)', '*',
+  '*foo*', '**', '_', '`', '```', "\n```", '---', '--', '-', '#', '##', '<div>',
+  '</div>', "\n\n", '![', '](', '](http://url)', "  \n", "\\\n", '.',
+  'www.foo.fr', '&lt;', '&Amp;', '&', '+',
 );
 
 my $num_tests = $maxi_test ? 100000 : $ENV{EXTENDED_TESTING} ? 4000 : 500;
@@ -40,6 +41,9 @@ for (1 .. $num_tests) {
   }
   if (!$failed && !$maxi_test) {
     pass('fuzz test');
+  }
+  if ($_ % 1000 == 0 && $maxi_test) {
+    note('Ran '.($_ / 1000).'% of the test');
   }
 }
 
