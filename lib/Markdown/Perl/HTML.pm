@@ -95,7 +95,7 @@ sub remove_disallowed_tags {
   # only in the context of HTML blocks or inline HTML and so, something looking
   # like an HTML tag is probably an HTML tag.
   for my $t (@{$_[1]}) {
-    $_[0] =~ s/<\Q$t\E/&lt;$t/;
+    $_[0] =~ s/<(\Q$t\E)/&lt;$1/gi;
   }
   return;
 }

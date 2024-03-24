@@ -9,7 +9,7 @@ use CmarkTest;
 use Test2::V0;
 
 # TODO: remove these todos.
-my %opt = (todo => [198 .. 202, 204, 205, 652],
+my %opt = (todo => [198 .. 202, 204, 205],
            # These are bugs in the GitHub spec, not in our implementation. All
            # of these have been tested to be buggy in the real cmark-gfm
            # implementation.
