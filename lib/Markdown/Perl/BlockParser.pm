@@ -192,8 +192,12 @@ sub _enter_child_block {
   if (defined $forced_next_line) {
     $this->{forced_line} = $forced_next_line;
   }
-  push @{$this->{blocks_stack}},
-      {cond => $cond, block => $new_block, parent_blocks => $this->{blocks}, continuation_re => $this->{continuation_re}};
+  push @{$this->{blocks_stack}}, {
+        cond => $cond,
+        block => $new_block,
+        parent_blocks => $this->{blocks},
+        continuation_re => $this->{continuation_re}
+      };
   $this->{continuation_re} = qr/$this->{continuation_re} $prefix_re/x;
   $this->{blocks} = [];
   return;
@@ -573,8 +577,7 @@ sub _do_list_item {
   return unless $l =~ m/${list_item_re}/;
   # There is a note in the spec on thematic breaks that are not list items,
   # it’s not exactly clear what is intended, and there are no examples.
-  my ($indent_outside, $marker, $text, $digits, $symbol) =
-      @+{qw(indent marker text digits symbol)};
+  my ($indent_outside, $marker, $text, $digits, $symbol) = @+{qw(indent marker text digits symbol)};
   my $type = $marker =~ m/[-+*]/ ? 'ul' : 'ol';
   my $text_indent = indent_size($text);
   # When interrupting a paragraph, the rules are stricter.
@@ -641,7 +644,7 @@ sub _do_link_reference_definition {
   # normal paragraph but immediately try to parse the content as a link
   # reference definition (and otherwise to keep it as a normal paragraph).
   # That would allow to use the higher lever InlineTree parsing constructs.
-  return unless !@{$this->{paragraph}} && $l =~ m/^ {0,3}\[/;
+  return if @{$this->{paragraph}} || $l !~ m/^ {0,3}\[/;
   my $init_pos = $this->get_pos();
   $this->redo_line();
   my $start_pos = $this->get_pos();
@@ -721,27 +724,26 @@ sub _do_table_block {
   my ($this) = @_;
   return;
 
-  # TODO: add an option to prevent interrupting a paragraph with a table (and
-  # make it be true for pmarkdown, but not for github where tables can interrupt
-  # a paragraph).
-  return unless $l =~ m/^ {0,3}\|/;
-  my $init_pos = $this->get_pos();
-  $this->redo_line();
-  my $start_pos = $this->get_pos();
+  # # TODO: add an option to prevent interrupting a paragraph with a table (and
+  # # make it be true for pmarkdown, but not for github where tables can interrupt
+  # # a paragraph).
+  # return unless $l =~ m/^ {0,3}\|/;
+  # my $init_pos = $this->get_pos();
+  # $this->redo_line();
+  # my $start_pos = $this->get_pos();
 
-  # See the note in the link_reference parsing for this approach. Note that,
-  # as opposed to what happens for links, subsequent lines can have at most
-  # 3 more spaces than the initial one with the GitHub implementation (but not
-  # some other GFM implementations).
-  $this->{md} =~ m/\G.*?\|/g;
-  
-  # TODO:
-  # - break this up in smaller pieces and test them independently.
-  ## no critic (ProhibitComplexRegexes)
-  if (
-    $this->{md} =~ m/\G/x) {}
+  # # See the note in the link_reference parsing for this approach. Note that,
+  # # as opposed to what happens for links, subsequent lines can have at most
+  # # 3 more spaces than the initial one with the GitHub implementation (but not
+  # # some other GFM implementations).
+  # $this->{md} =~ m/\G.*?\|/g;
 
-  return;
+  # # TODO:
+  # # - break this up in smaller pieces and test them independently.
+  # ## no critic (ProhibitComplexRegexes)
+  # if ($this->{md} =~ m/\G/x) { }
+
+  # return;
 }
 
 # https://spec.commonmark.org/0.30/#paragraphs
