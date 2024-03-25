@@ -168,7 +168,8 @@ sub _word_list {
 
 =head2 B<use_fenced_code_blocks> I<(boolean, default: true)>
 
-This options controls whether fenced code blocks can be used.
+This options controls whether fenced code blocks are recognised in the document
+structure.
 
 =cut
 

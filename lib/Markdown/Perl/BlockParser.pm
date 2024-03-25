@@ -309,7 +309,7 @@ sub _parse_blocks {  ## no critic (RequireArgUnpacking)
       # precedence in case of conflict, so we test for the break after the heading.
       || _do_thematic_break($this)
       || _do_indented_code_block($this)
-      || _do_fenced_code_block($this)
+      || ($this->get_use_fenced_code_blocks && _do_fenced_code_block($this))
       || _do_html_block($this)
       || _do_block_quotes($this)
       || _do_list_item($this)
@@ -426,7 +426,6 @@ sub _do_fenced_code_block {
   if ($f eq '`' && index($+{info}, '`') != -1) {
     return;
   }
-  return unless $this->get_use_fenced_code_blocks;
   my $fl = length($+{fence});
   my $info = $+{info};
   my $indent = length($+{indent});
