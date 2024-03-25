@@ -24,4 +24,6 @@ is(run("> <pre>\n> abc\n\nfoo"), "<blockquote>\n<pre>\nabc\n</blockquote>\n<p>fo
 is(run("-     abc"), "<ul>\n<li><pre><code>abc</code></pre>\n</li>\n</ul>\n", 'indented_code_in_list');
 is(run("-    abc"), "<ul>\n<li>abc</li>\n</ul>\n", 'not_indented_code_in_list');
 
+is(run("[foo]\n\n> [foo]:\n> /url\n"), "<p><a href=\"/url\">foo</a></p>\n<blockquote>\n</blockquote>\n", 'multi-line link reference definition in container block');
+
 done_testing;

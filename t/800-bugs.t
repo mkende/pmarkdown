@@ -21,10 +21,6 @@ todo 'New lines are forbidden in link dest' => sub {
   is(run("[link](<dest <foo\nbar>>)"), "<p>[link](&lt;dest <foo\nbar>&gt;)</p>\n", 'newline in bracket in bracket in link');
 };
 
-todo 'Container block markers are not processed in subsequent lines of link reference definition' => sub {
-  is(run("[foo]\n\n> [foo]:\n> /url\n"), "<p><a href=\"/url\">foo</a></p>\n<blockquote>\n<blockquote>\n", 'multi-line link reference definition in container block');
-};
-
 todo 'Multi-line constructs mis-categorized as lazy paragraph continuation' => sub {
   is(run("> foo\n[ref]:\n/url\n"), "<blockquote>\n<p>foo\n</p></blockquote>\n<pre><code>bar\n</code></pre>\n", 'link reference definition is not lazy');
   # Note that this fails only when the fenced_code_blocks_must_be_closed option

@@ -40,6 +40,7 @@ sub new {
     md => undef,
     last_pos => 0,
     line_ending => '',
+    continuation_re => qr//,
     linkrefs => {}
   }, $class;
   lock_keys_plus(%{$this}, qw(forced_line));
@@ -181,14 +182,19 @@ sub _add_block {
   return;
 }
 
+# Anything passed to $prefix_re must necessary accept an empty string unless the
+# block cannot accept lazy continuations. This is a best effort simulation of
+# the block condition, to be used for some complex multi-line constructs that
+# are parsed through a single regex.
 sub _enter_child_block {
-  my ($this, $new_block, $cond, $forced_next_line) = @_;
+  my ($this, $new_block, $cond, $prefix_re, $forced_next_line) = @_;
   $this->_finalize_paragraph();
   if (defined $forced_next_line) {
     $this->{forced_line} = $forced_next_line;
   }
   push @{$this->{blocks_stack}},
-      {cond => $cond, block => $new_block, parent_blocks => $this->{blocks}};
+      {cond => $cond, block => $new_block, parent_blocks => $this->{blocks}, continuation_re => $this->{continuation_re}};
+  $this->{continuation_re} = qr/$this->{continuation_re} $prefix_re/x;
   $this->{blocks} = [];
   return;
 }
@@ -201,6 +207,7 @@ sub _restore_parent_block {
   # TODO: maybe rename content to blocks here.
   $block->{content} = $this->{blocks};
   $this->{blocks} = delete $last_block->{parent_blocks};
+  $this->{continuation_re} = delete $last_block->{continuation_re};
   $this->_add_block($block);
   return;
 }
@@ -314,6 +321,7 @@ sub _parse_blocks {  ## no critic (RequireArgUnpacking)
       || _do_block_quotes($this)
       || _do_list_item($this)
       || _do_link_reference_definition($this)
+      || ($this->get_use_table_blocks && _do_table_block($this))
       || _do_paragraph($this)
       || croak "Current line could not be parsed as anything: $l";
   return;
@@ -536,96 +544,90 @@ sub _do_html_block {
 # https://spec.commonmark.org/0.30/#block-quotes
 sub _do_block_quotes {
   my ($this) = @_;
-  if ($l =~ /${block_quotes_re}/) {
-    # TODO: handle laziness (block quotes where the > prefix is missing)
-    my $cond = sub {
-      if (s/(${block_quotes_re})/' ' x length($1)/e) {
-        # We remove the '>' character that we replaced by a space, and the
-        # optional space after it. We’re using this approach to correctly handle
-        # the case of a line like '>\t\tfoo' where we need to retain the 6
-        # spaces of indentation, to produce a code block starting with two
-        # spaces.
-        $_ = remove_prefix_spaces(length($1) + 1, $_);
-        return 1;
-      }
-      return $this->_test_lazy_continuation($_);
-    };
-    {
-      local *::_ = \$l;
-      $cond->();
+  return unless $l =~ /${block_quotes_re}/;
+  # TODO: handle laziness (block quotes where the > prefix is missing)
+  my $cond = sub {
+    if (s/(${block_quotes_re})/' ' x length($1)/e) {
+      # We remove the '>' character that we replaced by a space, and the
+      # optional space after it. We’re using this approach to correctly handle
+      # the case of a line like '>\t\tfoo' where we need to retain the 6
+      # spaces of indentation, to produce a code block starting with two
+      # spaces.
+      $_ = remove_prefix_spaces(length($1) + 1, $_);
+      return 1;
     }
-    $this->{skip_next_block_matching} = 1;
-    $this->_enter_child_block({type => 'quotes'}, $cond, $l);
-    return 1;
+    return $this->_test_lazy_continuation($_);
+  };
+  {
+    local *::_ = \$l;
+    $cond->();
   }
-  return;
+  $this->{skip_next_block_matching} = 1;
+  $this->_enter_child_block({type => 'quotes'}, $cond, qr/ {0,3}(?:> ?)?/, $l);
+  return 1;
 }
 
 # https://spec.commonmark.org/0.30/#list-items
 sub _do_list_item {
   my ($this) = @_;
-  if ($l =~ m/${list_item_re}/) {
-    # There is a note in the spec on thematic breaks that are not list items,
-    # it’s not exactly clear what is intended, and there are no examples.
-    my ($indent_outside, $marker, $text, $digits, $symbol) =
-        @+{qw(indent marker text digits symbol)};
-    my $type = $marker =~ m/[-+*]/ ? 'ul' : 'ol';
-    my $text_indent = indent_size($text);
-    # When interrupting a paragraph, the rules are stricter.
-    if (@{$this->{paragraph}}
-      && ($text eq '' || ($type eq 'ol' && $digits != 1))) {
-      return;
-    } elsif ($text ne '' && $text_indent == 0) {
-      return;
+  return unless $l =~ m/${list_item_re}/;
+  # There is a note in the spec on thematic breaks that are not list items,
+  # it’s not exactly clear what is intended, and there are no examples.
+  my ($indent_outside, $marker, $text, $digits, $symbol) =
+      @+{qw(indent marker text digits symbol)};
+  my $type = $marker =~ m/[-+*]/ ? 'ul' : 'ol';
+  my $text_indent = indent_size($text);
+  # When interrupting a paragraph, the rules are stricter.
+  if (@{$this->{paragraph}}
+    && ($text eq '' || ($type eq 'ol' && $digits != 1))) {
+    return;
+  }
+  return if $text ne '' && $text_indent == 0;
+  # in the current implementation, $text_indent is enough to know if $text
+  # is matching $indented_code_re, but let’s not depend on that.
+  my $first_line_blank = $text =~ m/^[ \t]*$/;
+  my $discard_text_indent = $first_line_blank || indented(4 + 1, $text);  # 4 + 1 is an indented code block, plus the required space after marker.
+  my $indent_inside = $discard_text_indent ? 1 : $text_indent;
+  my $indent_marker = length($indent_outside) + length($marker);
+  my $indent = $indent_inside + $indent_marker;
+  my $cond = sub {
+    if ($first_line_blank && m/^[ \t]*$/) {
+      # A list item can start with at most one blank line
+      return 0;
     } else {
-      # in the current implementation, $text_indent is enough to know if $text
-      # is matching $indented_code_re, but let’s not depend on that.
-      my $first_line_blank = $text =~ m/^[ \t]*$/;
-      my $discard_text_indent = $first_line_blank || indented(4 + 1, $text);  # 4 + 1 is an indented code block, plus the required space after marker.
-      my $indent_inside = $discard_text_indent ? 1 : $text_indent;
-      my $indent_marker = length($indent_outside) + length($marker);
-      my $indent = $indent_inside + $indent_marker;
-      my $cond = sub {
-        if ($first_line_blank && m/^[ \t]*$/) {
-          # A list item can start with at most one blank line
-          return 0;
-        } else {
-          $first_line_blank = 0;
-        }
-        if (indent_size($_) >= $indent) {
-          $_ = remove_prefix_spaces($indent, $_);
-          return 1;
-        }
-        # TODO: we probably don’t need to test the list_item_re case here, just
-        # the lazy continuation and the emptiness is enough.
-        return (!m/${list_item_re}/ && $this->_test_lazy_continuation($_))
-            || $_ eq '';
-      };
-      my $forced_next_line = undef;
-      if (!$first_line_blank) {
-        # We are doing a weird compensation for the fact that we are not
-        # processing the condition and to correctly handle the case where the
-        # list marker was followed by tabs.
-        $forced_next_line = remove_prefix_spaces($indent, (' ' x $indent_marker).$text);
-        $this->{skip_next_block_matching} = 1;
-      }
-      # Note that we are handling the creation of the lists themselves in the
-      # _add_block method. See https://spec.commonmark.org/0.30/#lists for
-      # reference.
-      # TODO: handle tight and loose lists.
-      my $item = {
-        type => 'list_item',
-        style => $type,
-        marker => $symbol // $marker,
-        num => int($digits // 1),
-      };
-      $item->{loose} =
-          $this->_list_match($item) && $this->{last_line_was_blank};
-      $this->_enter_child_block($item, $cond, $forced_next_line);
+      $first_line_blank = 0;
+    }
+    if (indent_size($_) >= $indent) {
+      $_ = remove_prefix_spaces($indent, $_);
       return 1;
     }
+    # TODO: we probably don’t need to test the list_item_re case here, just
+    # the lazy continuation and the emptiness is enough.
+    return (!m/${list_item_re}/ && $this->_test_lazy_continuation($_))
+        || $_ eq '';
+  };
+  my $forced_next_line = undef;
+  if (!$first_line_blank) {
+    # We are doing a weird compensation for the fact that we are not
+    # processing the condition and to correctly handle the case where the
+    # list marker was followed by tabs.
+    $forced_next_line = remove_prefix_spaces($indent, (' ' x $indent_marker).$text);
+    $this->{skip_next_block_matching} = 1;
   }
-  return;
+  # Note that we are handling the creation of the lists themselves in the
+  # _add_block method. See https://spec.commonmark.org/0.30/#lists for
+  # reference.
+  # TODO: handle tight and loose lists.
+  my $item = {
+    type => 'list_item',
+    style => $type,
+    marker => $symbol // $marker,
+    num => int($digits // 1),
+  };
+  $item->{loose} =
+      $this->_list_match($item) && $this->{last_line_was_blank};
+  $this->_enter_child_block($item, $cond, qr/ {0,${indent}}/, $forced_next_line);
+  return 1;
 }
 
 # https://spec.commonmark.org/0.31.2/#link-reference-definitions
@@ -639,71 +641,106 @@ sub _do_link_reference_definition {
   # normal paragraph but immediately try to parse the content as a link
   # reference definition (and otherwise to keep it as a normal paragraph).
   # That would allow to use the higher lever InlineTree parsing constructs.
-  if (!@{$this->{paragraph}} && $l =~ m/^ {0,3}\[/) {
-    my $init_pos = $this->get_pos();
-    $this->redo_line();
-    my $start_pos = $this->get_pos();
+  return unless !@{$this->{paragraph}} && $l =~ m/^ {0,3}\[/;
+  my $init_pos = $this->get_pos();
+  $this->redo_line();
+  my $start_pos = $this->get_pos();
 
-    # We consume the prefix of enclosing blocks until we find the marker that we
-    # know is there. This won’t work if we accept task list markers in the
-    # future.
-    # This also won’t work to consume markers of subsequent lines of the link
-    # reference definition.
-    # TODO: fix these two bugs above (hard!).
-    $this->{md} =~ m/\G.*?\[/g;
+  # We consume the prefix of enclosing blocks until we find the marker that we
+  # know is there. This won’t work if we accept task list markers in the
+  # future.
+  # This also won’t work to consume markers of subsequent lines of the link
+  # reference definition.
+  # TODO: fix these two bugs above (hard! — although in practice the only
+  # prefix character that can exist are '>' at the beginning of the line, so
+  # we could try to count them, we don’t even need to count spaces for the lists
+  # because the link definition is considered to be paragraph continuation text
+  # by cmark, the spec seems to accept any number of additional spaces too).
+  my $cont = $this->{continuation_re};
+  $this->{md} =~ m/\G${cont}/g;
 
-    # TODO:
-    # - Support for escaped or balanced parenthesis in naked destination
-    # - break this up in smaller pieces and test them independently.
-    # - The need to disable ProhibitUnusedCapture seems to be buggy...
-    ## no critic (ProhibitComplexRegexes, ProhibitUnusedCapture)
-    if (
-      $this->{md} =~ m/\G
-        (?>(?<LABEL>                                            # The link label (in square brackets), matched as an atomic group
-          (?:
-            [^\\\[\]]{0,100} (?:(?:\\\\)* \\ .)?                # The label cannot contain unescaped ]
-            # With 5.38 this could be (?(*{ ...}) (*FAIL))  which will be more efficient.
-            (*COMMIT) (?(?{ pos() > $start_pos + 1004 }) (*FAIL) )  # As our block can be repeated, we prune the search when we are far enough.
-          )+ 
-        )) \]:
-        [ \t]*\n?[ \t]*                                         # optional spaces and tabs with up to one line ending
-        (?>(?<TARGET>                                           # the destination can be either:
-          < (?: [^\n>]* (?<! \\) (?:\\\\)* )+ >                 # - enclosed in <> and containing no unescaped >
-          | [^< [:cntrl:]] [^ [:cntrl:]]*                       # - not enclosed but cannot contains spaces, new lines, etc. and only balanced or escaped parenthesis
-        ))
+  # TODO:
+  # - Support for escaped or balanced parenthesis in naked destination
+  # - break this up in smaller pieces and test them independently.
+  # - The need to disable ProhibitUnusedCapture seems to be buggy...
+  ## no critic (ProhibitComplexRegexes, ProhibitUnusedCapture)
+  if (
+    $this->{md} =~ m/\G
+      \ {0,3} \[
+      (?>(?<LABEL>                                            # The link label (in square brackets), matched as an atomic group
         (?:
-          (?> [ \t]+\n?[ \t]* | [ \t]*\n?[ \t]+ | [ \t]*\n[ \t]* )  # The spec says that spaces must be present here, but it seems that a new line is fine too.
-          (?<TITLE>                                             # The title can be between ", ' or (). The matching characters can’t appear unescaped in the title
-            "  (:?[^\n"]* (?: (?<! \n) \n (?! \n) | (?<! \\) (?:\\\\)* \\ " )? )* "
-          |  '  (:?[^\n']* (?: (?<! \n) \n (?! \n) | (?<! \\) (?:\\\\)* \\ ' )? )* '
-          |  \( (:?[^\n"()]* (?: (?<! \n) \n (?! \n) | (?<! \\) (?:\\\\)* \\ [()] )? )* \)
-          )
-        )?
-        [ \t]*(:?\r\n|\n|\r|$)                                  # The spec says that no characters can occur after the title, but it seems that whitespace is tolerated.
-        /gx
-      ## use critic
-    ) {
-      my ($ref, $target, $title) = @LAST_PAREN_MATCH{qw(LABEL TARGET TITLE)};
-      $ref = normalize_label($ref);
-      if ($ref ne '') {
-        # TODO: option to keep the last appearance instead of the first one.
-        return 1 if exists $this->{linkrefs}{$ref};  # We keep the forts appearance of a label.
-        if (defined $title) {
-          $title =~ s/^.(.*).$/$1/s;
-          _unescape_char($title);
-        }
-        $target =~ s/^<(.*)>$/$1/;
-        _unescape_char($target);
-        $this->{linkrefs}{$ref} = {
-          target => $target,
-          (defined $title ? ('title' => $title) : ())
-        };
-        return 1;
+          [^\\\[\]]{0,100} (?:(?:\\\\)* \\ .)?                # The label cannot contain unescaped ]
+          # With 5.38 this could be (?(*{ ...}) (*FAIL))  which will be more efficient.
+          (*COMMIT) (?(?{ pos() > $start_pos + 1004 }) (*FAIL) )  # As our block can be repeated, we prune the search when we are far enough.
+        )+ 
+      )) \]:
+      [ \t]* (?:\n ${cont})? [ \t]*                           # optional spaces and tabs with up to one line ending
+      (?>(?<TARGET>                                           # the destination can be either:
+        < (?: [^\n>]* (?<! \\) (?:\\\\)* )+ >                 # - enclosed in <> and containing no unescaped >
+        | [^< [:cntrl:]] [^ [:cntrl:]]*                       # - not enclosed but cannot contains spaces, new lines, etc. and only balanced or escaped parenthesis
+      ))
+      (?:
+        # Note that this is an atomic pattern so that we don’t backtrack in it
+        # (so the pattern must not erroneously accept one of its branch).
+        (?> [ \t]* (?:\n ${cont}) [ \t]* | [ \t]+ )           # The spec says that spaces must be present here, but it seems that a new line is fine too.
+        (?<TITLE>                                             # The title can be between ", ' or (). The matching characters can’t appear unescaped in the title
+          "  (:?[^\n"]* (?: (?<! \n) \n (?! \n) | (?<! \\) (?:\\\\)* \\ " )? )* "
+        |  '  (:?[^\n']* (?: (?<! \n) \n (?! \n) | (?<! \\) (?:\\\\)* \\ ' )? )* '
+        |  \( (:?[^\n"()]* (?: (?<! \n) \n (?! \n) | (?<! \\) (?:\\\\)* \\ [()] )? )* \)
+        )
+      )?
+      [ \t]*(:?\r\n|\n|\r|$)                                  # The spec says that no characters can occur after the title, but it seems that whitespace is tolerated.
+      /gx
+    ## use critic
+  ) {
+    my ($ref, $target, $title) = @LAST_PAREN_MATCH{qw(LABEL TARGET TITLE)};
+    $ref = normalize_label($ref);
+    if ($ref ne '') {
+      # TODO: option to keep the last appearance instead of the first one.
+      return 1 if exists $this->{linkrefs}{$ref};  # We keep the forts appearance of a label.
+      if (defined $title) {
+        $title =~ s/^.(.*).$/$1/s;
+        _unescape_char($title);
       }
-      #pass-through intended;
+      $target =~ s/^<(.*)>$/$1/;
+      _unescape_char($target);
+      $this->{linkrefs}{$ref} = {
+        target => $target,
+        (defined $title ? ('title' => $title) : ())
+      };
+      return 1;
     }
-    $this->set_pos($init_pos);
+    #pass-through intended;
   }
+  $this->set_pos($init_pos);
+  return;
+}
+
+# https://github.github.com/gfm/#tables-extension-
+sub _do_table_block {
+  my ($this) = @_;
+  return;
+
+  # TODO: add an option to prevent interrupting a paragraph with a table (and
+  # make it be true for pmarkdown, but not for github where tables can interrupt
+  # a paragraph).
+  return unless $l =~ m/^ {0,3}\|/;
+  my $init_pos = $this->get_pos();
+  $this->redo_line();
+  my $start_pos = $this->get_pos();
+
+  # See the note in the link_reference parsing for this approach. Note that,
+  # as opposed to what happens for links, subsequent lines can have at most
+  # 3 more spaces than the initial one with the GitHub implementation (but not
+  # some other GFM implementations).
+  $this->{md} =~ m/\G.*?\|/g;
+  
+  # TODO:
+  # - break this up in smaller pieces and test them independently.
+  ## no critic (ProhibitComplexRegexes)
+  if (
+    $this->{md} =~ m/\G/x) {}
+
   return;
 }
 
