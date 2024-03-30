@@ -63,6 +63,8 @@ sub AUTOLOAD {  ## no critic (ProhibitAutoloading, RequireArgUnpacking)
   return $this->{pmarkdown}->$AUTOLOAD(@_);
 }
 
+my $eol_re = qr/ \r\n | \n | \r /x;
+
 sub next_line {
   my ($this) = @_;
   # When we are forcing a line, we don’t recompute the line_ending, but it
@@ -71,7 +73,7 @@ sub next_line {
   return delete $this->{forced_line} if exists $this->{forced_line};
   return if pos($this->{md}) == length($this->{md});
   $this->{last_pos} = pos($this->{md});
-  $this->{md} =~ m/\G([^\n\r]*)(\r\n|\n|\r)?/g or confess 'Should not happen';
+  $this->{md} =~ m/\G([^\n\r]*)(${eol_re})?/g or confess 'Should not happen';
   my ($t, $e) = ($1, $2);
   if ($1 =~ /^[ \t]+$/) {
     $this->{line_ending} = $t.($e // '') if $this->get_preserve_white_lines;
@@ -649,23 +651,18 @@ sub _do_link_reference_definition {
   $this->redo_line();
   my $start_pos = $this->get_pos();
 
-  # We consume the prefix of enclosing blocks until we find the marker that we
-  # know is there. This won’t work if we accept task list markers in the
-  # future.
-  # This also won’t work to consume markers of subsequent lines of the link
-  # reference definition.
-  # TODO: fix these two bugs above (hard! — although in practice the only
-  # prefix character that can exist are '>' at the beginning of the line, so
-  # we could try to count them, we don’t even need to count spaces for the lists
-  # because the link definition is considered to be paragraph continuation text
-  # by cmark, the spec seems to accept any number of additional spaces too).
+  # We consume the continuation prefix of enclosing blocks. Note that in the big
+  # regex we allow any number of space after the continuation because it’s what
+  # cmark does.
   my $cont = $this->{continuation_re};
-  $this->{md} =~ m/\G${cont}/g;
+  confess 'Unexpected regex match failure' unless $this->{md} =~ m/\G${cont}/g;
 
   # TODO:
   # - Support for escaped or balanced parenthesis in naked destination
   # - break this up in smaller pieces and test them independently.
   # - The need to disable ProhibitUnusedCapture seems to be buggy...
+  # - most of the regex parses only \n and not other eol sequence. The regex
+  #   should either be fixed or the entry be normalized.
   ## no critic (ProhibitComplexRegexes, ProhibitUnusedCapture)
   if (
     $this->{md} =~ m/\G
@@ -722,28 +719,70 @@ sub _do_link_reference_definition {
 # https://github.github.com/gfm/#tables-extension-
 sub _do_table_block {
   my ($this) = @_;
-  return;
 
-  # # TODO: add an option to prevent interrupting a paragraph with a table (and
-  # # make it be true for pmarkdown, but not for github where tables can interrupt
-  # # a paragraph).
-  # return unless $l =~ m/^ {0,3}\|/;
-  # my $init_pos = $this->get_pos();
-  # $this->redo_line();
-  # my $start_pos = $this->get_pos();
+  # TODO: add an option to prevent interrupting a paragraph with a table (and
+  # make it be true for pmarkdown, but not for github where tables can interrupt
+  # a paragraph).
+  # TODO: github supports omitting the first | even on the first line when we
+  # are not interrupting a paragraph and when subsequent the delimiter line has
+  # more than one dash per cell.
+  return unless $l =~ m/^ {0,3}\|/;
+  my $init_pos = $this->get_pos();
+  $this->redo_line();
 
-  # # See the note in the link_reference parsing for this approach. Note that,
-  # # as opposed to what happens for links, subsequent lines can have at most
-  # # 3 more spaces than the initial one with the GitHub implementation (but not
-  # # some other GFM implementations).
-  # $this->{md} =~ m/\G.*?\|/g;
+  my $table = $this->_parse_table_structure();
+  if (!$table) {
+    $this->set_pos($init_pos);
+    return;
+  }
 
-  # # TODO:
-  # # - break this up in smaller pieces and test them independently.
-  # ## no critic (ProhibitComplexRegexes)
-  # if ($this->{md} =~ m/\G/x) { }
+  $this->_add_block({type => 'table', content => $table});
 
-  # return;
+  return 1;
+}
+
+sub _parse_table_structure {
+  my ($this) = @_;
+
+  # A regexp that matches no back-slashes or an even number of them, so that the
+  # next character cannot be escaped.
+  my $e = qr/(?<! \\) (?:\\\\)*/x;
+
+  # We consume the continuation prefix of enclosing blocks. Note that,
+  # as opposed to what happens for links, subsequent lines can have at most
+  # 3 more spaces than the initial one with the GitHub implementation (but not
+  # some other GFM implementations).
+  my $cont = $this->{continuation_re};
+  confess 'Unexpected regex match failure' unless $this->{md} =~ m/\G${cont}/g;
+
+  # Now we consume the initial | marking the beginning of the table that we know
+  # is here because of the initial match against $l in _do_table_block.
+  confess 'Unexpected missing table markers' unless $this->{md} =~ m/\G {0,3}\|/g;
+
+  # We parse the header row
+  my @headers = $this->{md} =~ m/\G [ \t]* (.*? [ \t]* $e) \| /gcx;
+  return unless @headers;
+
+  # We consume the end of line that must happen after the headers.
+  return unless $this->{md} =~ m/\G [ \t]* ${eol_re} ${cont} \ {0,3} \|? /gx;
+
+  my @separators = $this->{md} =~ m/\G [ \t]* ( :? -+ :? [ \t]* $e) \| /gcx;
+  return unless @separators == @headers;
+
+  # We consume the end of line that must happen after the headers.
+  return unless $this->{md} =~ m/\G [ \t]* (:? ${eol_re} | $ ) /gx;
+
+  # And now we try to read as many lines as possible
+  my @table;
+  while (1) {
+    last unless $this->{md} =~ m/\G ${cont} \ {0,3} \| /gcx;
+    my @cells = $this->{md} =~ m/\G [ \t]* (.*? [ \t]* $e) \| /gcx;
+    # We consume the end of line that must happen after the cells.
+    return unless $this->{md} =~ m/\G [ \t]* (:? ${eol_re} | $ ) /gx;
+    push @table, \@cells;
+  }
+
+  return {headers => \@headers, separators => \@separators, table => \@table};
 }
 
 # https://spec.commonmark.org/0.30/#paragraphs

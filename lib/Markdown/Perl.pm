@@ -152,6 +152,23 @@ sub _emit_html {
           .join("</li>\n<li>",
         map { $this->_emit_html(!$loose, 'list', $linkrefs, @{$_->{content}}) } @{$b->{items}})
           ."</li>\n</${type}>\n";
+    } elsif ($b->{type} eq 'table') {
+      $out .= '<table><thead><tr><th>';
+      $out .= join('</th><th>',
+        map { $this->_render_inlines($linkrefs, $_) } @{$b->{content}{headers}});
+      $out .= '</th></tr></thead>';
+      if (@{$b->{content}{table}}) {
+        $out .= '<tbody>';
+        for my $l (@{$b->{content}{table}}) {
+          $out .= '<tr><td>';
+          $out .= join('</td><td>', map { $this->_render_inlines($linkrefs, $_) } @{$l});
+          $out .= '</td></tr>';
+        }
+        $out .= '</tbody>';
+      }
+      $out .= '</table>';
+    } else {
+      confess 'Unexpected block type when rendering HTML output: '.$b->{type};
     }
   }
   # Note: a final new line should always be appended to $out. This is not
