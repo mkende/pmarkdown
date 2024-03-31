@@ -14,7 +14,8 @@ my @token = (
   '/url','http://url', '<', '>', '<http://url>', '(', ')', '(http://url)', '*',
   '*foo*', '**', '_', '`', '```', "\n```", '---', '--', '-', '#', '##', '<div>',
   '</div>', "\n\n", '![', '](', '](http://url)', "  \n", "\\\n", '.',
-  'www.foo.fr', '&lt;', '&Amp;', '&', '+',
+  'www.foo.fr', '&lt;', '&Amp;', '&', '+', '|', '| foo ', '| :--', ':', 'bar |',
+  '--: |',
 );
 
 my $num_tests = $maxi_test ? 100000 : $ENV{EXTENDED_TESTING} ? 4000 : 500;

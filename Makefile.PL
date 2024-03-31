@@ -115,5 +115,9 @@ build/pmarkdown\$(EXE_EXT):
 
 test: export HARNESS_OPTIONS = j8:c
 
+fuzzing: export MAXI_TEST = 1
+fuzzing:
+\tperl -Ilib t/801-fuzzing.t
+
 EOF
 }

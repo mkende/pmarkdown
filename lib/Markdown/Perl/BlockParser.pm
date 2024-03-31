@@ -89,9 +89,14 @@ sub line_ending {
   return $this->{line_ending};
 }
 
+# last_pos should be passed whenever set_pos can be followed by a "return;" in
+# one of the _do_..._block method (so, if the method fails), to reset the parser
+# to its previous state, when the pos was manipulated.
+# TODO: add a better abstraction to save and restore parser state.
 sub set_pos {
-  my ($this, $pos) = @_;
+  my ($this, $pos, $last_pos) = @_;
   pos($this->{md}) = $pos;
+  $this->{last_pos} = $last_pos if defined $last_pos;
   return;
 }
 
@@ -647,6 +652,7 @@ sub _do_link_reference_definition {
   # reference definition (and otherwise to keep it as a normal paragraph).
   # That would allow to use the higher lever InlineTree parsing constructs.
   return if @{$this->{paragraph}} || $l !~ m/^ {0,3}\[/;
+  my $last_pos = $this->{last_pos};
   my $init_pos = $this->get_pos();
   $this->redo_line();
   my $start_pos = $this->get_pos();
@@ -718,7 +724,7 @@ sub _do_link_reference_definition {
     }
     #pass-through intended;
   }
-  $this->set_pos($init_pos);
+  $this->set_pos($init_pos, $last_pos);
   return;
 }
 
@@ -742,12 +748,12 @@ sub _do_table_block {
   } else {
     return unless $l =~ m/ (?<! \\) (?:\\\\)* \| /x;
   }
+  my $last_pos = $this->{last_pos};
   my $init_pos = $this->get_pos();
   $this->redo_line();
-
   my $table = $this->_parse_table_structure();
   if (!$table) {
-    $this->set_pos($init_pos);
+    $this->set_pos($init_pos, $last_pos);
     return;
   }
 
@@ -772,10 +778,14 @@ sub _parse_table_structure {  ## no critic (ProhibitExcessComplexity)
   # some other GFM implementations).
   my $cont = $this->{continuation_re};
   confess 'Unexpected regex match failure' unless $this->{md} =~ m/\G${cont}/g;
+  # We want to allow successive 0 length matches. For more details on this
+  # behavior, see:
+  # https://perldoc.perl.org/perlre#Repeated-Patterns-Matching-a-Zero-length-Substring
+  pos($this->{md}) = pos($this->{md});
 
   # Now we consume the initial | marking the beginning of the table that we know
   # is here because of the initial match against $l in _do_table_block.
-  confess 'Unexpected missing table markers' unless $this->{md} =~ m/\G (\ {0,3}) (\|)?/gx;
+  confess 'Unexpected missing table markers' unless $this->{md} =~ m/\G (\ {0,3}) (\|)?/gcx;
 
   my $n = length($1) + 3;  # Maximum amount of space allowed on subsequent line
   my $has_pipe = defined $2;
@@ -784,7 +794,8 @@ sub _parse_table_structure {  ## no critic (ProhibitExcessComplexity)
   my @headers = $this->{md} =~ m/\G [ \t]* (.*? [ \t]* $e) \| /gcx;
   return unless @headers;
   # We parse the last header if it is not followed by a pipe, and the newline.
-  confess 'Unexpected match failure' unless $this->{md} =~ m/\G [ \t]* (.+)? [ \t]* ${eol_re} /gcx;
+  # The only failure case here is if we have reached the end of the file.
+  return unless $this->{md} =~ m/\G [ \t]* (.+)? [ \t]* ${eol_re} /gcx;
   if (defined $1) {
     push @headers, $1;
     $has_pipe = 0;
@@ -821,6 +832,7 @@ sub _parse_table_structure {  ## no critic (ProhibitExcessComplexity)
     $has_pipe &&= defined $1;
     last if !defined $1 && $this->{md} =~ m/\G (?: [ ] | > | ${list_item_marker_re} )/x;
     my @cells = $this->{md} =~ m/\G [ \t]* (.*? [ \t]* $e) \| /gcx;
+    pos($this->{md}) = pos($this->{md});
     confess 'Unexpected match failure'
         unless $this->{md} =~ m/\G [ \t]* (.+)? [ \t]* (?: ${eol_re} | $ ) /gcx;
     if (defined $1) {
