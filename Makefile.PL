@@ -14,7 +14,7 @@ WriteMakefile(
     DISTNAME         => 'Markdown-Perl',
     AUTHOR           => q{Mathias Kende <mathias@cpan.org>},
     VERSION_FROM     => 'lib/Markdown/Perl.pm',
-    ABSTRACT         => q{Very configurable Markdown processor written in pure Perl},
+    ABSTRACT         => q{Very configurable Markdown processor written in pure Perl, supporting the CommonMark spec and many extensions},
     LICENSE          => 'mit',
     EXE_FILES        => ['script/pmarkdown',],
     MIN_PERL_VERSION => '5.026',

@@ -32,10 +32,10 @@ Markdown::Perl::InlineTree
 
 A tree structure meant to represent the inline elements of a Markdown paragraph.
 
-This package is internal to the implementation of L<Markdown::Perl> and
-L<pmarkdown> and its documentation should be useful only if you are hacking
-them. Otherwise please refer to the L<Markdown::Perl> and L<pmarkdown>
-documentation.
+This package is internal to the implementation of L<Markdown::Perl> and its
+documentation should be useful only if you are trying to modify the library.
+
+Otherwise please refer to the L<Markdown::Perl> and L<pmarkdown> documentation.
 
 =head1 DESCRIPTION
 

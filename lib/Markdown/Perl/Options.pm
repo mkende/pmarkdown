@@ -31,9 +31,13 @@ documentation to know how to set and use these options.
 
 =head1 MODES
 
-Bundle of options can be set together using I<modes>.
+In addition to setting individual options, you can set bundle of options
+together using I<modes>. See the L<pmarkdown/MODES> documentation for a list
+of available modes. And see the documentation for L<Markdown::Perl> or
+L<pmarkdown> to learn how to set a mode.
 
-TODO
+Note that all options are applied I<on top> of the selected mode. Even if the
+options are passed before the mode, the mode will not override the options.
 
 =head1 OPTIONS
 
@@ -637,5 +641,13 @@ _make_option(
   _enum(qw(strict loose lenient lax)), (
     github => 'loose',
   ));
+
+=pod
+
+=head1 SEE ALSO
+
+L<Markdown::Perl>, L<pmarkdown>
+
+=cut
 
 1;

@@ -36,3 +36,5 @@
 ^nytprof.out$
 ^nytprof/
 ^build/
+^.*\.code-workspace$
+^README\.md$

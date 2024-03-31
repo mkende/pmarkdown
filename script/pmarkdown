@@ -43,15 +43,18 @@ __DATA__
 
 =head1 NAME
 
-pmarkdown – Very configurable Markdown processor written in pure Perl
+pmarkdown – Very configurable Markdown processor written in pure Perl,
+supporting the CommonMark spec and many extensions.
 
 =head1 SYNOPSIS
 
-  pmarkdown < file_in.md > file_out.html_fragment
+  pmarkdown [-o key=value] ... < in_file.md > out_file.html_fragment
 
 =head1 DESCRIPTION
 
-B<pmarkdown>
+Currently C<pmarkdown> can only read a single input from its standard input and
+will write its output on the standard output. Both are assumed to be encoded in
+UTF-8.
 
 If needed, See the L<GitHub pmarkdown page|https://github.com/mkende/pmarkdown>
 for installation instructions.
@@ -71,7 +74,10 @@ Show the complete man page of the program.
 =item B<--list-options>
 
 Show the documentation of all the existing options of the Markdown processor.
-These options can be passed with the C<-o> flag.
+This is the same content that can be found on the L<Markdown::Perl::Options>
+page.
+
+These options can be passed to the program with the C<--options> flag.
 
 =item B<--version>, B<-v>
 
@@ -90,7 +96,7 @@ for these options set through the C<--option> flag will take precedence.
 =item B<--option> I<option=value>, B<-o>
 
 Specify the value for one particular option. The C<--option> flag can be passed
-multiple times. If an option is specified multiple times, the last one takes
+multiple times. If an option is specified multiple times, the last value takes
 precedence.
 
 The options are described in the L<Markdown::Perl::Options> page. You can see
@@ -99,27 +105,43 @@ it with the C<pmarkdown --list-options> command.
 When specifying an option value, boolean options should be passed as either
 C<0>, C<1>, C<false>, or C<true>.
 
+Note that all options are applied I<on top> of the selected mode. Even if the
+options are passed before the B<--mode> flag, the mode will not override options
+set through B<--option>.
+
 =back
 
 =head1 MODES
 
-TODO: fill this section.
-
 =over 8
 
-=item B<default> The default mode if no other mode is specified using the
-default value for all the options (as per their documentation).
+=item B<default>
+
+The default mode if no other mode is specified. This mode uses the default value
+for all the options (as per their documentation).
 
 Note that, in practice, setting the mode to B<default> will I<erase> the mode
 currently set, which means that no warning will be emitted if this mode is
 overridden afterward (as opposed to what happens when any other mode is being
 overridden, including by the default mode).
 
-=item B<cmark> L<https://spec.commonmark.org/0.31.2/>
+=item B<cmark>
 
-=item B<github> L<https://github.github.com/gfm/>
+This mode implements the full
+L<CommonMark spec|https://spec.commonmark.org/0.31.2/>.
 
-=item B<markdown> L<https://daringfireball.net/projects/markdown/syntax>
+=item B<github>
+
+This mode implements the
+L<GitHub Flavored Markdown|https://github.github.com/gfm/> variant of the
+CommonMark spec.
+
+=item B<markdown>
+
+This mode implements the
+L<original Markdown syntax|https://daringfireball.net/projects/markdown/syntax>.
+
+Note that this mode is not 100% similar to the original F<Markdown.pl> script.
 
 =back
 

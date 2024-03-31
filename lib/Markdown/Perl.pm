@@ -192,29 +192,34 @@ __END__
 
 =head1 NAME
 
-Markdown::Perl – Very configurable Markdown processor written in pure Perl
+Markdown::Perl – Very configurable Markdown processor written in pure Perl,
+supporting the CommonMark spec and many extensions.
 
 =head1 SYNOPSIS
 
-This is the library underlying the L<pmarkdown> tool.
-
-=head1 DESCRIPTION
+This is the library underlying the L<pmarkdown> tool. It can be used in an
+object-oriented style:
 
   use Markdown::Perl;
   my $converter = Markdown::Perl->new([mode => $mode], %options);
   my $html = $converter->convert($markdown);
 
-Or you can use the library functionally:
+Or the library can be used functionally:
 
   use Markdown::Perl 'convert';
   Markdown::Perl::set_options([mode => $mode], %options);
   my $html = convert($markdown);
 
-=head1 METHODS
+=head1 DESCRIPTION
 
 =head2 new
 
   my $pmarkdown = Markdown::Perl->new([mode => $mode], %options);
+
+Creates a C<Markdown::Perl> object that can be used to convert Markdown data
+into HTML. Note that you don’t have to create an instance of this class to use
+this module. The methods of this class can also be used like package functions
+and they will operate on an implicit default instance of the class.
 
 See the L<pmarkdown/MODES> page for the documentation of existing modes.
 
@@ -226,21 +231,40 @@ See the L<Markdown::Perl::Options> documentation for all the existing options.
   Markdown::Perl::set_options(%option);
 
 Sets the options of the current object or, for the functional version, the
-options used by functional calls to C<convert>. The options set through the
+options used by functional calls to convert(). The options set through the
 functional version do B<not> apply to any objects created through a call to
-C<new>.
+new().
 
 See the L<Markdown::Perl::Options> documentation for all the existing options.
 
 =head2 set_mode
 
-See the L<pmarkdown/MODES> page for the documentation of existing modes.
+  $pmarkdown->set_mode($mode);
+  Markdown::Perl::set_mode($mode);
+
+Specifies a I<mode> for the current object or, for the functional version, the
+mode used by functional calls to convert(). A mode is a set of configuration
+options working together, typically to replicate the semantics of another
+existing Markdown processor. See the L<pmarkdown/MODES> documentation for a list
+of available modes.
+
+When a mode is applied, it sets specific values for some options but any value
+for these options set through the set_options() will take precedence, even if
+set_options() is called before set_mode(). The mode set through the functional
+version does B<not> apply to any objects created through a call to new().
 
 =head2 convert
 
+  my $html = $pmarkdown->convert($md);
+  my $html = Markdown::Perl::convert($md);
+
+Converts the given $md string into HTML. The input string must be a decoded
+Unicode string (or an ASCII string) and the output is similarly a decoded
+Unicode string.
+
 =head1 AUTHOR
 
-Mathias Kende
+Mathias Kende <mathias@cpan.org>
 
 =head1 COPYRIGHT AND LICENSE
 
@@ -271,6 +295,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 =item L<Text::Markdown> another pure Perl implementation, implementing the
 original Markdown syntax from L<http://daringfireball.net/projects/markdown>.
+
+=item L<CommonMark> a wrapper around the official CommonMark C library.
 
 =back
 
