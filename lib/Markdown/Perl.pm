@@ -9,6 +9,7 @@ use Carp;
 use English;
 use Exporter 'import';
 use Hash::Util 'lock_keys';
+use List::MoreUtils 'pairwise';
 use Markdown::Perl::BlockParser;
 use Markdown::Perl::Inlines;
 use Markdown::Perl::HTML 'html_escape', 'decode_entities';
@@ -89,34 +90,35 @@ sub _render_inlines {
   return Markdown::Perl::Inlines::render($this, $linkrefs, @lines);
 }
 
-sub _emit_html {
+# TODO: move this to a separate package and split the method in smaller chunks.
+sub _emit_html {  ## no critic (ProhibitExcessComplexity)
   my ($this, $tight_block, $parent_type, $linkrefs, @blocks) = @_;
   my $out = '';
   my $block_index = 0;
-  for my $b (@blocks) {
+  for my $bl (@blocks) {
     $block_index++;
-    if ($b->{type} eq 'break') {
+    if ($bl->{type} eq 'break') {
       $out .= "<hr />\n";
-    } elsif ($b->{type} eq 'heading') {
-      my $l = $b->{level};
-      my $c = $b->{content};
+    } elsif ($bl->{type} eq 'heading') {
+      my $l = $bl->{level};
+      my $c = $bl->{content};
       $c = $this->_render_inlines($linkrefs, ref $c eq 'ARRAY' ? @{$c} : $c);
       $c =~ s/^[ \t]+|[ \t]+$//g;  # Only the setext headings spec asks for this, but this can’t hurt atx heading where this can’t change anything.
       $out .= "<h${l}>$c</h${l}>\n";
-    } elsif ($b->{type} eq 'code') {
-      my $c = $b->{content};
+    } elsif ($bl->{type} eq 'code') {
+      my $c = $bl->{content};
       html_escape($c, $this->get_html_escaped_code_characters);
       my $i = '';
-      if ($this->get_code_blocks_info eq 'language' && $b->{info}) {
-        my $l = $b->{info} =~ s/\s.*//r;  # The spec does not really cover this behavior so we’re using Perl notion of whitespace here.
+      if ($this->get_code_blocks_info eq 'language' && $bl->{info}) {
+        my $l = $bl->{info} =~ s/\s.*//r;  # The spec does not really cover this behavior so we’re using Perl notion of whitespace here.
         decode_entities($l);
         html_escape($l, $this->get_html_escaped_characters);
         $i = " class=\"language-${l}\"";
       }
       $out .= "<pre><code${i}>$c</code></pre>\n";
-    } elsif ($b->{type} eq 'html') {
-      $out .= $b->{content};
-    } elsif ($b->{type} eq 'paragraph') {
+    } elsif ($bl->{type} eq 'html') {
+      $out .= $bl->{content};
+    } elsif ($bl->{type} eq 'paragraph') {
       my $html = '';
       if ((
              $this->get_allow_task_list_markers eq 'list'
@@ -124,51 +126,54 @@ sub _emit_html {
           && $block_index == 1)
         || $this->get_allow_task_list_markers eq 'always'
       ) {
-        if ($b->{content}[0] =~ m/ ^ \s* \[ (?<marker> [ xX] ) \] (?<space> \s | $ ) /x) {
+        if ($bl->{content}[0] =~ m/ ^ \s* \[ (?<marker> [ xX] ) \] (?<space> \s | $ ) /x) {
           $html =
                '<input '
               .($LAST_PAREN_MATCH{marker} eq ' ' ? '' : 'checked="" ')
               .'disabled="" type="checkbox">'
               .($LAST_PAREN_MATCH{space} eq ' ' ? ' ' : "\n");
-          substr $b->{content}[0], 0, $LAST_MATCH_END[0], '';
+          substr $bl->{content}[0], 0, $LAST_MATCH_END[0], '';
         }
       }
-      $html .= $this->_render_inlines($linkrefs, @{$b->{content}});
+      $html .= $this->_render_inlines($linkrefs, @{$bl->{content}});
       if ($tight_block) {
         $out .= $html;
       } else {
         $out .= "<p>${html}</p>\n";
       }
-    } elsif ($b->{type} eq 'quotes') {
-      my $c = $this->_emit_html(0, 'quotes', $linkrefs, @{$b->{content}});
+    } elsif ($bl->{type} eq 'quotes') {
+      my $c = $this->_emit_html(0, 'quotes', $linkrefs, @{$bl->{content}});
       $out .= "<blockquote>\n${c}</blockquote>\n";
-    } elsif ($b->{type} eq 'list') {
-      my $type = $b->{style};  # 'ol' or 'ul'
+    } elsif ($bl->{type} eq 'list') {
+      my $type = $bl->{style};  # 'ol' or 'ul'
       my $start = '';
-      my $num = $b->{start_num};
-      my $loose = $b->{loose};
+      my $num = $bl->{start_num};
+      my $loose = $bl->{loose};
       $start = " start=\"${num}\"" if $type eq 'ol' && $num != 1;
       $out .= "<${type}${start}>\n<li>"
           .join("</li>\n<li>",
-        map { $this->_emit_html(!$loose, 'list', $linkrefs, @{$_->{content}}) } @{$b->{items}})
+        map { $this->_emit_html(!$loose, 'list', $linkrefs, @{$_->{content}}) } @{$bl->{items}})
           ."</li>\n</${type}>\n";
-    } elsif ($b->{type} eq 'table') {
-      $out .= '<table><thead><tr><th>';
-      $out .= join('</th><th>',
-        map { $this->_render_inlines($linkrefs, $_) } @{$b->{content}{headers}});
-      $out .= '</th></tr></thead>';
-      if (@{$b->{content}{table}}) {
+    } elsif ($bl->{type} eq 'table') {
+      $out .= '<table><thead><tr>';
+      my @align = map { $_ ? " align=\"${_}\"" : '' } @{$bl->{content}{align}};
+      my @h = map { $this->_render_inlines($linkrefs, $_) } @{$bl->{content}{headers}};
+      $out .= join('', pairwise { "<th${a}>${b}</th>" } @align, @h);
+      $out .= '</tr></thead>';
+      if (@{$bl->{content}{table}}) {
         $out .= '<tbody>';
-        for my $l (@{$b->{content}{table}}) {
-          $out .= '<tr><td>';
-          $out .= join('</td><td>', map { $this->_render_inlines($linkrefs, $_) } @{$l});
-          $out .= '</td></tr>';
+        my $ms = $this->get_table_blocks_have_cells_for_missing_data;
+        for my $l (@{$bl->{content}{table}}) {
+          $out .= '<tr>';
+          my @d = map { defined ? $this->_render_inlines($linkrefs, $_) : $ms ? '' : undef } @{$l};
+          $out .= join('', pairwise { defined $b ? "<td${a}>${b}</td>" : '' } @align, @d);
+          $out .= '</tr>';
         }
         $out .= '</tbody>';
       }
       $out .= '</table>';
     } else {
-      confess 'Unexpected block type when rendering HTML output: '.$b->{type};
+      confess 'Unexpected block type when rendering HTML output: '.$bl->{type};
     }
   }
   # Note: a final new line should always be appended to $out. This is not

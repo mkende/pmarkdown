@@ -75,7 +75,7 @@ sub full_test {
     $mode = "--track ${root_dir}/commonmark.$opt{mode}.tests";
   }
 
-  my $test_suite_output = system "python3 $opt{spec_tool} --spec $opt{spec} ${mode} --program '$^X -I${root_dir}/lib ${root_dir}/script/pmarkdown -m $opt{mode}'";
+  my $test_suite_output = system "python3 $opt{spec_tool} --spec $opt{spec} ${mode} --program '$^X -I${root_dir}/lib ${root_dir}/script/pmarkdown -m $opt{mode} -o warn_for_unused_input=0'";
   is($test_suite_output, 0, "$opt{spec_name} test suite");
 }
 
@@ -85,7 +85,7 @@ sub test_suite {
   if ($opt{use_full_spec}) {
     full_test(%opt);
   } else {
-    my $pmarkdown = Markdown::Perl->new(mode => $opt{mode});
+    my $pmarkdown = Markdown::Perl->new(mode => $opt{mode}, warn_for_unused_input => 0);
     json_test($pmarkdown, %opt);
   }
 }

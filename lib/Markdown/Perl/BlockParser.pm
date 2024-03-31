@@ -12,7 +12,7 @@ use Carp;
 use English;
 use Hash::Util 'lock_keys_plus';
 use List::MoreUtils 'first_index';
-use List::Util 'pairs';
+use List::Util 'pairs', 'min';
 use Markdown::Perl::HTML 'html_escape', 'decode_entities', 'remove_disallowed_tags';
 use Markdown::Perl::Util ':all';
 
@@ -697,7 +697,13 @@ sub _do_link_reference_definition {
     $ref = normalize_label($ref);
     if ($ref ne '') {
       # TODO: option to keep the last appearance instead of the first one.
-      return 1 if exists $this->{linkrefs}{$ref};  # We keep the forts appearance of a label.
+      if (exists $this->{linkrefs}{$ref}) {
+        # We keep the first appearance of a label.
+        # TODO: mention the link label.
+        carp 'Only the first appearance of a link reference definition is kept'
+            if $this->get_warn_for_unused_input();
+        return 1;
+      }
       if (defined $title) {
         $title =~ s/^.(.*).$/$1/s;
         _unescape_char($title);
@@ -726,7 +732,16 @@ sub _do_table_block {
   # TODO: github supports omitting the first | even on the first line when we
   # are not interrupting a paragraph and when subsequent the delimiter line has
   # more than one dash per cell.
-  return unless $l =~ m/^ {0,3}\|/;
+  my $i = !!@{$this->{paragraph}};
+  return if $i && !$this->get_table_blocks_can_interrupt_paragraph;
+  my $m = $this->get_table_blocks_pipes_requirements;
+  # The tests here are quite lenient and there are many ways in which parsing
+  # the table can fail even if these tests pass.
+  if ($m eq 'strict' || ($m eq 'loose' && $i)) {
+    return unless $l =~ m/^ {0,3}\|/;
+  } else {
+    return unless $l =~ m/ (?<! \\) (?:\\\\)* \| /x;
+  }
   my $init_pos = $this->get_pos();
   $this->redo_line();
 
@@ -741,8 +756,11 @@ sub _do_table_block {
   return 1;
 }
 
-sub _parse_table_structure {
+sub _parse_table_structure {  ## no critic (ProhibitExcessComplexity)
   my ($this) = @_;
+
+  my $m = $this->get_table_blocks_pipes_requirements;
+  my $i = !!@{$this->{paragraph}};
 
   # A regexp that matches no back-slashes or an even number of them, so that the
   # next character cannot be escaped.
@@ -757,32 +775,79 @@ sub _parse_table_structure {
 
   # Now we consume the initial | marking the beginning of the table that we know
   # is here because of the initial match against $l in _do_table_block.
-  confess 'Unexpected missing table markers' unless $this->{md} =~ m/\G {0,3}\|/g;
+  confess 'Unexpected missing table markers' unless $this->{md} =~ m/\G (\ {0,3}) (\|)?/gx;
+
+  my $n = length($1) + 3;  # Maximum amount of space allowed on subsequent line
+  my $has_pipe = defined $2;
 
   # We parse the header row
   my @headers = $this->{md} =~ m/\G [ \t]* (.*? [ \t]* $e) \| /gcx;
   return unless @headers;
+  # We parse the last header if it is not followed by a pipe, and the newline.
+  confess 'Unexpected match failure' unless $this->{md} =~ m/\G [ \t]* (.+)? [ \t]* ${eol_re} /gcx;
+  if (defined $1) {
+    push @headers, $1;
+    $has_pipe = 0;
+  }
 
-  # We consume the end of line that must happen after the headers.
-  return unless $this->{md} =~ m/\G [ \t]* ${eol_re} ${cont} \ {0,3} \|? /gx;
+  return if ($m eq 'strict' || ($m eq 'loose' && $i) || @headers == 1) && !$has_pipe;
 
-  my @separators = $this->{md} =~ m/\G [ \t]* ( :? -+ :? [ \t]* $e) \| /gcx;
+  # We consume the continuation marker at the beginning of the delimiter row.
+  return unless $this->{md} =~ m/\G ${cont} \ {0,$n} (\|)? /gx;
+
+  $has_pipe &&= defined $1;
+
+  my @separators = $this->{md} =~ m/\G [ \t]* ( :? -+ :? ) [ \t]* \| /gcx;
+  return unless $this->{md} =~ m/\G [ \t]* (:? -+ :?)? [ \t]* (:? ${eol_re} | $ ) /gcx;
+  if (defined $1) {
+    push @separators, $1;
+    $has_pipe = 0;
+  }
   return unless @separators == @headers;
+  my @align =
+      map { s/^(:)?-+(:)?$/ $1 ? ($2 ? 'center' : 'left') : ($2 ? 'right' : '') /er } @separators;
 
-  # We consume the end of line that must happen after the headers.
-  return unless $this->{md} =~ m/\G [ \t]* (:? ${eol_re} | $ ) /gx;
+  return if ($m eq 'strict' || ($m eq 'loose' && $i) || @headers == 1) && !$has_pipe;
+  return if $m ne 'lax' && @headers == 1 && !$has_pipe;
+  return if $m ne 'lax' && !$has_pipe && min(map { length } @separators) < 2;
 
   # And now we try to read as many lines as possible
   my @table;
   while (1) {
-    last unless $this->{md} =~ m/\G ${cont} \ {0,3} \| /gcx;
+    last if pos($this->{md}) == length($this->{md});
+    last unless $this->{md} =~ m/\G ${cont} \ {0,$n} (\|)? /gcx;
+    # TODO: use a simulator to decide whether we are entering a new block-level
+    # structure, rather than using this half baked regex.
+    $has_pipe &&= defined $1;
+    last if !defined $1 && $this->{md} =~ m/\G (?: [ ] | > | ${list_item_marker_re} )/x;
     my @cells = $this->{md} =~ m/\G [ \t]* (.*? [ \t]* $e) \| /gcx;
-    # We consume the end of line that must happen after the cells.
-    return unless $this->{md} =~ m/\G [ \t]* (:? ${eol_re} | $ ) /gx;
-    push @table, \@cells;
+    confess 'Unexpected match failure'
+        unless $this->{md} =~ m/\G [ \t]* (.+)? [ \t]* (?: ${eol_re} | $ ) /gcx;
+    if (defined $1) {
+      push @cells, $1;
+      $has_pipe = 0;
+    }
+    # There is a small bug when we exit here which is that we have consumed a
+    # blank line. The only case where it would matter would be to decide whether
+    # a list is loose or not, which is a pretty "edge" case with tables.
+    # Otherwise, we will start a new paragraph in all cases.
+    last unless @cells;
+    if (@cells != @headers) {
+      $#cells = @headers - 1;
+      # TODO: mention the line number in the file (if possible to track
+      # correctly).
+      carp 'Excess cells in table row are ignored'
+          if @cells > @headers && $this->get_warn_for_unused_input();
+    }
+    # Pipes need to be escaped inside table, and we need to unescape them here
+    # in case one would appear in a code block for example (where the escaping
+    # would appear literally otherwise). Given that pipes don’t have other
+    # meaning by default, there is not a big risk to do that (and this is
+    # mandated) by the GitHub Spec anyway.
+    push @table, [map { defined ? s/($e)\\\|/${1}|/gr : undef } @cells];
   }
 
-  return {headers => \@headers, separators => \@separators, table => \@table};
+  return {headers => \@headers, align => \@align, table => \@table};
 }
 
 # https://spec.commonmark.org/0.30/#paragraphs

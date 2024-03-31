@@ -8,8 +8,7 @@ use lib "${FindBin::Bin}/lib";
 use CmarkTest;
 use Test2::V0;
 
-# TODO: remove these todos.
-my %opt = (todo => [199 .. 202, 204, 205],
+my %opt = (todo => [],  # We are implementing the entire spec, except for the bug below.
            # These are bugs in the GitHub spec, not in our implementation. All
            # of these have been tested to be buggy in the real cmark-gfm
            # implementation.

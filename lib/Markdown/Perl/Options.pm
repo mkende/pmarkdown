@@ -166,6 +166,21 @@ sub _word_list {
 
 =pod
 
+=head2 B<warn_for_unused_input> I<(boolean, default: true)>
+
+In general, all user input is present in the output (possibly as uninterpreted
+text if it was not understood). But some valid Markdown construct results in
+parts of the input being ignored. By default C<pmarkdown> will emit a warning
+when such a construct is found. This option can disable these warnings.
+
+=cut
+
+_make_option(
+  warn_for_unused_input => 1,
+  _boolean);
+
+=pod
+
 =head2 B<use_fenced_code_blocks> I<(boolean, default: true)>
 
 This options controls whether fenced code blocks are recognised in the document
@@ -553,6 +568,74 @@ _make_option(
   _enum(qw(never list always)), (
     markdown => 'never',
     cmark => 'never',
+  ));
+
+=pod
+
+=head2 B<table_blocks_can_interrupt_paragraph> I<(boolean, default: false)>
+
+Allow a table top level block to interrupt a paragraph.
+
+=cut
+
+_make_option(
+  table_blocks_can_interrupt_paragraph => 0,
+  _boolean, (
+    github => 1,
+  ));
+
+=pod
+
+=head2 B<table_blocks_have_cells_for_missing_data> I<(boolean, default: false)>
+
+Whether a table will have a cell in HTML for a missing cell in the markdown
+input.
+
+=cut
+
+_make_option(
+  table_blocks_have_cells_for_missing_data => 0,
+  _boolean, (
+    github => 1,
+  ));
+
+=pod
+
+=head2 B<table_blocks_pipes_requirements> I<(enum, default: strict)>
+
+Defines how strict is the parsing of table top level blocks when the leading or
+trailing pipes of a given line are missing.
+
+=over 4
+
+=item B<strict> I<(default)>
+
+Leading and trailing pipes are always required for all the lines of the table.
+
+=item B<loose>
+
+Leading and trailing pipes can be omitted when the table is not interrupting a
+paragraph, if it has at least two columns, and if the delimiter row uses
+delimiters with more than one character.
+
+=item B<lenient>
+
+Leading and trailing pipes can be omitted when the table has at least two
+columns, and if the delimiter row uses delimiters with more than one character.
+
+=item B<lax>
+
+Leading and trailing pipes can always be omitted, except on the header line of
+a table, if it has a single column.
+
+=back
+
+=cut
+
+_make_option(
+  table_blocks_pipes_requirements => 'strict',
+  _enum(qw(strict loose lenient lax)), (
+    github => 'loose',
   ));
 
 1;
