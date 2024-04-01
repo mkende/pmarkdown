@@ -13,6 +13,9 @@ some more custom extensions.
 It is based on the [Markdown::Perl](https://metacpan.org/pod/Markdown::Perl)
 library that can be used in standalone Perl program.
 
+See the [Syntax page](Syntax.md) for a full description of the default syntax
+supported by `pmarkdown`.
+
 ## Usage
 
 Using `pmarkdown` is as simple as running the following command:

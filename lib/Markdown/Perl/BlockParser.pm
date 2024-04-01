@@ -322,7 +322,7 @@ sub _parse_blocks {  ## no critic (RequireArgUnpacking)
   $this->{last_line_is_blank} = 0;
 
   _do_atx_heading($this)
-      || _do_setext_heading($this)
+      || ($this->get_use_setext_heading && _do_setext_heading($this))
       # Thematic breaks are described first in the spec, but the setext headings has
       # precedence in case of conflict, so we test for the break after the heading.
       || _do_thematic_break($this)

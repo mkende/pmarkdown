@@ -206,6 +206,16 @@ _make_option(use_table_blocks => 1, _boolean, (cmark => 0, markdown => 0));
 
 =pod
 
+=head2 B<use_setext_heading> I<(boolean, default: false)>
+
+This options controls whether table blocks can be used.
+
+=cut
+
+_make_option(use_setext_heading => 0, _boolean, (cmark => 1, markdown => 1, github => 1));
+
+=pod
+
 =head2 B<fenced_code_blocks_must_be_closed> I<(boolean, default: true)>
 
 By default, a fenced code block with no closing fence will run until the end of

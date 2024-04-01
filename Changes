@@ -1,5 +1,9 @@
 Revision history for pmarkdown and the Markdown::Perl module.
 
+1.01 - ??
+
+ - Deactivate the support for setext headings in pmarkdown default syntax.
+
 1.00 - 2024-03-31
 
  - Initial release with full support for the CommonMark spec, the GitHub
