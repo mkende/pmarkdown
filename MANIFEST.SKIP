@@ -38,3 +38,5 @@
 ^build/
 ^.*\.code-workspace$
 ^README\.md$
+^Syntax\.md$
+^pod2htmd\.tmp$

@@ -26,3 +26,4 @@ __pycache__
 /nytprof/
 *.code-workspace
 build/
+pod2htmd.tmp
