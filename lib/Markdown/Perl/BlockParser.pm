@@ -123,7 +123,7 @@ sub process {
   # https://spec.commonmark.org/0.30/#characters-and-lines
   # TODO: The spec asks for this, however we can’t apply it, because md is a
   # reference to the value passed by the user and we don’t want to modify it (it
-  # may even be a read-only value). I’m too lazy to find another place to 
+  # may even be a read-only value). I’m too lazy to find another place to
   # implement this behavior.
   # $this->{md} =~ s/\000/\xfffd/g;
 

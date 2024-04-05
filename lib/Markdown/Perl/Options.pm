@@ -119,7 +119,7 @@ sub _make_option {
       return $this->{local_options}{$opt} if exists $this->{local_options}{$opt};
       return $this->{options}{$opt} if exists $this->{options}{$opt};
       if (defined $this->{local_options}{mode}) {
-        # We still enter here if the mode is 'defaut', to not enter the global
+        # We still enter here if the mode is 'default', to not enter the global
         # mode (a local mode entirely shadows a global mode).
         return $options_modes{$this->{local_options}{mode}}{$opt}
             if exists $options_modes{$this->{local_options}{mode}}{$opt};
