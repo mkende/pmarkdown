@@ -1,6 +1,6 @@
 Revision history for pmarkdown and the Markdown::Perl module.
 
-1.01 - ??
+1.01 - 2024-04-05
 
  - Deactivate the support for setext headings in pmarkdown default syntax.
  - Remove a copy of the input Markdown when using the functional interface.
