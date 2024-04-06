@@ -10,3 +10,6 @@
 [submodule "third_party/MMD-Test-Suite"]
 	path = third_party/MMD-Test-Suite
 	url = https://github.com/fletcher/MMD-Test-Suite.git
+[submodule "third_party/mdtest"]
+	path = third_party/mdtest
+	url = https://github.com/michelf/mdtest.git
