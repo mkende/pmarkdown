@@ -276,6 +276,36 @@ _make_option(
 
 =pod
 
+=head3 B<lists_can_interrupt_paragraph> I<(enum, default: strict)>
+
+Specify whether and how a list can interrupt a paragraph.
+
+=over 4
+
+=item B<never>
+
+A list can never interrupt a paragraph.
+
+=item B<strict> I<(default)>
+
+A list can interrupt a paragraph but only with some non anbiguous list markers.
+
+=item B<always>
+
+A list can always interrupt a paragraph.
+
+=back
+
+=cut
+
+_make_option(
+  lists_can_interrupt_paragraph => 'strict',
+  _enum(qw(never strict always)), (
+    markdown => 'never',
+  ));
+
+=pod
+
 =head3 B<allow_task_list_markers> I<(enum, default: list)>
 
 Specify whether task list markers (rendered as check boxes) are recognised in

@@ -592,9 +592,12 @@ sub _do_list_item {
   my $type = $marker =~ m/[-+*]/ ? 'ul' : 'ol';
   my $text_indent = indent_size($text);
   # When interrupting a paragraph, the rules are stricter.
-  if (@{$this->{paragraph}}
-    && ($text eq '' || ($type eq 'ol' && $digits != 1))) {
-    return;
+  my $mode = $this->get_lists_can_interrupt_paragraph;
+  if (@{$this->{paragraph}}) {
+    return if $mode eq 'never';
+    if ($mode eq 'strict' && ($text eq '' || ($type eq 'ol' && $digits != 1))) {
+      return;
+    }
   }
   return if $text ne '' && $text_indent == 0;
   # in the current implementation, $text_indent is enough to know if $text
