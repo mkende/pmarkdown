@@ -15,7 +15,7 @@ use Unicode::CaseFold 'fc';
 our $VERSION = 0.01;
 
 our @EXPORT_OK =
-    qw(split_while remove_prefix_spaces indent_size indented_one_tab horizontal_size normalize_label indented);
+    qw(split_while remove_prefix_spaces indent_size indented_one_tab horizontal_size normalize_label indented tabs_to_space);
 our %EXPORT_TAGS = (all => \@EXPORT_OK);
 
 # Partition a list into a continuous chunk for which the given code evaluates to
@@ -128,6 +128,23 @@ sub normalize_label {
   $label =~ s/^[ \t\n]+|[ \t\n]+$//g;
   $label =~ s/[ \t\n]+|[\t\n]/ /g;
   return $label;
+}
+
+# Convert tabs to space in the given string. Assuming $prefix horizontal spaces
+# before the string.
+sub tabs_to_space {  ## no critic (RequireArgUnpacking)
+  my ($str, $prefix) = @_;
+  $prefix //= 0;
+  while ($str =~ m/\G[^\t]*\t/g) {
+    $prefix += $LAST_MATCH_END[0] - $LAST_MATCH_START[0] - 1;
+    my $nb_space = 4 - $prefix % 4;
+    substr $str, $LAST_MATCH_END[0] - 1, 1, ' ' x $nb_space;
+    pos($str) = $LAST_MATCH_END[0] - 1 + $nb_space;
+    $prefix = 0;  # By definition we are now aligned with a tab stop.
+  }
+  return $str if defined wantarray;
+  $_[0] = $str;
+  return;
 }
 
 1;

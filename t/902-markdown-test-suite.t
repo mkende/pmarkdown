@@ -9,9 +9,13 @@ use Markdown::Perl;
 use MmdTest;
 use Test2::V0;
 
-# TODO: remove these todos.
 my %opt = (
-  todo => [16, 18, 22],
+  todo => [
+    # We will probably never support this test, which has quotes inside link
+    # titles that are in quotes. The "spec" does not say anything about that and
+    # it would be a nightmare to parse it.
+    16,
+  ],
   # These are bugs in the Markdown "spec", not in our implementation. All of
   # these have been tested to be buggy in the real Markdown.pl implementation.
   bugs => [

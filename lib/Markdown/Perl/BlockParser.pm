@@ -160,7 +160,7 @@ sub _finalize_paragraph {
     if ($this->{last_line_was_blank}) {
       if (@{$this->{blocks_stack}}
         && $this->{blocks_stack}[-1]{block}{type} eq 'list_item') {
-          $this->{blocks_stack}[-1]{block}{loose} = 1;
+        $this->{blocks_stack}[-1]{block}{loose} = 1;
       }
     }
   }
@@ -268,7 +268,7 @@ sub _test_lazy_continuation {
 
 sub _count_matching_blocks {
   my ($this, $lr) = @_;  # $lr is a scalar *reference* to the current line text.
-  $this->{matched_prefix_size} += 0;
+  $this->{matched_prefix_size} = 0;
   for my $i (0 .. $#{$this->{blocks_stack}}) {
     local *::_ = $lr;
     my $r = $this->{blocks_stack}[$i]{cond}();
@@ -430,8 +430,9 @@ sub _do_indented_code_block {
   if (@{$this->{paragraph}} || $l !~ m/${indented_code_re}/) {
     return;
   }
-  my $preserve_tabs = !$this->get_code_blocks_convert_tabs_to_spaces;
-  my @code_lines = scalar(remove_prefix_spaces(4, $l.$this->line_ending(), $preserve_tabs));
+  my $convert_tabs = $this->get_code_blocks_convert_tabs_to_spaces;
+  tabs_to_space($l, $this->{matched_prefix_size}) if $convert_tabs;
+  my @code_lines = scalar(remove_prefix_spaces(4, $l.$this->line_ending()));
   my $count = 1;  # The number of lines we have read
   my $valid_count = 1;  # The number of lines we know are in the code block.
   my $valid_pos = $this->get_pos();
@@ -441,11 +442,10 @@ sub _do_indented_code_block {
       if ($nl =~ m/${indented_code_re}/) {
         $valid_pos = $this->get_pos();
         $valid_count = $count;
-        push @code_lines,
-            scalar(remove_prefix_spaces(4, $nl.$this->line_ending(), $preserve_tabs));
+        tabs_to_space($nl, $this->{matched_prefix_size}) if $convert_tabs;
+        push @code_lines, scalar(remove_prefix_spaces(4, $nl.$this->line_ending()));
       } elsif ($nl eq '') {
-        push @code_lines,
-            scalar(remove_prefix_spaces(4, $nl.$this->line_ending(), $preserve_tabs));
+        push @code_lines, scalar(remove_prefix_spaces(4, $nl.$this->line_ending(), !$convert_tabs));
       } else {
         last;
       }
@@ -617,9 +617,10 @@ sub _do_list_item {
   my $mode = $this->get_lists_can_interrupt_paragraph;
   if (@{$this->{paragraph}}) {
     return if $mode eq 'never';
-    if ($mode eq 'within_list' && !(@{$this->{blocks_stack}} && $this->{blocks_stack}[-1]{block}{type} eq 'list_item')) {
+    if ($mode eq 'within_list'
+      && !(@{$this->{blocks_stack}} && $this->{blocks_stack}[-1]{block}{type} eq 'list_item')) {
       return;
-    };
+    }
     if ($mode eq 'strict' && ($text eq '' || ($type eq 'ol' && $digits != 1))) {
       return;
     }

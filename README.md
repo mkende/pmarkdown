@@ -7,8 +7,9 @@ extensions.
 
 This software supports the entire
 [`CommonMark` spec](https://spec.commonmark.org/0.31.2/) syntax, as well as all
-[GitHub Flavored Markdown (gfm) extensions](https://github.github.com/gfm/) and
-some more custom extensions.
+[GitHub Flavored Markdown (gfm) extensions](https://github.github.com/gfm/)
+some more custom extensions. It also has compatibility with the
+[original Markdown syntax](https://daringfireball.net/projects/markdown/syntax).
 
 It is based on the [Markdown::Perl](https://metacpan.org/pod/Markdown::Perl)
 library that can be used in standalone Perl program.

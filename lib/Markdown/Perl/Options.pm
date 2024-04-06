@@ -292,7 +292,7 @@ A list can interrupt a paragraph only when we are already inside another list.
 
 =item B<strict> I<(default)>
 
-A list can interrupt a paragraph but only with some non anbiguous list markers.
+A list can interrupt a paragraph but only with some non ambiguous list markers.
 
 =item B<always>
 
@@ -424,7 +424,7 @@ _make_option(code_blocks_info => 'language', _enum(qw(ignored language)));
 
 =head3 B<code_blocks_convert_tabs_to_spaces> I<(boolean, default: false)>
 
-By default, tabs are preserved inside codeblocks. With this option, all tabs (at
+By default, tabs are preserved inside code blocks. With this option, all tabs (at
 the beginning of the lines or inside) are turned into spaces, aligned with the
 tab stops (currently always a multiple of 4).
 
