@@ -5,6 +5,7 @@ Revision history for pmarkdown and the Markdown::Perl module.
  - Improvement to the support of the original markdown syntax.
  - Bugfixes:
    - Do not make a list loose when it is followed by blank lines.
+   - Tab stops after list markers are properly computed.
 
 1.01 - 2024-04-05
 

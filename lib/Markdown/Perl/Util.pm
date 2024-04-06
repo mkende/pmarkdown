@@ -62,12 +62,21 @@ sub remove_prefix_spaces {
 }
 
 # Return the indentation of the given text
+# indent_size($str, $prev_indent)
+#
 # Sets pos($_[0]) to the first non-whitespace character.
+# $prev_indent can be passed if the $str is not the beginning of the logical
+# line, to properly compute the tab stops.
+# TODO: this feature is used when parsing list_items, but could be used in many
+# other places too.
 sub indent_size {  ## no critic (RequireArgUnpacking)
   pos($_[0]) = 0;
   my $t = () = $_[0] =~ m/\G( {0,3}\t| {4})/gc;  # Forcing list context.
   $_[0] =~ m/\G( *)/g;
   my $s = length($1);  ## no critic (ProhibitCaptureWithoutTest)
+  if (substr($_[0], 0, 1) eq "\t" && @_ > 1) {
+    $s -= $_[1] % 4;
+  }
   return $t * 4 + $s;
 }
 
