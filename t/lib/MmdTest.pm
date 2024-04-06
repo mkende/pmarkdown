@@ -42,6 +42,7 @@ sub test_suite {
   skip_all('MMD-Test-Suite must be checked out.') unless -d $test_dir;
   my $i = $opt{start_num} // 0;
   my %todo = map { $_ => 1 } @{$opt{todo} // []};
+  my %bugs = map { $_ => 1 } @{$opt{bugs} // []};
   my $ext = $opt{ext} // 'html';
   for my $md_file (glob "${test_dir}/*.text") {
     $i++;
@@ -52,6 +53,8 @@ sub test_suite {
       skip "Missing html file '${html_file}'" unless -f $html_file;
       if ($todo{$i}) {
         todo 'Not yet supported' => $test;
+      } elsif ($bugs{$i}) {
+        todo 'The spec is buggy' => $test;
       } else {
         $test->();
       }

@@ -422,6 +422,18 @@ _make_option(code_blocks_info => 'language', _enum(qw(ignored language)));
 
 =pod
 
+=head3 B<code_blocks_convert_tabs_to_spaces> I<(boolean, default: false)>
+
+By default, tabs are preserved inside codeblocks. With this option, all tabs (at
+the beginning of the lines or inside) are turned into spaces, aligned with the
+tab stops (currently always a multiple of 4).
+
+=cut
+
+_make_option(code_blocks_convert_tabs_to_spaces => 0, _boolean, (markdown => 1));
+
+=pod
+
 =head3 B<table_blocks_have_cells_for_missing_data> I<(boolean, default: false)>
 
 Whether a table will have a cell in HTML for a missing cell in the markdown
@@ -630,18 +642,6 @@ with it).
 =cut
 
 _make_option(force_final_new_line => 0, _boolean, (markdown => 1));
-
-=pod
-
-=head3 B<preserve_tabs> I<(boolean, default: true)>
-
-When removing prefix spaces in front of some constructs (typically indented code
-blocks), pmarkdown will try to preserve tabs when they are used instead of
-space. If this option is set to false, prefix tabs will be turned into spaces.
-
-=cut
-
-_make_option(preserve_tabs => 1, _boolean, (markdown => 0));
 
 =pod
 

@@ -5,9 +5,11 @@ use warnings;
 use utf8;
 use feature ':5.24';
 
+use Carp;
+use English;
 use Exporter 'import';
 use List::MoreUtils 'first_index';
-use List::Util 'max';
+use List::Util 'max', 'min';
 use Unicode::CaseFold 'fc';
 
 our $VERSION = 0.01;
@@ -30,35 +32,48 @@ sub split_while : prototype(&@) {  ## no critic (RequireArgUnpacking)
 # matched to a tab-stop of size 4.
 # Removes all the spaces if there is less than that.
 # If needed, tabs are converted into 4 spaces.
+# In list context, also returns how many spaces were actually matched.
 sub remove_prefix_spaces {
   my ($n, $text, $preserve_tabs) = @_;
   $preserve_tabs //= 1;  # when not specified we do preserve tabs
   if (!$preserve_tabs) {
     my $s = indent_size($text);  # this sets pos($text);
-    return (' ' x max(0, $s - $n)).(substr $text, pos($text));
+    my $ret = (' ' x max(0, $s - $n)).(substr $text, pos($text));
+    return $ret unless wantarray;
+    return ($ret, min($s, $n));
   }
   my $t = int($n / 4);
   my $s = $n % 4;
+  my $m = 0;  # How many spaces we have matched.
   for my $i (1 .. $t) {
     if ($text =~ m/^( {0,3}\t| {4})/) {
       # We remove one full tab-stop from the string.
       substr $text, 0, length($1), '';
+      $m += 4;
     } else {
       # We didn’t have a full tab-stop, so we remove as many spaces as we had.
-      $text =~ m/^( {0,3})/;
-      return substr $text, length($1);  ## no critic (ProhibitCaptureWithoutTest)
+      $text =~ m/^( {0,3})/ or confess 'Unexpected match failure';
+      $m += $LAST_MATCH_END[0] - $LAST_MATCH_START[0];
+      return substr $text, length($1) unless wantarray;
+      return ((substr $text, length($1)), $m);
     }
   }
-  return $text if $s == 0;
-  $text =~ m/^(?<p>\ {0,3}\t|\ {4})*?(?<l>\ {0,3}\t|\ {4})?(?<s>\ {0,3})(?<e>[^ \t].*|$)/xs;  ## no critic (ProhibitComplexRegexes)
-  my $ns = length $+{s};
-  if ($ns >= $s) {
-    return ($+{p} // '').($+{l} // '').(' ' x ($ns - $s)).$+{e};
-  } elsif (length($+{l})) {
-    return ($+{p} // '').(' ' x (4 + $ns - $s)).$+{e};
-  } else {
-    return $+{e};
+  if ($s != 0) {
+    $text =~ m/^(?<p>\ {0,3}\t|\ {4})*?(?<l>\ {0,3}\t|\ {4})?(?<s>\ {0,3})(?<e>[^ \t].*|$)/xs;  ## no critic (ProhibitComplexRegexes)
+    my $ns = length $+{s};
+    if ($ns >= $s) {
+      $text = ($+{p} // '').($+{l} // '').(' ' x ($ns - $s)).$+{e};
+      $m += $s;
+    } elsif (length($+{l})) {
+      $text = ($+{p} // '').(' ' x (4 + $ns - $s)).$+{e};
+      $m += $s;
+    } else {
+      $text = $+{e};
+      $m += $ns;
+    }
   }
+  return $text unless wantarray;
+  return ($text, $m);
 }
 
 # Return the indentation of the given text

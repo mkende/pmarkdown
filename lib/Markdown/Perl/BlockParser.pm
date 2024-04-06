@@ -41,7 +41,8 @@ sub new {
     last_pos => 0,
     line_ending => '',
     continuation_re => qr//,
-    linkrefs => {}
+    linkrefs => {},
+    matched_prefix_size => 0,
   }, $class;
   lock_keys_plus(%{$this}, qw(forced_line));
 
@@ -267,9 +268,12 @@ sub _test_lazy_continuation {
 
 sub _count_matching_blocks {
   my ($this, $lr) = @_;  # $lr is a scalar *reference* to the current line text.
+  $this->{matched_prefix_size} += 0;
   for my $i (0 .. $#{$this->{blocks_stack}}) {
     local *::_ = $lr;
-    return $i unless $this->{blocks_stack}[$i]{cond}();
+    my $r = $this->{blocks_stack}[$i]{cond}();
+    $this->{matched_prefix_size} += $r if $r;
+    return $i unless $r;
   }
   return @{$this->{blocks_stack}};
 }
@@ -426,7 +430,8 @@ sub _do_indented_code_block {
   if (@{$this->{paragraph}} || $l !~ m/${indented_code_re}/) {
     return;
   }
-  my @code_lines = remove_prefix_spaces(4, $l.$this->line_ending(), $this->get_preserve_tabs);
+  my $preserve_tabs = !$this->get_code_blocks_convert_tabs_to_spaces;
+  my @code_lines = scalar(remove_prefix_spaces(4, $l.$this->line_ending(), $preserve_tabs));
   my $count = 1;  # The number of lines we have read
   my $valid_count = 1;  # The number of lines we know are in the code block.
   my $valid_pos = $this->get_pos();
@@ -437,10 +442,10 @@ sub _do_indented_code_block {
         $valid_pos = $this->get_pos();
         $valid_count = $count;
         push @code_lines,
-            remove_prefix_spaces(4, $nl.$this->line_ending(), $this->get_preserve_tabs);
+            scalar(remove_prefix_spaces(4, $nl.$this->line_ending(), $preserve_tabs));
       } elsif ($nl eq '') {
         push @code_lines,
-            remove_prefix_spaces(4, $nl.$this->line_ending(), $this->get_preserve_tabs);
+            scalar(remove_prefix_spaces(4, $nl.$this->line_ending(), $preserve_tabs));
       } else {
         last;
       }
@@ -482,7 +487,7 @@ sub _do_fenced_code_block {
         last;
       } else {
         # We’re adding one line to the fenced code block
-        push @code_lines, remove_prefix_spaces($indent, $nl.$this->line_ending());
+        push @code_lines, scalar(remove_prefix_spaces($indent, $nl.$this->line_ending()));
       }
     } else {
       # We’re out of our enclosing block and we haven’t seen the end of the
@@ -544,11 +549,7 @@ sub _do_html_block {
     while (defined (my $nl = $this->next_line())) {
       if ($this->_all_blocks_match(\$nl)) {
         if ($nl !~ m/${html_end_condition}/) {
-          if ($this->get_preserve_tabs) {
-            push @html_lines, $nl.$this->line_ending();
-          } else {
-            push @html_lines, remove_prefix_spaces(0, $nl.$this->line_ending(), 0);
-          }
+          push @html_lines, $nl.$this->line_ending();
         } elsif ($nl eq '') {
           # This can only happen for rules 6 and 7 where the end condition
           # line is not part of the HTML block.
@@ -582,14 +583,16 @@ sub _do_block_quotes {
       # the case of a line like '>\t\tfoo' where we need to retain the 6
       # spaces of indentation, to produce a code block starting with two
       # spaces.
-      $_ = remove_prefix_spaces(length($1) + 1, $_);
-      return 1;
+      my $m;
+      ($_, $m) = remove_prefix_spaces(length($1) + 1, $_);
+      # Returns the matched horizontal size.
+      return $m;
     }
     return $this->_test_lazy_continuation($_);
   };
   {
     local *::_ = \$l;
-    $cond->();
+    $this->{matched_prefix_size} += $cond->();
   }
   $this->{skip_next_block_matching} = 1;
   $this->_enter_child_block({type => 'quotes'}, $cond, qr/ {0,3}(?:> ?)?/, $l);
@@ -609,7 +612,7 @@ sub _do_list_item {
   # compute the tab stops. This is better than nothing but won’t work inside
   # other container blocks. In all cases, using tabs instead of space should not
   # be encouraged.
-  my $text_indent = indent_size($text, $indent_marker);
+  my $text_indent = indent_size($text, $indent_marker + $this->{matched_prefix_size});
   # When interrupting a paragraph, the rules are stricter.
   my $mode = $this->get_lists_can_interrupt_paragraph;
   if (@{$this->{paragraph}}) {
@@ -637,7 +640,8 @@ sub _do_list_item {
     }
     if (indent_size($_) >= $indent) {
       $_ = remove_prefix_spaces($indent, $_);
-      return 1;
+      # Returns the matched horizontal size.
+      return $indent;
     }
     # TODO: we probably don’t need to test the list_item_re case here, just
     # the lazy continuation and the emptiness is enough.
@@ -650,6 +654,7 @@ sub _do_list_item {
     # processing the condition and to correctly handle the case where the
     # list marker was followed by tabs.
     $forced_next_line = remove_prefix_spaces($indent, (' ' x $indent_marker).$text);
+    $this->{matched_prefix_size} = $indent;
     $this->{skip_next_block_matching} = 1;
   }
   # Note that we are handling the creation of the lists themselves in the
