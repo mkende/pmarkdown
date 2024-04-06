@@ -286,6 +286,10 @@ Specify whether and how a list can interrupt a paragraph.
 
 A list can never interrupt a paragraph.
 
+=item B<within_list>
+
+A list can interrupt a paragraph only when we are already inside another list.
+
 =item B<strict> I<(default)>
 
 A list can interrupt a paragraph but only with some non anbiguous list markers.
@@ -300,8 +304,8 @@ A list can always interrupt a paragraph.
 
 _make_option(
   lists_can_interrupt_paragraph => 'strict',
-  _enum(qw(never strict always)), (
-    markdown => 'strict',
+  _enum(qw(never within_list strict always)), (
+    markdown => 'within_list',
   ));
 
 =pod

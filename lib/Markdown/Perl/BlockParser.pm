@@ -183,8 +183,8 @@ sub _list_match {
 
 sub _add_block {
   my ($this, $block) = @_;
-  $this->_finalize_paragraph($block->{type} ne 'list_item');
   if ($block->{type} eq 'list_item') {
+    $this->_finalize_paragraph(0);
     # https://spec.commonmark.org/0.30/#lists
     if ($this->_list_match($block)) {
       push @{$this->{blocks}[-1]{items}}, $block;
@@ -201,6 +201,7 @@ sub _add_block {
       push @{$this->{blocks}}, $list;
     }
   } else {
+    $this->_finalize_paragraph(1);
     push @{$this->{blocks}}, $block;
   }
   return;
@@ -608,6 +609,9 @@ sub _do_list_item {
   my $mode = $this->get_lists_can_interrupt_paragraph;
   if (@{$this->{paragraph}}) {
     return if $mode eq 'never';
+    if ($mode eq 'within_list' && !(@{$this->{blocks_stack}} && $this->{blocks_stack}[-1]{block}{type} eq 'list_item')) {
+      return;
+    };
     if ($mode eq 'strict' && ($text eq '' || ($type eq 'ol' && $digits != 1))) {
       return;
     }

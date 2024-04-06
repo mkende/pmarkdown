@@ -10,7 +10,7 @@ use MmdTest;
 use Test2::V0;
 
 # TODO: remove these todos.
-my %opt = (todo => [7, 16, 18, 20, 21, 22]);
+my %opt = (todo => [16, 18, 20, 21, 22]);
 
 while ($_ = shift) {
   $opt{test_num} = shift @ARGV if /^-n$/;
