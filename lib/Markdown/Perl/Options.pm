@@ -301,7 +301,7 @@ A list can always interrupt a paragraph.
 _make_option(
   lists_can_interrupt_paragraph => 'strict',
   _enum(qw(never strict always)), (
-    markdown => 'never',
+    markdown => 'strict',
   ));
 
 =pod

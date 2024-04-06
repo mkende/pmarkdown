@@ -148,8 +148,21 @@ sub process {
   return delete $this->{linkrefs}, delete $this->{blocks};
 }
 
+# The $force_loose_test parameter is used when we are actually starting a new
+# block. In that case, or if we are actually after a paragraph, then we possibly
+# convert the enclosing list to a loose list.
+# TODO: the logic to decide if a list is loose is extremely complex and split in
+# many different place. It would be great to rewrite it in a simpler way.
 sub _finalize_paragraph {
-  my ($this) = @_;
+  my ($this, $force_loose_test) = @_;
+  if (@{$this->{paragraph}} || $force_loose_test) {
+    if ($this->{last_line_was_blank}) {
+      if (@{$this->{blocks_stack}}
+        && $this->{blocks_stack}[-1]{block}{type} eq 'list_item') {
+          $this->{blocks_stack}[-1]{block}{loose} = 1;
+      }
+    }
+  }
   return unless @{$this->{paragraph}};
   push @{$this->{blocks}}, {type => 'paragraph', content => $this->{paragraph}};
   $this->{paragraph} = [];
@@ -170,7 +183,7 @@ sub _list_match {
 
 sub _add_block {
   my ($this, $block) = @_;
-  $this->_finalize_paragraph();
+  $this->_finalize_paragraph($block->{type} ne 'list_item');
   if ($block->{type} eq 'list_item') {
     # https://spec.commonmark.org/0.30/#lists
     if ($this->_list_match($block)) {
@@ -199,7 +212,7 @@ sub _add_block {
 # are parsed through a single regex.
 sub _enter_child_block {
   my ($this, $new_block, $cond, $prefix_re, $forced_next_line) = @_;
-  $this->_finalize_paragraph();
+  $this->_finalize_paragraph(1);
   if (defined $forced_next_line) {
     $this->{forced_line} = $forced_next_line;
   }
@@ -319,7 +332,7 @@ sub _parse_blocks {  ## no critic (RequireArgUnpacking)
   if ($this->{last_line_is_blank}) {
     if (@{$this->{blocks_stack}}
       && $this->{blocks_stack}[-1]{block}{type} eq 'list_item') {
-      $this->{blocks_stack}[-1]{block}{loose} = 1;
+      # $this->{blocks_stack}[-1]{block}{loose} = 1;
     }
   }
   $this->{last_line_was_blank} = $this->{last_line_is_blank};
@@ -709,6 +722,7 @@ sub _do_link_reference_definition {
     my ($ref, $target, $title) = @LAST_PAREN_MATCH{qw(LABEL TARGET TITLE)};
     $ref = normalize_label($ref);
     if ($ref ne '') {
+      $this->_finalize_paragraph(1);
       # TODO: option to keep the last appearance instead of the first one.
       if (exists $this->{linkrefs}{$ref}) {
         # We keep the first appearance of a label.
