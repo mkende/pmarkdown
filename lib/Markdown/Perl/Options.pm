@@ -39,6 +39,9 @@ L<pmarkdown> to learn how to set a mode.
 Note that all options are applied I<on top> of the selected mode. Even if the
 options are passed before the mode, the mode will not override the options.
 
+Note also that only the modes are tested as coherent selves. Setting individual
+options on top of a given mode might result in inconsistent behavior.
+
 =head1 OPTIONS
 
 =cut
