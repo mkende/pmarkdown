@@ -241,7 +241,7 @@ See the L<Markdown::Perl::Options> documentation for all the existing options.
 
 For the reference on the default syntax supported by the library, see the GitHub
 repository of the project:
-L<https://github.com/mkende/pmarkdown/blob/main/README.md>
+L<https://github.com/mkende/pmarkdown/blob/main/Syntax.md>
 
 =head2 set_options
 
