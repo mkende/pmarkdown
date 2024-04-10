@@ -178,9 +178,43 @@ sub _word_list {
 
 =head2 Options controlling which top-level blocks are used
 
+=head3 B<parse_file_metadata> I<(enum, default: yaml)>
+
+This option controls whether the parser accepts optional metadata at the
+beginning of the file. Currently, it does nothing with these metadata, even when
+they are accepted. In the future they might be used to build complete HTML file
+instead of just fragment.
+
+The possible values are:
+
+=over 4
+
+=item B<none>
+
+No file metadata is accepted, any structure in the document must be in Markdown.
+
+=item B<yaml> I<(default)>
+
+The parser accepts a YAML table as the very beginning of the document. This
+table must start with a line containing just C<---> and ends with another line
+containing C<---> or C<...>. The content between these two markers must be valid
+a valid, non-empty YAML sequence and it cannot contain any empty line.
+
+=back
+
+=cut
+
+_make_option(
+  parse_file_metadata => 'yaml',
+  _enum(qw(none yaml)),
+  cmark => 'none',
+  github => 'none',
+  markdown => 'none',
+  );
+
 =head3 B<use_fenced_code_blocks> I<(boolean, default: true)>
 
-This options controls whether fenced code blocks are recognised in the document
+This option controls whether fenced code blocks are recognised in the document
 structure.
 
 =cut

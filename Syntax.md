@@ -91,6 +91,30 @@ with list label,
 supported by default. They can be activated with the `use_setext_headings`
 option.
 
+### File metadata
+
+The Markdown text can start with a YAML table, at the very beginning of the
+content, to specify metadata for the file. This table must start with a line
+containing only `---` and ends with a line containing only `---` or `...`. The
+YAML content must not be empty and must not contain any blank line.
+
+The YAML content is not part of the rendered HTML, but can be extracted by other
+processing systems.
+
+```md
+---
+foo: bar
+baz: bin
+...
+baz
+```
+
+Is rendered as:
+
+```html
+<p>baz</p>
+```
+
 ### Thematic breaks
 
 A thematic break (usually rendered as a horizontal line through the page) can

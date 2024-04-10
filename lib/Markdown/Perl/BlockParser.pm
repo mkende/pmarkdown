@@ -15,6 +15,7 @@ use List::MoreUtils 'first_index';
 use List::Util 'pairs', 'min';
 use Markdown::Perl::HTML 'html_escape', 'decode_entities', 'remove_disallowed_tags';
 use Markdown::Perl::Util ':all';
+use YAML::Tiny;
 
 our $VERSION = '0.01';
 
@@ -135,6 +136,9 @@ sub process {
   # https://spec.commonmark.org/0.30/#entity-and-numeric-character-references
   # Done at a later stage, as escaped characters don’t have their Markdown
   # meaning, we need a way to represent that.
+
+  # Note: for now, nothing is done with the extracted metadata.
+  $this->_parse_yaml_metadata() if $this->get_parse_file_metadata eq 'yaml';
 
   while (defined (my $l = $this->next_line())) {
     # This field might be set to true at the beginning of the processing, while
@@ -357,6 +361,21 @@ sub _parse_blocks {  ## no critic (RequireArgUnpacking)
       || ($this->get_use_table_blocks && _do_table_block($this))
       || _do_paragraph($this)
       || croak "Current line could not be parsed as anything: $l";
+  return;
+}
+
+sub _parse_yaml_metadata {
+  my ($this) = @_;
+
+  # At this point, pos(md) is guaranteed to be 0.
+  if ($this->{md} =~ m/^---\n((?:.+\n)+?)(:?---|\.\.\.)\n/gc) {
+    my $yaml = eval { YAML::Tiny->read_string($1) };
+    if ($@) {
+      pos($this->{md}) = 0;
+      return;
+    }
+  }
+
   return;
 }
 
