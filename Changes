@@ -1,6 +1,6 @@
 Revision history for pmarkdown and the Markdown::Perl module.
 
-1.03 - ??
+1.03 - 2024-04-10
 
  - Disable hard line breaks using two spaces in our default syntax because they
    are invisible in the source file.
