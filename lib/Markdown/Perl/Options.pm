@@ -61,6 +61,8 @@ my %validation;
 our @valid_modes = (qw(default cmark github markdown));
 my %valid_modes = map { $_ => 1 } @valid_modes;
 
+my $err_str;
+
 sub set_options {
   my ($this, $dest, @options) = @_;
   # We don’t put the options into a hash, to preserve the order in which they
@@ -72,7 +74,7 @@ sub set_options {
     } else {
       carp "Unknown option ignored: ${k}" unless exists $validation{$k};
       my $validated_value = $validation{$k}($v);
-      croak "Invalid value for option '${k}': ${ERRNO}" unless defined $validated_value;
+      croak "Invalid value for option '${k}': ${err_str}" unless defined $validated_value;
       $this->{$dest}{$k} = $validated_value;
     }
   }
@@ -90,7 +92,7 @@ sub validate_options {
     } else {
       die "Unknown option: ${k}\n" unless exists $validation{$k};
       my $validated = $validation{$k}($v);
-      die "Invalid value for option '${k}': ${ERRNO}\n" unless defined $validated;
+      die "Invalid value for option '${k}': ${err_str}\n" unless defined $validated;
     }
   }
   return;
@@ -139,9 +141,9 @@ sub _make_option {
 
 sub _boolean {
   return sub {
-    return 0 if $_[0] eq 'false' || $_[0] eq '0';
+    return 0 if $_[0] eq 'false' || $_[0] eq '' || $_[0] eq '0';
     return 1 if $_[0] eq 'true' || $_[0] eq '1';
-    $ERRNO = 'must be a boolean value (0 or 1)';
+    $err_str = 'must be a boolean value (0 or 1)';
     return;
   };
 }
@@ -150,7 +152,7 @@ sub _enum {
   my @valid = @_;
   return sub {
     return $_[0] if any { $_ eq $_[0] } @valid;
-    $ERRNO = "must be one of '".join("', '", @valid)."'";
+    $err_str = "must be one of '".join("', '", @valid)."'";
     return;
   };
 }
@@ -159,7 +161,7 @@ sub _regex {
   return sub {
     my $re = eval { qr/$_[0]/ };
     return $re if defined $re;
-    $ERRNO = 'cannot be parsed as a Perl regex ($@)';
+    $err_str = 'cannot be parsed as a Perl regex ($@)';
     return;
   };
 }
@@ -452,6 +454,18 @@ _make_option(
 
 =pod
 
+=head3 B<render_naked_paragraphs> I<(boolean, default: false)>
+
+When this is set to true, the C<E<lt>pE<gt>> tag is always skipped around a
+paragraph. This is mostly meant to render short amount of text as pure Markdown
+inline content, without a surrounding block structure.
+
+=cut
+
+_make_option(render_naked_paragraphs => 0, _boolean);
+
+=pod
+
 =head2 Options controlling which inline elements are used
 
 =head3 B<use_extended_autolinks> I<(boolean, default: true)>
@@ -628,7 +642,7 @@ C<&>, C<E<lt>>, and C<E<gt>>.
 sub _escaped_characters {
   return sub {
     return $_[0] if $_[0] =~ m/^["'&<>]*$/;
-    $ERRNO = "must only contains the following characters: \", ', &, <, and >";
+    $err_str = "must only contains the following characters: \", ', &, <, and >";
     return;
   };
 }

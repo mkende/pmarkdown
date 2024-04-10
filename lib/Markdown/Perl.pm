@@ -150,6 +150,8 @@ sub _emit_html {  ## no critic (ProhibitExcessComplexity)
       $html .= $this->_render_inlines($linkrefs, @{$bl->{content}});
       if ($tight_block) {
         $out .= $html;
+      } elsif ($this->get_render_naked_paragraphs) {
+        $out .= "${html}\n";
       } else {
         $out .= "<p>${html}</p>\n";
       }
