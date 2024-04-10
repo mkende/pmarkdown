@@ -209,8 +209,7 @@ _make_option(
   _enum(qw(none yaml)),
   cmark => 'none',
   github => 'none',
-  markdown => 'none',
-  );
+  markdown => 'none',);
 
 =head3 B<use_fenced_code_blocks> I<(boolean, default: true)>
 

@@ -4,6 +4,7 @@ Revision history for pmarkdown and the Markdown::Perl module.
 
  - Disable hard line breaks using two spaces in our default syntax because they
    are invisible in the source file.
+ - Support a YAML table at the start of a document to provide metadata.
  - Bugfixes:
    - Disable some part of the Makefile of the project that can’t be parsed under
      Solaris.

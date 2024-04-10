@@ -786,7 +786,6 @@ sub create_extended_email_autolinks {
   # these are not tested by the spec present in the current repo (although they
   # are documented online).
   ## no critic (ProhibitComplexRegexes)
-  # use re 'debug';
   while (
     $n->{content} =~ m/
     (?<prefix> ^ | [ \t\n*_~\(] )               # The link must start after a whitespace or some specific delimiters.

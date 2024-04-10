@@ -368,9 +368,9 @@ sub _parse_yaml_metadata {
   my ($this) = @_;
 
   # At this point, pos(md) is guaranteed to be 0.
-  if ($this->{md} =~ m/^---\n((?:.+\n)+?)(:?---|\.\.\.)\n/gc) {
-    my $yaml = eval { YAML::Tiny->read_string($1) };
-    if ($@) {
+  if ($this->{md} =~ m/ ^ ---\n (?<YAML> (?: .+\n )+? ) (?: --- | \.\.\. ) \n /gxc) {  ## no critic (ProhibitUnusedCapture)
+    my $metadata = eval { YAML::Tiny->read_string($+{YAML}) };
+    if ($EVAL_ERROR) {
       pos($this->{md}) = 0;
       return;
     }
