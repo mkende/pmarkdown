@@ -516,6 +516,8 @@ sub _do_fenced_code_block {
 sub _do_html_block {
   my ($this) = @_;
   # HTML blocks can interrupt a paragraph.
+  # TODO: add an option so that they don’t interrupt a paragraph (make it be
+  # the default?).
   # TODO: PERF: test that $l =~ m/^ {0,3}</ to short circuit all these regex.
   my $html_end_condition;
   if ($l =~ m/ ^\ {0,3} < (?:pre|script|style|textarea) (?:\ |\t|>|$) /x) {

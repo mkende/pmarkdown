@@ -73,14 +73,28 @@ sub convert {  ## no critic (RequireArgUnpacking)
   my $md = \(shift @_);  # Taking a reference to avoid copying the input. is it useful?
   $this->SUPER::set_options(local_options => @_);
 
-  my $parser = Markdown::Perl::BlockParser->new($this, $md);
-
   # TODO: introduce an HtmlRenderer object that carries the $linkrefs states
   # around (instead of having to pass it in all the calls).
-  my ($linkrefs, $blocks) = $parser->process();
+  my ($blocks, $linkrefs) = $this->_parse($md);
   my $out = $this->_emit_html(0, 'root', $linkrefs, @{$blocks});
   $this->{local_options} = {};
   return $out;
+}
+
+# This is an internal call for now because the structure of the parse tree is
+# not defined.
+# Note that while convert() takes care not to copy the md argument, this is not
+# the case of this method, however, it can receive a scalar ref instead of a
+# scalar, to avoid the copy.
+# TODO: create a BlockTree class and document it, then make this be public.
+sub _parse {
+  my ($this, $md_or_ref) = &_get_this_and_args;  ## no critic (ProhibitAmpersandSigils)
+  my $md = ref($md_or_ref) ? $md_or_ref : \$md_or_ref;
+
+  my $parser = Markdown::Perl::BlockParser->new($this, $md);
+  my ($linkrefs, $blocks) = $parser->process();
+  return ($blocks, $linkrefs) if wantarray;
+  return $blocks;
 }
 
 sub _render_inlines {
