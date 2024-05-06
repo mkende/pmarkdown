@@ -14,7 +14,7 @@
 ^Makefile.old$
 ^MANIFEST\.bak$
 ^MANIFEST\.SKIP$
-^README(\..*)?^
+^README(\..*)?$
 ^blib/
 ^cover_db/
 ^cpanfile\.snapshot$
@@ -25,6 +25,8 @@
 ^t/001-spelling.t
 ^third_party/
 ^pm_to_blib$
+^pod2htmd\.tmp$
+^pod2html/
 ^Markdown-Perl-[\d.]+/
 ^Markdown-Perl-[\d.]+\.tar\.gz
 .*\.bak
@@ -37,6 +39,4 @@
 ^nytprof/
 ^build/
 ^.*\.code-workspace$
-^README\.md$
 ^Syntax\.md$
-^pod2htmd\.tmp$

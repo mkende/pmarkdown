@@ -28,7 +28,7 @@ WriteMakefile(
       # Goes with NO_MYMETA (which would provide the dynamic config).
       dynamic_config => 0,
       no_index => {
-        directory => [ 'local', 'vendor' ],
+        directory => [ 'local', 'vendor', 't' ],
       },
       resources => {
         repository => {
@@ -53,6 +53,11 @@ sub MY::postamble {
 
   # Solaris has a weird (?) make that does not support our `export` statements.
   push @postamble, <<"MAKE_FRAGMENT" unless $^O eq 'solaris';
+ALL_PM := \$(shell find lib -name "*.pm")
+ALL_EXE := script/pmarkdown
+
+.PHONY: distupload cover critic rawcritic tidy spelling alltest clean clean_coverdb pod2html exe
+
 distupload: distcheck disttest
 \t\$(MAKE) tardist
 \tcpan-upload --directory Dist-Setup \$(DISTVNAME).tar\$(SUFFIX)
@@ -68,7 +73,7 @@ rawcritic:
 \tperlcritic lib script
 
 tidy:
-\tperltidy -b -bext='/' \$(shell find lib -name "*.pm") script/pmarkdown
+\tperltidy -b -bext='/' \$(ALL_PM) \$(ALL_EXE)
 
 spelling: export EXTENDED_TESTING = 1
 spelling:
@@ -81,6 +86,30 @@ clean:: clean_coverdb
 
 clean_coverdb:
 \trm -fr cover_db
+
+PM_HTML := \$(patsubst %.pm, pod2html/%.html, \$(ALL_PM))
+EXE_HTML := \$(patsubst %, pod2html/%.html, \$(ALL_EXE))
+pod2html: \$(PM_HTML) \$(EXE_HTML)
+
+\$(PM_HTML): pod2html/%.html: %.pm
+\tmkdir -p \$(shell dirname \$@)
+\tpod2html --infile \$< --outfile \$@
+
+\$(EXE_HTML): pod2html/%.html: %
+\tmkdir -p \$(shell dirname \$@)
+\tpod2html --infile \$< --outfile \$@
+
+EXE_EXE := \$(patsubst %, build/%\$(EXE_EXT), \$(ALL_EXE))
+
+exe: export PAR_VERBATIM=1
+exe: build \$(EXE_EXE)
+
+build:
+\tmkdir -p build
+
+\$(EXE_EXE): build/%\$(EXE_EXT): %
+\tpp -o \$@ -cd build/pp.cache -I lib -F "PodStrip=.*\\bMarkdown/Perl\\b(*COMMIT)(*FAIL)|.*" \$<
+
 MAKE_FRAGMENT
 
   return join "\n", @postamble;
@@ -103,16 +132,6 @@ clean:: clean_nytprof
 
 clean_nytprof:
 \trm -fr nytprof nytprof.out
-
-exe: build build/pmarkdown\$(EXE_EXT)
-
-build:
-\tmkdir -p build
-
-.PHONY: build/pmarkdown\$(EXE_EXT)
-build/pmarkdown\$(EXE_EXT): export PAR_VERBATIM=1
-build/pmarkdown\$(EXE_EXT):
-\tpp -o build/pmarkdown\$(EXE_EXT) -cd build/pp.cache -I lib -F "PodStrip=.*\\bMarkdown/Perl\\b(*COMMIT)(*FAIL)|.*" script/pmarkdown
 
 test: export HARNESS_OPTIONS = j8:c
 
