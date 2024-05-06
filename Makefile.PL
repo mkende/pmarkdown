@@ -82,10 +82,16 @@ spelling:
 alltest: export EXTENDED_TESTING = 1
 alltest: test
 
-clean:: clean_coverdb
+clean:: clean_coverdb clean_build clean_pod2html
 
 clean_coverdb:
 \trm -fr cover_db
+
+clean_build:
+\trm -fr build
+
+clean_pod2html:
+\trm -fr pod2html
 
 PM_HTML := \$(patsubst %.pm, pod2html/%.html, \$(ALL_PM))
 EXE_HTML := \$(patsubst %, pod2html/%.html, \$(ALL_EXE))

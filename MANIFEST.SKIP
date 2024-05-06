@@ -16,6 +16,7 @@
 ^MANIFEST\.SKIP$
 ^README(\..*)?$
 ^blib/
+^build/
 ^cover_db/
 ^cpanfile\.snapshot$
 ^dist_setup\.conf$
@@ -37,6 +38,5 @@
 ^.*\.tests$
 ^nytprof.out$
 ^nytprof/
-^build/
 ^.*\.code-workspace$
 ^Syntax\.md$
