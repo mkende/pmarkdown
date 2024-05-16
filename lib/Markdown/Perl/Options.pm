@@ -570,6 +570,14 @@ sub _delimiters_map {
   return sub {
     my %m = ref $_[0] eq 'HASH' ? %{$_[0]} : map { split(/=/, $_, 2) } split(/,/, $_[0]);
     # TODO: validate the keys and values of m.
+    if (grep { ! m/^(.)\1?$/ } keys %m) {
+      $err_str = sprintf 'keys must be a single character, optionally repeated once';
+      return;
+    }
+    if (grep { ! m/^\.?[a-z][-_a-z0-9]*$/i } values %m) {
+      $err_str = sprintf 'values must be a valid HTML tag or class names';
+      return;
+    }
     return \%m if %m;
     return {"\N{NULL}" => 'p'}  # this can’t trigger but the code fails with an empty map otherwise.
   };
