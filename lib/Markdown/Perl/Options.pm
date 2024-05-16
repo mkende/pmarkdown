@@ -585,6 +585,12 @@ _make_option(
     '~~' => 'del',
   },
   _delimiters_map,
+  markdown => {
+    '*' => 'em',
+    '**' => 'strong',
+    '_' => 'em',
+    '__' => 'strong',
+  },
   cmark => {
     '*' => 'em',
     '**' => 'strong',
