@@ -9,7 +9,8 @@ Revision history for pmarkdown and the Markdown::Perl module.
     - Validate the value of the option.
     - Allow to pass a class name to insert an HTML <span>, rather than a
       specific tag.
-
+ - Decode the command line argument strings according to the current locale and
+   decode/encode the standard input/output if we are connected to a tty.
 
 1.04 - 2024-05-09
 
