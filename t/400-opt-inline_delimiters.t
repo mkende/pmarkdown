@@ -18,4 +18,6 @@ like (dies { convert('foo', inline_delimiters => '***=em') }, qr/keys must/, 'in
 like (dies { convert('foo', inline_delimiters => '*_=em') }, qr/keys must/, 'invalid key2');
 like (dies { convert('foo', inline_delimiters => '*=1em') }, qr/values must/, 'invalid value');
 
+is(convert("~test~", inline_delimiters=>'~=.foo'), "<p><span class=\"foo\">test</span></p>\n", 'insert span');
+
 done_testing;

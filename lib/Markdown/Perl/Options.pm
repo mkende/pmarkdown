@@ -559,7 +559,11 @@ This option provides a map from delimiter symbols to the matching HTML tags.
 This option should be passed as a comma-separated list of C<delimiter=tag_name>
 values. For example, the original Markdown syntax map coud be specified as
 C<*=em,**=strong,_=em,__=strong>. The delimiters can only be made of a single
-unicode character or of twice the same unicode character.
+unicode character or of twice the same unicode character. The values should be
+either HTML tag names (for example C<em>, C<strong>, etc.) or they can be
+arbitrary HTML class names, prefixed by a single dot (C<.>). In the latter case
+the delimiters will be used to insert a C<E<lt>spanE<gt>> element, with the
+given class.
 
 When using the programmatic interface, this map can be passed directly as a
 hash-reference, with the same content as described above.
