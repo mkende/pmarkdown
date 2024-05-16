@@ -555,9 +555,14 @@ _make_option(
 
 =head3 B<inline_delimiters> I<(map)>
 
-TODO: document
-TODO: provide a way to add entries to this option without redefining it entirely
-(when used on the command line).
+This option provides a map from delimiter symbols to the matching HTML tags.
+This option should be passed as a comma-separated list of C<delimiter=tag_name>
+values. For example, the original Markdown syntax map coud be specified as
+C<*=em,**=strong,_=em,__=strong>. The delimiters can only be made of a single
+unicode character or of twice the same unicode character.
+
+When using the programmatic interface, this map can be passed directly as a
+hash-reference, with the same content as described above.
 
 =cut
 
