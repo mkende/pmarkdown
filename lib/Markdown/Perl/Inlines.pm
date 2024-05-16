@@ -720,7 +720,7 @@ sub delim_characters {
   return join('', uniq @c);
 }
 
-# Returns the max defined delim 
+# Returns the max defined delim
 sub max_delim_length {
   my ($that, $delim) = @_;
   # TODO: memo-ize this function

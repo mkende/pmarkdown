@@ -8,7 +8,7 @@ use feature ':5.24';
 use Carp;
 use English;
 use Exporter 'import';
-use List::Util 'any', 'pairs';
+use List::Util 'any', 'all', 'pairs';
 
 our $VERSION = '0.01';
 
@@ -557,7 +557,7 @@ _make_option(
 
 This option provides a map from delimiter symbols to the matching HTML tags.
 This option should be passed as a comma-separated list of C<delimiter=tag_name>
-values. For example, the original Markdown syntax map coud be specified as
+values. For example, the original Markdown syntax map could be specified as
 C<*=em,**=strong,_=em,__=strong>. The delimiters can only be made of a single
 unicode character or of twice the same unicode character. The values should be
 either HTML tag names (for example C<em>, C<strong>, etc.) or they can be
@@ -574,11 +574,11 @@ sub _delimiters_map {
   return sub {
     my %m = ref $_[0] eq 'HASH' ? %{$_[0]} : map { split(/=/, $_, 2) } split(/,/, $_[0]);
     # TODO: validate the keys and values of m.
-    if (grep { ! m/^(.)\1?$/ } keys %m) {
+    if (!all { m/^(.)\1?$/ } keys %m) {
       $err_str = sprintf 'keys must be a single character, optionally repeated once';
       return;
     }
-    if (grep { ! m/^\.?[a-z][-_a-z0-9]*$/i } values %m) {
+    if (!all { m/^\.?[a-z][-_a-z0-9]*$/i } values %m) {
       $err_str = sprintf 'values must be a valid HTML tag or class names';
       return;
     }

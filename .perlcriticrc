@@ -101,3 +101,7 @@ max_mccabe = 30
 # localize $ERRNO.
 [Variables::RequireLocalizedPunctuationVars]
 allow = $! $ERRNO
+
+# This policy is not well suited for the encoding manipulation that we are doing
+# on the file handles.
+[-InputOutput::ProhibitInteractiveTest]
