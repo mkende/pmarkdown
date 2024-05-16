@@ -5,6 +5,7 @@ Revision history for pmarkdown and the Markdown::Perl module.
  - Improve the inline_delimiters option
     - Document the option
     - Set the correct value for the original markdown syntax
+    - Support the case where a delimiter does not have a repeated variant.
 
 
 1.04 - 2024-05-09

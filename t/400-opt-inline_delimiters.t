@@ -12,4 +12,6 @@ is(convert("⚛test⚛", inline_delimiters => {'⚛' => 'atomic'}), "<p><atomic>
 is(convert("⚛test⚛", inline_delimiters => "⚛=atomic"), "<p><atomic>test</atomic></p>\n", 'custom_delimiter_string');
 is(convert("~~test~~"), "<p><del>test</del></p>\n", 'default_double_tilde');
 
+is(convert("**test**", inline_delimiters => "*=em"), "<p><em><em>test</em></em></p>\n", 'non_repeated_delimiter');
+
 done_testing;
