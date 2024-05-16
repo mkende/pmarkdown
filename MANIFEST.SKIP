@@ -40,3 +40,4 @@
 ^nytprof/
 ^.*\.code-workspace$
 ^Syntax\.md$
+^\.vscode/
