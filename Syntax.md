@@ -470,7 +470,7 @@ Is rendered as:
 
 The rendering of these delimited spans can be tuned with the `inline_delimiters`
 option, which allows to specify arbitrary tags to generate for a given delimiter
-(and can also be used to generate C<< <span> >> with arbitrary classes).
+(and can also be used to generate `<span>` with arbitrary classes).
 
 ### Links
 
