@@ -460,7 +460,12 @@ sub parse_reference_link {
 # Returns a hashref with (title and dest) or undef.
 sub get_linkref {
   my ($that, $linkrefs, $ref) = @_;
-  return $linkrefs->{$ref};
+  if (exists $linkrefs->{$ref}) {
+    return $linkrefs->{$ref};
+  } elsif (exists $that->{hooks}{resolve_link_ref}) {
+    return $that->{hooks}{resolve_link_ref}->($ref);
+  }
+  return;
 }
 
 # This methods remove line break at the beginning and end of lines (inside text

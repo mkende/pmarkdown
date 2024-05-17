@@ -1,4 +1,5 @@
-personal_ws-1.1 en 180 
+personal_ws-1.1 en 184 
+Babelmark
 BlockTree
 CDATA
 CommonMark
@@ -32,6 +33,7 @@ ProhibitLvalueSubstr
 ProhibitMultiplePackages
 ProhibitStringyEval
 ProhibitUnusedCapture
+README
 RequireArgUnpacking
 RequireConstantVersion
 TODO
@@ -61,6 +63,7 @@ codepoints
 colgroup
 commonmark
 cond
+cpanm
 del
 delim
 dest
@@ -89,6 +92,7 @@ gfm
 github
 gx
 gxc
+hashref
 hd
 helpfull
 helpoptions
