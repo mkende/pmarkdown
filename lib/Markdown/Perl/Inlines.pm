@@ -295,9 +295,9 @@ sub find_link_destination_and_title {
   # might be one).
   my $ref = $tree->span_to_source_text(@text_span, UNESCAPE_LITERAL);
   $ref = normalize_label($ref) if $ref;
-  if (exists $linkrefs->{$ref}) {
+  if (my $l = get_linkref($that, $linkrefs, $ref)) {
     $tree->extract(@start) if $type eq 'collapsed';
-    return %{$linkrefs->{$ref}};
+    return %{$l};
   }
   return;
 }
@@ -443,9 +443,9 @@ sub parse_reference_link {
   if (my @end_ref = $tree->find_in_text(qr/]/, $cur_child, $start[3])) {
     my $ref =
         normalize_label($tree->span_to_source_text(@start[2, 3], @end_ref[0, 1], UNESCAPE_LITERAL));
-    if (exists $linkrefs->{$ref}) {
+    if (my $l = get_linkref($that, $linkrefs, $ref)) {
       $tree->extract(@start[0, 1], @end_ref[0, 2]);
-      return %{$linkrefs->{$ref}};
+      return %{$l};
     } else {
       # TODO: we should only return this if the span was indeed a valid
       # reference link label (not longer than 1000 characters mostly).
@@ -455,6 +455,12 @@ sub parse_reference_link {
     }
   }
   return;
+}
+
+# Returns a hashref with (title and dest) or undef.
+sub get_linkref {
+  my ($that, $linkrefs, $ref) = @_;
+  return $linkrefs->{$ref};
 }
 
 # This methods remove line break at the beginning and end of lines (inside text
