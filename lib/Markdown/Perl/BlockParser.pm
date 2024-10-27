@@ -374,6 +374,9 @@ sub _parse_yaml_metadata {
       pos($this->{md}) = 0;
       return;
     }
+    if(exists($this->{pmarkdown}) && exists($this->{pmarkdown}->{hooks}->{yaml_metadata})) {
+      my $hook_result = $this->{pmarkdown}->{hooks}->{yaml_metadata}->($metadata);
+    }
   }
 
   return;

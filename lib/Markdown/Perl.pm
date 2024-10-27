@@ -50,7 +50,7 @@ sub set_mode {
   return;
 }
 
-Readonly::Array my @VALID_HOOKS => qw(resolve_link_ref);
+Readonly::Array my @VALID_HOOKS => qw(resolve_link_ref yaml_metadata);
 
 sub set_hooks {
   my ($this, %hooks) = &_get_this_and_args;  ## no critic (ProhibitAmpersandSigils)
@@ -323,6 +323,8 @@ hash-reference containing a C<target> key, pointing to the link destination and
 optionally a C<title> key containing the title of the key. The hash-ref can also
 contain a C<content> key, in which case its value should be a span of HTML which
 will replace whatever would have been used for the link content.
+
+C<yaml_metadata>: this hook will trigger if there is valid (!) YAML metadata in the file and will give you a YAML::Tiny object as an argument.
 
 =back
 
