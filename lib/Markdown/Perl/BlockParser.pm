@@ -137,8 +137,10 @@ sub process {
   # Done at a later stage, as escaped characters don’t have their Markdown
   # meaning, we need a way to represent that.
 
-  # Note: for now, nothing is done with the extracted metadata.
-  $this->_parse_yaml_metadata() if $this->get_parse_file_metadata eq 'yaml';
+  if($this->get_parse_file_metadata eq 'yaml') {
+    my $hook_result = $this->_parse_yaml_metadata() if $this->get_parse_file_metadata eq 'yaml';
+    return if !$hook_result;
+  }
 
   while (defined (my $l = $this->next_line())) {
     # This field might be set to true at the beginning of the processing, while
@@ -372,14 +374,13 @@ sub _parse_yaml_metadata {
     my $metadata = eval { YAML::Tiny->read_string($+{YAML}) };
     if ($EVAL_ERROR) {
       pos($this->{md}) = 0;
-      return;
+      return -1;
     }
     if(exists($this->{pmarkdown}) && exists($this->{pmarkdown}->{hooks}->{yaml_metadata})) {
-      my $hook_result = $this->{pmarkdown}->{hooks}->{yaml_metadata}->($metadata);
+      return $this->{pmarkdown}->{hooks}->{yaml_metadata}->($metadata);
     }
   }
-
-  return;
+  return 1;
 }
 
 # https://spec.commonmark.org/0.30/#atx-headings
