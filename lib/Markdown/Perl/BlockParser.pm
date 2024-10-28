@@ -138,8 +138,13 @@ sub process {
   # meaning, we need a way to represent that.
 
   if($this->get_parse_file_metadata eq 'yaml') {
-    my $hook_result = $this->_parse_yaml_metadata() if $this->get_parse_file_metadata eq 'yaml';
-    return if !$hook_result;
+    my $hook_result = eval {
+	  $this->_parse_yaml_metadata();
+    };
+    if(!defined($hook_result)) { # eval returns undef on die(), syntax error, ..
+      carp "yaml_metadata hook died. Not parsing the Markdown.\n";
+      return;
+    }
   }
 
   while (defined (my $l = $this->next_line())) {
@@ -374,10 +379,11 @@ sub _parse_yaml_metadata {
     my $metadata = eval { YAML::Tiny->read_string($+{YAML}) };
     if ($EVAL_ERROR) {
       pos($this->{md}) = 0;
-      return -1;
+      carp 'YAML Metadata (Markdown frontmatter) is invalid.';
+      return 1;
     }
-    if(exists($this->{pmarkdown}) && exists($this->{pmarkdown}->{hooks}->{yaml_metadata})) {
-      return $this->{pmarkdown}->{hooks}->{yaml_metadata}->($metadata);
+    if(exists($this->{pmarkdown}->{hooks}->{yaml_metadata})) {
+      $this->{pmarkdown}->{hooks}->{yaml_metadata}->($metadata);
     }
   }
   return 1;

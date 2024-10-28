@@ -17,6 +17,17 @@ number: 42
 I repeat: "Mark is down!"
 EOF
 
+my $invalid_page = <<EOF;
+---
+name: Mark is down
+  draft: false
+	number: 42
+---
+# Mark is down!
+
+I repeat: "Mark is down!"
+EOF
+
 # Test 1: Check if we can get a string value
 {
   sub hook_is_name_mark {
@@ -28,5 +39,14 @@ EOF
 }
 
 # Test 2: Validate that hook is not called if yaml is invalid
+{
+  my $hook_called = 0;
+  sub hook_called {
+    $hook_called = 1;
+  }
+  $p->set_hooks(yaml_metadata => \&hook_called);
+  ok(!$hook_called, "Hook was not called because metadata was invalid.");
+  $p->convert($invalid_page);
+}
 
 done_testing;
