@@ -139,7 +139,7 @@ sub process {
 
   if($this->get_parse_file_metadata eq 'yaml') {
     my $hook_result = eval {
-	  $this->_parse_yaml_metadata();
+      $this->_parse_yaml_metadata();
     };
     if(!defined($hook_result)) { # eval returns undef on die(), syntax error, ..
       carp "yaml_metadata hook died. Not parsing the Markdown.\n";
