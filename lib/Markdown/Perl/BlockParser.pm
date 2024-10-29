@@ -137,15 +137,7 @@ sub process {
   # Done at a later stage, as escaped characters don’t have their Markdown
   # meaning, we need a way to represent that.
 
-  if($this->get_parse_file_metadata eq 'yaml') {
-    my $hook_result = eval {
-      $this->_parse_yaml_metadata();
-    };
-    if(!defined($hook_result)) { # eval returns undef on die(), syntax error, ..
-      carp "yaml_metadata hook died. Not parsing the Markdown.\n";
-      return;
-    }
-  }
+  $this->_parse_yaml_metadata() if $this->get_parse_file_metadata eq 'yaml';
 
   while (defined (my $l = $this->next_line())) {
     # This field might be set to true at the beginning of the processing, while
@@ -382,8 +374,8 @@ sub _parse_yaml_metadata {
       carp 'YAML Metadata (Markdown frontmatter) is invalid.';
       return 1;
     }
-    if(exists($this->{pmarkdown}->{hooks}->{yaml_metadata})) {
-      $this->{pmarkdown}->{hooks}->{yaml_metadata}->($metadata);
+    if(exists($this->{pmarkdown}{hooks}{yaml_metadata})) {
+      $this->{pmarkdown}{hooks}{yaml_metadata}->($metadata->[0]);
     }
   }
   return 1;

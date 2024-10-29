@@ -3,7 +3,8 @@ use warnings;
 use utf8;
 
 use Markdown::Perl 'convert', 'set_hooks';
-use Test2::V0;
+use Test::More;
+use Test2::Tools::Warnings;
 
 my $p = Markdown::Perl->new();
 my $page = <<EOF;
@@ -32,7 +33,7 @@ EOF
 {
   sub hook_is_name_mark {
     my $x = shift;
-    ok(exists($x->[0]->{name}) && $x->[0]->{name} eq 'Mark is down', "key 'name' was retrieved and validated as being 'Mark is down'");
+    ok(exists($x->{name}) && $x->{name} eq 'Mark is down', "key 'name' was retrieved and validated as being 'Mark is down'");
   }
   $p->set_hooks(yaml_metadata => \&hook_is_name_mark);
   $p->convert($page);
@@ -47,6 +48,25 @@ EOF
   $p->set_hooks(yaml_metadata => \&hook_called);
   ok(!$hook_called, "Hook was not called because metadata was invalid.");
   $p->convert($invalid_page);
+}
+
+# Test 3: Validate that invalid yaml causes a carp()
+{
+  sub hook {
+  }
+  $p->set_hooks(yaml_metadata => \&hook);
+  like(warning { $p->convert($invalid_page) }, qr/invalid/, "Got expected warning");
+}
+
+# Test 4: What happens if inside the hook we die()
+{
+  sub hook_die {
+    die "last words";
+  }
+  $p->set_hooks(yaml_metadata => \&hook_die);
+  my $eval_result = eval { $p->convert($page) };
+  ok(!defined($eval_result) && $@, "The code died correctly");
+  ok($@ =~ /^last words/, "Code died with the correct message");
 }
 
 done_testing;

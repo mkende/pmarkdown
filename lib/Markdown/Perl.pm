@@ -327,9 +327,9 @@ will replace whatever would have been used for the link content.
 =item *
 
 C<yaml_metadata>: this hook will trigger if there is valid (!) YAML metadata in 
-the file and will give you a YAML::Tiny object as an argument. If the hook throws 
-a die(), the Markdown parsing will stop. This allows for conditional parsing 
-based on values in the metadata section.
+the file and will give you a hashref as an argument. If the hook throws a die(),
+the Markdown parsing will stop as the die() needs to be handled by your code. 
+This allows for conditional parsing based on values in the metadata section.
 
 =back
 
