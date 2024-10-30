@@ -371,14 +371,14 @@ sub _parse_yaml_metadata {
     my $metadata = eval { YAML::Tiny->read_string($+{YAML}) };
     if ($EVAL_ERROR) {
       pos($this->{md}) = 0;
-      carp 'YAML Metadata (Markdown frontmatter) is invalid.';
-      return 1;
+      carp 'YAML Metadata (Markdown frontmatter) is invalid' if $this->get_warn_for_unused_input();
+      return;
     }
-    if(exists($this->{pmarkdown}{hooks}{yaml_metadata})) {
+    if (exists($this->{pmarkdown}{hooks}{yaml_metadata})) {
       $this->{pmarkdown}{hooks}{yaml_metadata}->($metadata->[0]);
     }
   }
-  return 1;
+  return;
 }
 
 # https://spec.commonmark.org/0.30/#atx-headings

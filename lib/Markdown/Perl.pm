@@ -326,10 +326,15 @@ will replace whatever would have been used for the link content.
 
 =item *
 
-C<yaml_metadata>: this hook will trigger if there is valid (!) YAML metadata in 
-the file and will give you a hashref as an argument. If the hook throws a die(),
-the Markdown parsing will stop as the die() needs to be handled by your code. 
-This allows for conditional parsing based on values in the metadata section.
+C<yaml_metadata>: this hook will trigger if there is B<valid> YAML metadata at
+the beginning of the file. This also requires that the
+L<parse_file_metadata option|Markdown::Perl::Options/parse_file_metadata> is set
+to C<yaml> (which is the default in our default mode). The hook will receive a
+hashref or an arrayref with the content of the YAML document.
+
+To allow conditional parsing based on some metadata, if the hook dies, the
+exception will interrupt the processing and be propagated as-is to the initial
+caller.
 
 =back
 
