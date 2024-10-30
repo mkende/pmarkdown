@@ -5,6 +5,7 @@ use utf8;
 use Markdown::Perl 'convert', 'set_hooks';
 use Test::More;
 use Test2::Tools::Warnings;
+use Test2::Tools::Exception;
 
 my $p = Markdown::Perl->new();
 my $page = <<EOF;
@@ -64,9 +65,7 @@ EOF
     die "last words";
   }
   $p->set_hooks(yaml_metadata => \&hook_die);
-  my $eval_result = eval { $p->convert($page) };
-  ok(!defined($eval_result) && $@, "The code died correctly");
-  ok($@ =~ /^last words/, "Code died with the correct message");
+  like( dies { $p->convert($page) }, qr/last words/, "The hook correctly died.");
 }
 
 done_testing;
