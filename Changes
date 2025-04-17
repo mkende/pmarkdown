@@ -1,6 +1,6 @@
 Revision history for pmarkdown and the Markdown::Perl module.
 
-1.10 - ??
+1.10 - 2025-04-17
 
  - Support YAML::PP and YAML::PP::LibYAML as YAML parsers as YAML::Tiny has
    limitations in terms of supported YAML syntax (fix #6).
