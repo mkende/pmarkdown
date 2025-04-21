@@ -1,4 +1,4 @@
-personal_ws-1.1 en 187 
+personal_ws-1.1 en 189 
 Babelmark
 BlockTree
 BuiltinFunctions
@@ -27,6 +27,7 @@ ProhibitBuiltinHomonyms
 ProhibitCaptureWithoutTest
 ProhibitComplexRegexes
 ProhibitComplexVersion
+ProhibitConditionalDeclaration
 ProhibitConstantPragma
 ProhibitExcessComplexity
 ProhibitFixedStringMatches
@@ -114,6 +115,7 @@ json
 li
 licenced
 linkrefs
+lm
 lr
 lt
 mailto

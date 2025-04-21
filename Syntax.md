@@ -300,6 +300,55 @@ TODO, but note that pmarkdown is using the default
 TODO, but note that pmarkdown is using the default
 [CommonMark syntax](https://spec.commonmark.org/0.31.2/#block-quotes).
 
+### Directive blocks
+
+Directive blocks can be used to specify custom HTML `div`. Such a block begins
+with a line like `:::name[inline-content]{#id .class key=value}` which starts
+with up to 3 optional spaces, followed by at least 3 colons, then a name for the
+directive, then inline content, attributes, any number of colons, and finally a
+newline. Each of these elements except the opening colons are optional and
+spaces can be used to separate all the elements.
+
+The block extends until the enclosing block ends, or until a line optionally
+prefixed by up to 3 spaces and containing only colons in at least the same
+number as those opening the block (before the name).
+
+Example:
+
+```md
+::: name [inline-content] {#id .class key=value}
+markdown content
+:::
+```
+
+Is rendered as:
+
+```html
+<div id="id" class="name class" data-key="value">
+  <p>markdown content</p>
+</div>
+```
+
+Another example:
+
+```md
+:::::::: SPOILERS ::::::::
+content
+::::::::::::::::::::::::::
+```
+
+Is rendered as:
+
+```html
+<div class="spoilers">
+  <p>content</p>
+</div>
+```
+
+Note that the case change in the example above is applied only on a class
+supplied as the name of the block. Also, as of know, the inline content of the
+directive is ignored and will generate a warning if present.
+
 ## Inlines
 
 Inline content is the content that can appear within other blocks or, as
