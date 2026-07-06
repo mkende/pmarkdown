@@ -22,10 +22,15 @@ WriteMakefile(
     # is a file named Makefile.PL in a sub-directory. Should be customized if such a file needs to be
     # processed by ExtUtils.
     DIR              => [],
-    NO_MYMETA => 1,
     META_MERGE => {
       'meta-spec' => { version => 2 },
-      # Goes with NO_MYMETA (which would provide the dynamic config).
+      # Our prerequisites are declared statically in the cpanfile, so no code
+      # needs to run at install time to compute them. We keep MYMETA generation
+      # enabled (i.e. no NO_MYMETA) because installers such as App::cpm and
+      # App::cpanminus discover a distribution's prerequisites from the MYMETA
+      # produced by the configure step; without it, our runtime dependencies
+      # (Unicode::CaseFold, etc.) are invisible when pmarkdown is pulled in as a
+      # dependency, e.g. when generating a cpanfile.snapshot.
       dynamic_config => 0,
       no_index => {
         directory => [ 'local', 'vendor', 't' ],
