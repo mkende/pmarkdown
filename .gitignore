@@ -19,6 +19,7 @@
 *.bak
 *.tdy
 /Markdown-Perl-*/
+/MYMETA.*
 
 # End of the template. You can add custom content below this line.
 
