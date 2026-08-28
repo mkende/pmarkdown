@@ -144,7 +144,7 @@ sub find_code_and_tag_runs {
       }
     }
   }
-  $tree->push(new_text($text)) if $text;
+  $tree->push(new_text($text)) if length($text) > 0;
 
   return $tree;
 }
@@ -174,7 +174,7 @@ sub process_char_escaping {
       $new_tree->push(new_literal($1));
       substr $node->{content}, 0, $LAST_MATCH_END[0], '';  # This resets pos($node->{content}) as we want it to.
     }
-    $new_tree->push($node) if $node->{content};
+    $new_tree->push($node) if length($node->{content}) > 0;
     return $new_tree;
   } elsif ($node->{type} eq 'html') {
     return $node;
