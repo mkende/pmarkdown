@@ -1,5 +1,9 @@
 Revision history for pmarkdown and the Markdown::Perl module.
 
+1.14 - ??
+
+ - Fix the loss of inline "falsy" or empty paragraph, text, link/image titles.
+
 1.13 - 2026-07-07
 
  - Fix the invalid version number in App::pmarkdown.

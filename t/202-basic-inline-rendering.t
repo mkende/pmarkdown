@@ -51,6 +51,11 @@ is(run('[foo]()'), "<p><a href=\"\">foo</a></p>\n", 'link3');
 is(run('[foo](/bar "title")'), "<p><a href=\"/bar\" title=\"title\">foo</a></p>\n", 'link4');
 is(run('[foo](</bar/baz>)'), "<p><a href=\"/bar/baz\">foo</a></p>\n", 'link5');
 is(run('[foo](</bar/baz> "title")'), "<p><a href=\"/bar/baz\" title=\"title\">foo</a></p>\n", 'link6');
+is(run('[foo](/bar "0")'), "<p><a href=\"/bar\" title=\"0\">foo</a></p>\n", 'link7');
+is(run("[foo](/bar '0')"), "<p><a href=\"/bar\" title=\"0\">foo</a></p>\n", 'link8');
+is(run('[foo](/bar (0))'), "<p><a href=\"/bar\" title=\"0\">foo</a></p>\n", 'link9');
+is(run('[foo](/bar "")'), "<p><a href=\"/bar\" title=\"\">foo</a></p>\n", 'link10');
+is(run('![foo](/bar "0")'), "<p><img src=\"/bar\" alt=\"foo\" title=\"0\" /></p>\n", 'image1');
 
 is(run('*foo*'), "<p><em>foo</em></p>\n", 'em1');
 is(run('_foo_'), "<p><em>foo</em></p>\n", 'em2');
